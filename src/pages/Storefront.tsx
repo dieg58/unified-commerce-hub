@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useParams } from "react-router-dom";
 import TopBar from "@/components/TopBar";
 import { useAuth } from "@/hooks/useAuth";
 import { useCart, CartItem } from "@/hooks/useCart";
@@ -24,7 +25,8 @@ const Storefront = () => {
   const [placing, setPlacing] = useState(false);
   const [entityId, setEntityId] = useState<string>("");
 
-  const tenantId = profile?.tenant_id;
+  const { tenantId: paramTenantId } = useParams<{ tenantId: string }>();
+  const tenantId = paramTenantId || profile?.tenant_id;
 
   // Fetch products with prices
   const { data: products, isLoading } = useQuery({
