@@ -1,19 +1,45 @@
+import { useState } from "react";
 import TopBar from "@/components/TopBar";
 import { StatusBadge, SectionHeader } from "@/components/DashboardWidgets";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Plus, MoreHorizontal, Loader2 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Plus, MoreHorizontal, Loader2, Pencil, Power, PowerOff } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import CreateTenantWizard from "@/components/tenants/CreateTenantWizard";
+import EditTenantDialog from "@/components/tenants/EditTenantDialog";
 
 const Tenants = () => {
+  const qc = useQueryClient();
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [editTenant, setEditTenant] = useState<any>(null);
+
   const { data: tenants, isLoading } = useQuery({
     queryKey: ["tenants"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("tenants").select("*, tenant_branding(primary_color)").order("created_at", { ascending: false });
+      const { data, error } = await supabase
+        .from("tenants")
+        .select("*, tenant_branding(primary_color, accent_color, head_title, logo_url)")
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },
+  });
+
+  const toggleStatus = useMutation({
+    mutationFn: async ({ id, current }: { id: string; current: string }) => {
+      const next = current === "active" ? "suspended" : "active";
+      const { error } = await supabase.from("tenants").update({ status: next }).eq("id", id);
+      if (error) throw error;
+      return next;
+    },
+    onSuccess: (next) => {
+      toast.success(`Tenant ${next}`);
+      qc.invalidateQueries({ queryKey: ["tenants"] });
+    },
+    onError: (err: any) => toast.error(err.message),
   });
 
   return (
@@ -24,7 +50,7 @@ const Tenants = () => {
           <div className="p-5 border-b border-border">
             <SectionHeader
               title={`All Tenants (${tenants?.length || 0})`}
-              action={<Button size="sm" className="gap-1.5"><Plus className="w-4 h-4" />Add Tenant</Button>}
+              action={<Button size="sm" className="gap-1.5" onClick={() => setWizardOpen(true)}><Plus className="w-4 h-4" />Add Tenant</Button>}
             />
           </div>
           {isLoading ? (
@@ -61,7 +87,19 @@ const Tenants = () => {
                       <TableCell><StatusBadge status={tenant.status} /></TableCell>
                       <TableCell className="text-muted-foreground text-xs">{new Date(tenant.created_at).toLocaleDateString()}</TableCell>
                       <TableCell>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0"><MoreHorizontal className="w-4 h-4" /></Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0"><MoreHorizontal className="w-4 h-4" /></Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => setEditTenant(tenant)}>
+                              <Pencil className="w-4 h-4 mr-2" /> Edit Tenant
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => toggleStatus.mutate({ id: tenant.id, current: tenant.status })}>
+                              {tenant.status === "active" ? <><PowerOff className="w-4 h-4 mr-2" /> Suspend</> : <><Power className="w-4 h-4 mr-2" /> Activate</>}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   );
@@ -71,6 +109,9 @@ const Tenants = () => {
           )}
         </div>
       </div>
+
+      <CreateTenantWizard open={wizardOpen} onOpenChange={setWizardOpen} />
+      <EditTenantDialog tenant={editTenant} onClose={() => setEditTenant(null)} />
     </>
   );
 };
