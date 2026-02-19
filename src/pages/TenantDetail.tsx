@@ -147,9 +147,12 @@ const TenantDetail = () => {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <div className="w-6 h-6 rounded-full border-2 border-border" style={{ backgroundColor: branding?.primary_color || "#0ea5e9" }} title="Primary" />
             <div className="w-6 h-6 rounded-full border-2 border-border" style={{ backgroundColor: branding?.accent_color || "#10b981" }} title="Accent" />
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => navigate(`/store/${id}`)}>
+              <ShoppingCart className="w-4 h-4" /> Voir la boutique
+            </Button>
           </div>
         </div>
 
