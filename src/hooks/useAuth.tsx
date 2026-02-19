@@ -12,7 +12,8 @@ interface AuthState {
   roles: AppRole[];
   loading: boolean;
   isSuperAdmin: boolean;
-  isTenantAdmin: boolean;
+  isShopManager: boolean;
+  isDeptManager: boolean;
 }
 
 interface AuthContextType extends AuthState {
@@ -29,7 +30,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     roles: [],
     loading: true,
     isSuperAdmin: false,
-    isTenantAdmin: false,
+    isShopManager: false,
+    isDeptManager: false,
   });
 
   const fetchUserData = async (userId: string) => {
@@ -46,7 +48,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       profile,
       roles,
       isSuperAdmin: roles.includes("super_admin"),
-      isTenantAdmin: roles.includes("tenant_admin"),
+      isShopManager: roles.includes("shop_manager"),
+      isDeptManager: roles.includes("dept_manager"),
       loading: false,
     }));
   };
@@ -63,8 +66,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             ...prev,
             profile: null,
             roles: [],
-            isSuperAdmin: false,
-            isTenantAdmin: false,
+          isSuperAdmin: false,
+          isShopManager: false,
+          isDeptManager: false,
             loading: false,
           }));
         }
