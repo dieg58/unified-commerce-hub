@@ -8,6 +8,7 @@ import { RequireSuperAdmin, RequireTenantUser } from "@/components/RouteGuards";
 import AppLayout from "./components/AppLayout";
 import Dashboard from "./pages/Dashboard";
 import Tenants from "./pages/Tenants";
+import TenantDetail from "./pages/TenantDetail";
 import UsersPage from "./pages/UsersPage";
 import Orders from "./pages/Orders";
 import Budgets from "./pages/Budgets";
@@ -33,6 +34,7 @@ const App = () => (
             <Route element={<RequireSuperAdmin><AppLayout /></RequireSuperAdmin>}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/tenants" element={<Tenants />} />
+              <Route path="/tenants/:id" element={<TenantDetail />} />
               <Route path="/users" element={<UsersPage />} />
               <Route path="/orders" element={<Orders />} />
               <Route path="/budgets" element={<Budgets />} />
