@@ -17,7 +17,7 @@ import { useAuth } from "@/hooks/useAuth";
 
 const superAdminNav = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/tenants", icon: Building2, label: "Tenants" },
+  { to: "/tenants", icon: Building2, label: "Boutiques" },
   { to: "/users", icon: Users, label: "Users" },
   { to: "/orders", icon: ShoppingCart, label: "Orders" },
   { to: "/budgets", icon: Wallet, label: "Budgets" },

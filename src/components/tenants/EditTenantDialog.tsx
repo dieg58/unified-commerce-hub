@@ -76,11 +76,11 @@ export default function EditTenantDialog({ tenant, onClose }: Props) {
       const { error: bErr } = await supabase.from("tenant_branding").upsert(brandingPayload, { onConflict: "tenant_id" });
       if (bErr) throw bErr;
 
-      toast.success("Tenant updated");
+      toast.success("Boutique mise à jour");
       qc.invalidateQueries({ queryKey: ["tenants"] });
       onClose();
     } catch (err: any) {
-      toast.error(err.message || "Failed to update tenant");
+      toast.error(err.message || "Échec de la mise à jour");
     } finally {
       setSaving(false);
     }
@@ -90,7 +90,7 @@ export default function EditTenantDialog({ tenant, onClose }: Props) {
     <Dialog open={!!tenant} onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Edit Tenant</DialogTitle>
+          <DialogTitle>Modifier la Boutique</DialogTitle>
         </DialogHeader>
 
         <Tabs value={tab} onValueChange={setTab}>
@@ -101,7 +101,7 @@ export default function EditTenantDialog({ tenant, onClose }: Props) {
 
           <TabsContent value="info" className="space-y-4 mt-4">
             <div className="space-y-2">
-              <Label>Organization Name</Label>
+              <Label>Nom de la boutique</Label>
               <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={100} />
             </div>
             <div className="space-y-2">
