@@ -26,6 +26,15 @@ export const RequireTenantUser = ({ children }: { children: ReactNode }) => {
   return <>{children}</>;
 };
 
+export const RequireShopManager = ({ children }: { children: ReactNode }) => {
+  const { session, loading, isSuperAdmin, isShopManager } = useAuth();
+  if (loading) return <LoadingScreen />;
+  if (!session) return <Navigate to="/login" replace />;
+  if (isSuperAdmin) return <Navigate to="/" replace />;
+  if (!isShopManager) return <Navigate to="/tenant" replace />;
+  return <>{children}</>;
+};
+
 const LoadingScreen = () => (
   <div className="flex min-h-screen items-center justify-center bg-background">
     <Loader2 className="w-8 h-8 animate-spin text-primary" />

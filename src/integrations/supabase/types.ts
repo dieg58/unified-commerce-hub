@@ -510,7 +510,7 @@ export type Database = {
     }
     Enums: {
       address_type: "shipping" | "billing"
-      app_role: "super_admin" | "tenant_admin" | "entity_manager" | "staff"
+      app_role: "super_admin" | "shop_manager" | "dept_manager" | "employee"
       budget_period: "monthly" | "quarterly" | "yearly"
       store_type: "bulk" | "staff"
     }
@@ -641,7 +641,7 @@ export const Constants = {
   public: {
     Enums: {
       address_type: ["shipping", "billing"],
-      app_role: ["super_admin", "tenant_admin", "entity_manager", "staff"],
+      app_role: ["super_admin", "shop_manager", "dept_manager", "employee"],
       budget_period: ["monthly", "quarterly", "yearly"],
       store_type: ["bulk", "staff"],
     },

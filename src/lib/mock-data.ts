@@ -26,7 +26,7 @@ export interface User {
   entityId: string;
   name: string;
   email: string;
-  role: "super_admin" | "tenant_admin" | "entity_manager" | "staff";
+  role: "super_admin" | "shop_manager" | "dept_manager" | "employee";
   avatar?: string;
   monthlyBudgetCap: number;
   monthlySpent: number;
@@ -65,12 +65,12 @@ export const mockTenants: Tenant[] = [
 ];
 
 export const mockUsers: User[] = [
-  { id: "u1", tenantId: "t1", entityId: "e1", name: "Sarah Chen", email: "sarah@acme.com", role: "tenant_admin", monthlyBudgetCap: 5000, monthlySpent: 1200, status: "active" },
-  { id: "u2", tenantId: "t1", entityId: "e1", name: "James Wilson", email: "james@acme.com", role: "entity_manager", monthlyBudgetCap: 3000, monthlySpent: 2800, status: "active" },
-  { id: "u3", tenantId: "t1", entityId: "e2", name: "Maria Garcia", email: "maria@acme.com", role: "staff", monthlyBudgetCap: 500, monthlySpent: 320, status: "active" },
-  { id: "u4", tenantId: "t2", entityId: "e3", name: "David Kim", email: "david@globaltech.com", role: "tenant_admin", monthlyBudgetCap: 10000, monthlySpent: 4500, status: "active" },
-  { id: "u5", tenantId: "t2", entityId: "e3", name: "Lisa Johnson", email: "lisa@globaltech.com", role: "staff", monthlyBudgetCap: 800, monthlySpent: 0, status: "inactive" },
-  { id: "u6", tenantId: "t3", entityId: "e4", name: "Tom Brown", email: "tom@nordic.com", role: "entity_manager", monthlyBudgetCap: 2000, monthlySpent: 980, status: "active" },
+  { id: "u1", tenantId: "t1", entityId: "e1", name: "Sarah Chen", email: "sarah@acme.com", role: "shop_manager", monthlyBudgetCap: 5000, monthlySpent: 1200, status: "active" },
+  { id: "u2", tenantId: "t1", entityId: "e1", name: "James Wilson", email: "james@acme.com", role: "dept_manager", monthlyBudgetCap: 3000, monthlySpent: 2800, status: "active" },
+  { id: "u3", tenantId: "t1", entityId: "e2", name: "Maria Garcia", email: "maria@acme.com", role: "employee", monthlyBudgetCap: 500, monthlySpent: 320, status: "active" },
+  { id: "u4", tenantId: "t2", entityId: "e3", name: "David Kim", email: "david@globaltech.com", role: "shop_manager", monthlyBudgetCap: 10000, monthlySpent: 4500, status: "active" },
+  { id: "u5", tenantId: "t2", entityId: "e3", name: "Lisa Johnson", email: "lisa@globaltech.com", role: "employee", monthlyBudgetCap: 800, monthlySpent: 0, status: "inactive" },
+  { id: "u6", tenantId: "t3", entityId: "e4", name: "Tom Brown", email: "tom@nordic.com", role: "dept_manager", monthlyBudgetCap: 2000, monthlySpent: 980, status: "active" },
 ];
 
 export const mockOrders: Order[] = [
