@@ -103,7 +103,7 @@ const TenantDetail = () => {
   if (isLoading) {
     return (
       <>
-        <TopBar title="Tenant" subtitle="Loading..." />
+        <TopBar title="Boutique" subtitle="Chargement..." />
         <div className="flex-1 flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
       </>
     );
@@ -112,10 +112,10 @@ const TenantDetail = () => {
   if (!tenant) {
     return (
       <>
-        <TopBar title="Tenant" subtitle="Not found" />
+        <TopBar title="Boutique" subtitle="Introuvable" />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <p className="text-muted-foreground mb-4">Tenant introuvable</p>
+            <p className="text-muted-foreground mb-4">Boutique introuvable</p>
             <Button onClick={() => navigate("/tenants")}>Retour</Button>
           </div>
         </div>

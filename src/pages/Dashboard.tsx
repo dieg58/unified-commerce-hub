@@ -73,7 +73,7 @@ const Dashboard = () => {
       <TopBar title="Dashboard" subtitle="Super Admin Overview" />
       <div className="p-6 space-y-6 overflow-auto">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard label="Total Tenants" value={(tenants?.length || 0).toString()} icon={<Building2 className="w-4 h-4 text-primary" />} delay={0} />
+          <StatCard label="Boutiques" value={(tenants?.length || 0).toString()} icon={<Building2 className="w-4 h-4 text-primary" />} delay={0} />
           <StatCard label="Total Users" value={(profiles?.length || 0).toString()} icon={<Users className="w-4 h-4 text-primary" />} delay={50} />
           <StatCard label="Active Orders" value={activeOrders.length.toString()} icon={<ShoppingCart className="w-4 h-4 text-primary" />} delay={100} />
           <StatCard label="Total Revenue" value={formatCurrency(totalRevenue)} icon={<TrendingUp className="w-4 h-4 text-primary" />} delay={150} />
@@ -189,7 +189,7 @@ const Dashboard = () => {
 
         <div className="bg-card rounded-lg border border-border shadow-card animate-fade-in" style={{ animationDelay: "300ms" }}>
           <div className="p-5 border-b border-border">
-            <SectionHeader title="Tenants Overview" action={<Button variant="ghost" size="sm" onClick={() => navigate("/tenants")}>Manage</Button>} />
+            <SectionHeader title="Aperçu des Boutiques" action={<Button variant="ghost" size="sm" onClick={() => navigate("/tenants")}>Gérer</Button>} />
           </div>
           {!tenants?.length ? (
             <p className="p-8 text-center text-sm text-muted-foreground">No tenants created yet</p>

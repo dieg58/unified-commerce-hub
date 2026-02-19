@@ -13,7 +13,7 @@ interface Props {
   onOpenChange: (open: boolean) => void;
 }
 
-const STEPS = ["Tenant Info", "Branding", "Defaults"];
+const STEPS = ["Infos Boutique", "Branding", "Paramètres"];
 
 export default function CreateTenantWizard({ open, onOpenChange }: Props) {
   const qc = useQueryClient();
@@ -88,7 +88,7 @@ export default function CreateTenantWizard({ open, onOpenChange }: Props) {
         if (budErr) throw budErr;
       }
 
-      toast.success(`Tenant "${tenant.name}" created successfully`);
+      toast.success(`Boutique "${tenant.name}" créée avec succès`);
       qc.invalidateQueries({ queryKey: ["tenants"] });
       reset();
       onOpenChange(false);
@@ -108,7 +108,7 @@ export default function CreateTenantWizard({ open, onOpenChange }: Props) {
     <Dialog open={open} onOpenChange={(v) => { if (!saving) { onOpenChange(v); if (!v) reset(); } }}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Create Tenant</DialogTitle>
+          <DialogTitle>Nouvelle Boutique</DialogTitle>
         </DialogHeader>
 
         {/* Step indicators */}
@@ -129,7 +129,7 @@ export default function CreateTenantWizard({ open, onOpenChange }: Props) {
           {step === 0 && (
             <>
               <div className="space-y-2">
-                <Label>Organization Name *</Label>
+                <Label>Nom de la boutique *</Label>
                 <Input value={name} onChange={(e) => { setName(e.target.value); if (!slug || slug === name.toLowerCase().replace(/\s+/g, "-")) setSlug(e.target.value.toLowerCase().replace(/\s+/g, "-")); }} placeholder="Acme Corporation" maxLength={100} />
               </div>
               <div className="space-y-2">
@@ -202,7 +202,7 @@ export default function CreateTenantWizard({ open, onOpenChange }: Props) {
           ) : (
             <Button onClick={handleCreate} disabled={saving || !canNext()}>
               {saving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Check className="w-4 h-4 mr-1" />}
-              Create Tenant
+              Créer la Boutique
             </Button>
           )}
         </div>
