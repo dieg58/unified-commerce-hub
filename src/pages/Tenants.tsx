@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import TopBar from "@/components/TopBar";
 import { StatusBadge, SectionHeader } from "@/components/DashboardWidgets";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -12,6 +13,7 @@ import CreateTenantWizard from "@/components/tenants/CreateTenantWizard";
 import EditTenantDialog from "@/components/tenants/EditTenantDialog";
 
 const Tenants = () => {
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const [wizardOpen, setWizardOpen] = useState(false);
   const [editTenant, setEditTenant] = useState<any>(null);
@@ -72,7 +74,7 @@ const Tenants = () => {
                   const branding = tenant.tenant_branding as any;
                   const color = branding?.primary_color || "#0ea5e9";
                   return (
-                    <TableRow key={tenant.id} className="text-sm animate-fade-in" style={{ animationDelay: `${i * 50}ms` }}>
+                    <TableRow key={tenant.id} className="text-sm animate-fade-in cursor-pointer hover:bg-muted/50" style={{ animationDelay: `${i * 50}ms` }} onClick={() => navigate(`/tenants/${tenant.id}`)}>
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-md flex items-center justify-center text-xs font-bold shrink-0" style={{ backgroundColor: color + "20", color }}>
