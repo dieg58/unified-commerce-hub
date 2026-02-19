@@ -1,8 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
-import TopBar from "@/components/TopBar";
 import { useAuth } from "@/hooks/useAuth";
-import { useCart, CartItem } from "@/hooks/useCart";
+import { useCart } from "@/hooks/useCart";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/mock-data";
@@ -11,16 +10,19 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ShoppingCart, Plus, Minus, Trash2, Loader2, Package, CheckCircle, AlertTriangle, Search } from "lucide-react";
+import {
+  ShoppingCart, Plus, Minus, Trash2, Loader2, Package, CheckCircle,
+  AlertTriangle, Search, Store, Users, Sparkles
+} from "lucide-react";
 import { toast } from "sonner";
 
 const Storefront = () => {
   const { profile } = useAuth();
   const { items, addItem, removeItem, updateQty, clear, total, count } = useCart();
-  const [storeType, setStoreType] = useState<"staff" | "bulk">("staff");
+  const [storeType, setStoreType] = useState<"staff" | "bulk">("bulk");
   const [search, setSearch] = useState("");
+  const [activeCategory, setActiveCategory] = useState("Tous");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [entityId, setEntityId] = useState<string>("");
@@ -28,7 +30,21 @@ const Storefront = () => {
   const { tenantId: paramTenantId } = useParams<{ tenantId: string }>();
   const tenantId = paramTenantId || profile?.tenant_id;
 
-  // Fetch products with prices
+  // Fetch tenant branding
+  const { data: tenant } = useQuery({
+    queryKey: ["store-tenant", tenantId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tenants")
+        .select("*, tenant_branding(*)")
+        .eq("id", tenantId!)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!tenantId,
+  });
+
   const { data: products, isLoading } = useQuery({
     queryKey: ["store-products", tenantId],
     queryFn: async () => {
@@ -44,41 +60,49 @@ const Storefront = () => {
     enabled: !!tenantId,
   });
 
-  // Fetch entities for checkout
   const { data: entities } = useQuery({
     queryKey: ["store-entities", tenantId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("entities")
-        .select("*")
-        .eq("tenant_id", tenantId!)
-        .order("name");
+      const { data, error } = await supabase.from("entities").select("*").eq("tenant_id", tenantId!).order("name");
       if (error) throw error;
       return data;
     },
     enabled: !!tenantId,
   });
 
-  // Fetch budgets to check limits
   const { data: budgets } = useQuery({
     queryKey: ["store-budgets", tenantId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("budgets")
-        .select("*")
-        .eq("tenant_id", tenantId!);
+      const { data, error } = await supabase.from("budgets").select("*").eq("tenant_id", tenantId!);
       if (error) throw error;
       return data;
     },
     enabled: !!tenantId,
   });
 
-  const filteredProducts = products?.filter((p) => {
-    const prices = p.product_prices as any[];
-    const hasPrice = prices?.some((pr: any) => pr.store_type === storeType);
-    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.toLowerCase().includes(search.toLowerCase());
-    return hasPrice && matchesSearch;
-  }) || [];
+  const branding = tenant?.tenant_branding as any;
+  const primaryColor = branding?.primary_color || "#0ea5e9";
+  const accentColor = branding?.accent_color || "#10b981";
+  const tenantName = tenant?.name || "Boutique";
+  const headTitle = branding?.head_title || tenantName;
+  const logoUrl = branding?.logo_url;
+
+  // Categories from products
+  const categories = useMemo(() => {
+    if (!products) return ["Tous"];
+    const cats = [...new Set(products.map((p) => p.category || "general"))];
+    return ["Tous", ...cats.map((c) => c.charAt(0).toUpperCase() + c.slice(1))];
+  }, [products]);
+
+  const filteredProducts = useMemo(() => {
+    return products?.filter((p) => {
+      const prices = p.product_prices as any[];
+      const hasPrice = prices?.some((pr: any) => pr.store_type === storeType);
+      const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.toLowerCase().includes(search.toLowerCase());
+      const matchesCategory = activeCategory === "Tous" || (p.category || "general").toLowerCase() === activeCategory.toLowerCase();
+      return hasPrice && matchesSearch && matchesCategory;
+    }) || [];
+  }, [products, storeType, search, activeCategory]);
 
   const getPrice = (product: any) => {
     const prices = product.product_prices as any[];
@@ -89,184 +113,271 @@ const Storefront = () => {
   const selectedBudget = budgets?.find((b) => b.entity_id === entityId && b.store_type === storeType);
   const budgetRemaining = selectedBudget ? Number(selectedBudget.amount) - Number(selectedBudget.spent) : null;
   const isBudgetExceeded = storeType === "staff" && budgetRemaining !== null && total > budgetRemaining;
-
   const selectedEntity = entities?.find((e) => e.id === entityId);
   const requiresApproval = storeType === "bulk" && selectedEntity?.requires_approval;
 
   const handleCheckout = async () => {
     if (!entityId || !profile || !tenantId) return;
-    if (isBudgetExceeded) {
-      toast.error("Budget dépassé — commande impossible");
-      return;
-    }
+    if (isBudgetExceeded) { toast.error("Budget dépassé"); return; }
     setPlacing(true);
     try {
-      const orderStatus = requiresApproval ? "pending_approval" : "pending";
       const { data: order, error: oErr } = await supabase
         .from("orders")
         .insert({
-          tenant_id: tenantId,
-          entity_id: entityId,
-          created_by: profile.id,
-          store_type: storeType,
-          total,
-          status: orderStatus,
+          tenant_id: tenantId, entity_id: entityId, created_by: profile.id,
+          store_type: storeType, total, status: requiresApproval ? "pending_approval" : "pending",
         })
-        .select()
-        .single();
+        .select().single();
       if (oErr) throw oErr;
-
       const orderItems = items.map((item) => ({
-        order_id: order.id,
-        tenant_id: tenantId,
-        product_id: item.productId,
-        qty: item.qty,
-        unit_price: item.price,
+        order_id: order.id, tenant_id: tenantId, product_id: item.productId,
+        qty: item.qty, unit_price: item.price,
       }));
       const { error: iErr } = await supabase.from("order_items").insert(orderItems);
       if (iErr) throw iErr;
-
-      toast.success(requiresApproval
-        ? "Commande soumise — en attente d'approbation"
-        : "Commande passée avec succès !"
-      );
-      clear();
-      setCheckoutOpen(false);
+      toast.success(requiresApproval ? "Commande soumise pour approbation" : "Commande confirmée !");
+      clear(); setCheckoutOpen(false);
     } catch (err: any) {
-      toast.error(err.message || "Erreur lors de la commande");
-    } finally {
-      setPlacing(false);
-    }
+      toast.error(err.message);
+    } finally { setPlacing(false); }
   };
 
   if (!tenantId) {
     return (
-      <>
-        <TopBar title="Boutique" subtitle="Aucun tenant assigné" />
-        <div className="flex-1 flex items-center justify-center">
-          <p className="text-muted-foreground">Vous n'êtes assigné à aucune organisation.</p>
-        </div>
-      </>
+      <div className="flex-1 flex items-center justify-center bg-background">
+        <p className="text-muted-foreground">Aucun tenant assigné</p>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: primaryColor }} />
+      </div>
     );
   }
 
   return (
-    <>
-      <TopBar title="Boutique" subtitle="Parcourez le catalogue et passez commande" />
-      <div className="p-6 space-y-6 overflow-auto">
-        {/* Controls */}
-        <div className="flex items-center gap-4 flex-wrap">
-          <Tabs value={storeType} onValueChange={(v) => { setStoreType(v as any); clear(); }} className="w-auto">
-            <TabsList className="bg-secondary">
-              <TabsTrigger value="staff" className="text-xs">Staff Store</TabsTrigger>
-              <TabsTrigger value="bulk" className="text-xs">Bulk Store</TabsTrigger>
-            </TabsList>
-          </Tabs>
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Rechercher un produit..."
-              className="pl-9"
-            />
-          </div>
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="outline" className="gap-2 relative">
-                <ShoppingCart className="w-4 h-4" />
-                Panier
-                {count > 0 && (
-                  <Badge className="absolute -top-2 -right-2 h-5 w-5 p-0 flex items-center justify-center text-[10px]">
-                    {count}
-                  </Badge>
-                )}
-              </Button>
-            </SheetTrigger>
-            <SheetContent className="w-full sm:max-w-md">
-              <SheetHeader>
-                <SheetTitle>Panier ({count} articles)</SheetTitle>
-              </SheetHeader>
-              <div className="flex flex-col h-full">
-                <div className="flex-1 overflow-auto py-4 space-y-3">
-                  {items.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-8">Votre panier est vide</p>
-                  ) : (
-                    items.map((item) => (
-                      <div key={item.productId} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
-                          <p className="text-xs text-muted-foreground">{formatCurrency(item.price)} × {item.qty}</p>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => updateQty(item.productId, item.qty - 1)}>
-                            <Minus className="w-3 h-3" />
-                          </Button>
-                          <span className="text-sm font-medium w-8 text-center">{item.qty}</span>
-                          <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => updateQty(item.productId, item.qty + 1)}>
-                            <Plus className="w-3 h-3" />
-                          </Button>
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => removeItem(item.productId)}>
-                            <Trash2 className="w-3 h-3" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-                {items.length > 0 && (
-                  <div className="border-t border-border pt-4 pb-6 space-y-3">
-                    <div className="flex justify-between text-sm font-medium">
-                      <span>Total</span>
-                      <span className="text-lg font-bold">{formatCurrency(total)}</span>
-                    </div>
-                    <Button className="w-full" onClick={() => setCheckoutOpen(true)}>
-                      Passer commande
-                    </Button>
-                  </div>
-                )}
+    <div className="flex-1 flex flex-col overflow-auto bg-background">
+      {/* ─── Top Nav Bar ─── */}
+      <header className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b border-border">
+        <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {logoUrl ? (
+              <img src={logoUrl} alt={tenantName} className="h-8 object-contain" />
+            ) : (
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold text-white" style={{ backgroundColor: primaryColor }}>
+                {tenantName.charAt(0)}
               </div>
-            </SheetContent>
-          </Sheet>
+            )}
+            <span className="font-semibold text-foreground text-sm hidden sm:inline">{tenantName}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { setStoreType("bulk"); clear(); }}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${storeType === "bulk" ? "text-white" : "text-muted-foreground hover:text-foreground"}`}
+              style={storeType === "bulk" ? { backgroundColor: primaryColor } : {}}
+            >
+              Boutique Interne
+            </button>
+            <button
+              onClick={() => { setStoreType("staff"); clear(); }}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${storeType === "staff" ? "text-white" : "text-muted-foreground hover:text-foreground"}`}
+              style={storeType === "staff" ? { backgroundColor: primaryColor } : {}}
+            >
+              Merch Employé
+            </button>
+            <Sheet>
+              <SheetTrigger asChild>
+                <button className="relative p-2 rounded-md hover:bg-muted transition-colors ml-2">
+                  <ShoppingCart className="w-5 h-5 text-foreground" />
+                  {count > 0 && (
+                    <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ backgroundColor: primaryColor }}>
+                      {count}
+                    </span>
+                  )}
+                </button>
+              </SheetTrigger>
+              <SheetContent className="w-full sm:max-w-md">
+                <SheetHeader><SheetTitle>Panier ({count})</SheetTitle></SheetHeader>
+                <CartPanel
+                  items={items} updateQty={updateQty} removeItem={removeItem}
+                  total={total} onCheckout={() => setCheckoutOpen(true)}
+                  primaryColor={primaryColor}
+                />
+              </SheetContent>
+            </Sheet>
+          </div>
         </div>
+      </header>
 
-        {/* Product grid */}
-        {isLoading ? (
-          <div className="flex items-center justify-center p-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
-        ) : !filteredProducts.length ? (
-          <div className="text-center py-16">
-            <Package className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-            <p className="text-muted-foreground">Aucun produit disponible</p>
+      {/* ─── Hero Banner ─── */}
+      <section
+        className="relative overflow-hidden"
+        style={{
+          background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}dd, ${accentColor}99)`,
+        }}
+      >
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-0 right-0 w-96 h-96 rounded-full bg-white/20 -translate-y-1/2 translate-x-1/3" />
+          <div className="absolute bottom-0 left-0 w-64 h-64 rounded-full bg-white/10 translate-y-1/3 -translate-x-1/4" />
+        </div>
+        <div className="relative max-w-7xl mx-auto px-6 py-12 md:py-16">
+          <div className="flex items-center gap-2 mb-4">
+            <Badge className="bg-white/20 text-white border-white/30 text-xs gap-1 backdrop-blur-sm">
+              <Sparkles className="w-3 h-3" /> Nouvelle collection disponible
+            </Badge>
+          </div>
+          <h1 className="text-3xl md:text-5xl font-extrabold text-white leading-tight max-w-xl">
+            Boutique Merch<br />{headTitle}
+          </h1>
+          <p className="text-white/80 mt-4 max-w-lg text-sm md:text-base leading-relaxed">
+            Découvrez notre sélection exclusive de merchandising pour les collaborateurs. Commandez et récupérez au bureau.
+          </p>
+        </div>
+      </section>
+
+      {/* ─── Store Type Selector ─── */}
+      <div className="max-w-7xl mx-auto px-6 -mt-6 relative z-10">
+        <div className="bg-card border border-border rounded-xl shadow-card overflow-hidden grid grid-cols-2">
+          <button
+            onClick={() => { setStoreType("bulk"); clear(); }}
+            className={`flex flex-col items-center gap-1 py-4 transition-colors ${storeType === "bulk" ? "bg-card" : "bg-muted/30"}`}
+            style={storeType === "bulk" ? { borderBottom: `3px solid ${primaryColor}` } : { borderBottom: "3px solid transparent" }}
+          >
+            <Store className="w-5 h-5" style={{ color: storeType === "bulk" ? primaryColor : undefined }} />
+            <span className="text-sm font-semibold" style={{ color: storeType === "bulk" ? primaryColor : undefined }}>Merch Interne</span>
+            <span className="text-[10px] text-muted-foreground">Commandes en volume</span>
+          </button>
+          <button
+            onClick={() => { setStoreType("staff"); clear(); }}
+            className={`flex flex-col items-center gap-1 py-4 transition-colors ${storeType === "staff" ? "bg-card" : "bg-muted/30"}`}
+            style={storeType === "staff" ? { borderBottom: `3px solid ${primaryColor}` } : { borderBottom: "3px solid transparent" }}
+          >
+            <Users className="w-5 h-5" style={{ color: storeType === "staff" ? primaryColor : undefined }} />
+            <span className="text-sm font-semibold" style={{ color: storeType === "staff" ? primaryColor : undefined }}>Merch Employé</span>
+            <span className="text-[10px] text-muted-foreground">Commandes individuelles</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ─── Store type description ─── */}
+      <div className="max-w-7xl mx-auto px-6 mt-6">
+        <div className="rounded-xl border border-border bg-muted/30 p-4 text-center">
+          <p className="text-sm font-semibold text-foreground flex items-center justify-center gap-2">
+            <Package className="w-4 h-4" style={{ color: primaryColor }} />
+            {storeType === "bulk"
+              ? "Commandes en volume pour équipes & événements"
+              : "Commandes individuelles pour employés"
+            }
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {storeType === "bulk"
+              ? "Quantités minimales requises • Livraison sous 2-3 semaines • Idéal pour séminaires et événements"
+              : "Commandez librement dans la limite de votre budget • Récupération au bureau"
+            }
+          </p>
+        </div>
+      </div>
+
+      {/* ─── Category filters + Search ─── */}
+      <div className="max-w-7xl mx-auto px-6 mt-6 flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap flex-1">
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setActiveCategory(cat)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                activeCategory === cat
+                  ? "text-white border-transparent"
+                  : "text-foreground border-border hover:border-foreground/30 bg-card"
+              }`}
+              style={activeCategory === cat ? { backgroundColor: primaryColor } : {}}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+        <div className="relative w-full sm:w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Rechercher un produit..." className="pl-9 h-9 text-sm" />
+        </div>
+      </div>
+
+      {/* ─── Product Grid ─── */}
+      <div className="max-w-7xl mx-auto px-6 mt-6 pb-12">
+        {!filteredProducts.length ? (
+          <div className="text-center py-20">
+            <Package className="w-16 h-16 text-muted-foreground/20 mx-auto mb-4" />
+            <p className="text-muted-foreground text-sm">Aucun produit disponible dans cette catégorie</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {filteredProducts.map((product) => {
               const price = getPrice(product);
               const inCart = items.find((i) => i.productId === product.id);
+              const imageUrl = product.image_url;
               return (
-                <div key={product.id} className="bg-card rounded-lg border border-border shadow-card hover:shadow-card-hover transition-shadow p-4 flex flex-col">
-                  <div className="w-full h-32 rounded-md bg-muted/50 flex items-center justify-center mb-3">
-                    <Package className="w-10 h-10 text-muted-foreground/30" />
-                  </div>
-                  <h3 className="text-sm font-semibold text-foreground mb-1 truncate">{product.name}</h3>
-                  <p className="text-xs text-muted-foreground mb-2 font-mono">{product.sku}</p>
-                  <div className="mt-auto flex items-center justify-between">
-                    <p className="text-lg font-bold text-primary">{formatCurrency(price)}</p>
-                    {inCart ? (
-                      <div className="flex items-center gap-1">
-                        <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => updateQty(product.id, inCart.qty - 1)}>
-                          <Minus className="w-3 h-3" />
-                        </Button>
-                        <span className="text-sm font-medium w-6 text-center">{inCart.qty}</span>
-                        <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => updateQty(product.id, inCart.qty + 1)}>
-                          <Plus className="w-3 h-3" />
-                        </Button>
-                      </div>
+                <div key={product.id} className="group bg-card rounded-xl border border-border shadow-card hover:shadow-card-hover transition-all duration-300 overflow-hidden flex flex-col">
+                  {/* Image */}
+                  <div className="relative aspect-square bg-muted/30 overflow-hidden">
+                    {imageUrl ? (
+                      <img src={imageUrl} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                     ) : (
-                      <Button size="sm" className="gap-1" onClick={() => addItem({ productId: product.id, name: product.name, sku: product.sku, price, storeType })}>
-                        <Plus className="w-4 h-4" /> Ajouter
-                      </Button>
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Package className="w-16 h-16 text-muted-foreground/15" />
+                      </div>
                     )}
+                    {/* Category badge */}
+                    <div className="absolute top-3 left-3">
+                      <Badge className="text-[10px] bg-white/90 text-foreground border-0 backdrop-blur-sm shadow-sm capitalize">
+                        {product.category || "general"}
+                      </Badge>
+                    </div>
+                    {storeType === "bulk" && (
+                      <div className="absolute top-3 right-3">
+                        <Badge className="text-[10px] text-white border-0 gap-1" style={{ backgroundColor: primaryColor }}>
+                          <Package className="w-2.5 h-2.5" /> Min. 10 pcs
+                        </Badge>
+                      </div>
+                    )}
+                  </div>
+                  {/* Content */}
+                  <div className="p-4 flex flex-col flex-1">
+                    <h3 className="text-sm font-semibold text-foreground mb-1 line-clamp-2">{product.name}</h3>
+                    {product.description && (
+                      <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{product.description}</p>
+                    )}
+                    <div className="mt-auto flex items-center justify-between pt-2">
+                      <p className="text-lg font-bold" style={{ color: primaryColor }}>{formatCurrency(price)}</p>
+                      {inCart ? (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => updateQty(product.id, inCart.qty - 1)}
+                            className="w-8 h-8 rounded-lg border border-border flex items-center justify-center hover:bg-muted transition-colors"
+                          >
+                            <Minus className="w-3 h-3" />
+                          </button>
+                          <span className="text-sm font-bold w-6 text-center">{inCart.qty}</span>
+                          <button
+                            onClick={() => updateQty(product.id, inCart.qty + 1)}
+                            className="w-8 h-8 rounded-lg border border-border flex items-center justify-center hover:bg-muted transition-colors"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <Button
+                          size="sm"
+                          className="gap-1.5 text-white rounded-lg"
+                          style={{ backgroundColor: primaryColor }}
+                          onClick={() => addItem({ productId: product.id, name: product.name, sku: product.sku, price, storeType })}
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Ajouter
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -275,12 +386,10 @@ const Storefront = () => {
         )}
       </div>
 
-      {/* Checkout dialog */}
+      {/* ─── Checkout Dialog ─── */}
       <Dialog open={checkoutOpen} onOpenChange={setCheckoutOpen}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Finaliser la commande</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Finaliser la commande</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Entité *</label>
@@ -293,29 +402,21 @@ const Storefront = () => {
                 </SelectContent>
               </Select>
             </div>
-
             {entityId && storeType === "staff" && budgetRemaining !== null && (
               <div className={`rounded-lg border p-3 ${isBudgetExceeded ? "border-destructive bg-destructive/5" : "border-border bg-muted/30"}`}>
                 <div className="flex items-center gap-2">
                   {isBudgetExceeded ? <AlertTriangle className="w-4 h-4 text-destructive" /> : <CheckCircle className="w-4 h-4 text-success" />}
-                  <span className="text-sm font-medium">
-                    Budget restant : {formatCurrency(budgetRemaining)}
-                  </span>
+                  <span className="text-sm font-medium">Budget restant : {formatCurrency(budgetRemaining)}</span>
                 </div>
-                {isBudgetExceeded && (
-                  <p className="text-xs text-destructive mt-1">Le total ({formatCurrency(total)}) dépasse le budget disponible.</p>
-                )}
+                {isBudgetExceeded && <p className="text-xs text-destructive mt-1">Le total ({formatCurrency(total)}) dépasse le budget.</p>}
               </div>
             )}
-
             {requiresApproval && (
               <div className="rounded-lg border border-warning/30 bg-warning/5 p-3 flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-warning shrink-0" />
-                <p className="text-xs text-warning">Cette commande bulk nécessite une approbation avant traitement.</p>
+                <p className="text-xs text-warning">Cette commande nécessite une approbation.</p>
               </div>
             )}
-
-            {/* Summary */}
             <div className="rounded-lg border border-border p-3 space-y-2">
               <p className="text-sm font-medium">Résumé</p>
               {items.map((item) => (
@@ -330,21 +431,79 @@ const Storefront = () => {
               </div>
             </div>
           </div>
-
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setCheckoutOpen(false)}>Annuler</Button>
             <Button
               onClick={handleCheckout}
               disabled={!entityId || placing || isBudgetExceeded}
+              className="text-white"
+              style={{ backgroundColor: primaryColor }}
             >
               {placing ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <CheckCircle className="w-4 h-4 mr-1" />}
-              {requiresApproval ? "Soumettre pour approbation" : "Confirmer la commande"}
+              {requiresApproval ? "Soumettre" : "Confirmer"}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 };
+
+/* ─── Cart Panel Component ─── */
+function CartPanel({
+  items, updateQty, removeItem, total, onCheckout, primaryColor,
+}: {
+  items: any[]; updateQty: (id: string, qty: number) => void;
+  removeItem: (id: string) => void; total: number;
+  onCheckout: () => void; primaryColor: string;
+}) {
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex-1 overflow-auto py-4 space-y-3">
+        {items.length === 0 ? (
+          <div className="text-center py-12">
+            <ShoppingCart className="w-12 h-12 text-muted-foreground/20 mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground">Votre panier est vide</p>
+          </div>
+        ) : (
+          items.map((item: any) => (
+            <div key={item.productId} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card">
+              <div className="w-12 h-12 rounded-md bg-muted/50 flex items-center justify-center shrink-0">
+                <Package className="w-5 h-5 text-muted-foreground/30" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
+                <p className="text-xs text-muted-foreground">{formatCurrency(item.price)} × {item.qty}</p>
+              </div>
+              <div className="flex items-center gap-1">
+                <button onClick={() => updateQty(item.productId, item.qty - 1)} className="w-7 h-7 rounded border border-border flex items-center justify-center hover:bg-muted">
+                  <Minus className="w-3 h-3" />
+                </button>
+                <span className="text-sm font-medium w-6 text-center">{item.qty}</span>
+                <button onClick={() => updateQty(item.productId, item.qty + 1)} className="w-7 h-7 rounded border border-border flex items-center justify-center hover:bg-muted">
+                  <Plus className="w-3 h-3" />
+                </button>
+                <button onClick={() => removeItem(item.productId)} className="w-7 h-7 rounded flex items-center justify-center text-destructive hover:bg-destructive/10">
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+      {items.length > 0 && (
+        <div className="border-t border-border pt-4 pb-6 space-y-3">
+          <div className="flex justify-between">
+            <span className="text-sm text-muted-foreground">Total</span>
+            <span className="text-xl font-bold text-foreground">{formatCurrency(total)}</span>
+          </div>
+          <Button className="w-full text-white" style={{ backgroundColor: primaryColor }} onClick={onCheckout}>
+            Passer commande
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default Storefront;
