@@ -16,13 +16,13 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 
 const superAdminNav = [
-  { to: "/", icon: LayoutDashboard, label: "Dashboard" },
+  { to: "/", icon: LayoutDashboard, label: "Tableau de bord" },
   { to: "/tenants", icon: Building2, label: "Boutiques" },
-  { to: "/users", icon: Users, label: "Users" },
-  { to: "/orders", icon: ShoppingCart, label: "Orders" },
+  { to: "/users", icon: Users, label: "Utilisateurs" },
+  { to: "/orders", icon: ShoppingCart, label: "Commandes" },
   { to: "/budgets", icon: Wallet, label: "Budgets" },
-  { to: "/catalog", icon: Package, label: "Catalog" },
-  { to: "/settings", icon: Settings, label: "Settings" },
+  { to: "/catalog", icon: Package, label: "Catalogue" },
+  { to: "/settings", icon: Settings, label: "Paramètres" },
 ];
 
 const tenantNav = [
@@ -90,7 +90,7 @@ const AppSidebar = () => {
           className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors w-full"
         >
           <LogOut className="w-4 h-4 shrink-0" />
-          {!collapsed && <span>Sign Out</span>}
+          {!collapsed && <span>Déconnexion</span>}
         </button>
         <button
           onClick={() => setCollapsed(!collapsed)}
