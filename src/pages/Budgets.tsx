@@ -7,18 +7,18 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 const Budgets = () => {
-  const { data: entities, isLoading } = useQuery({
-    queryKey: ["entities"],
+  const { data: budgets, isLoading } = useQuery({
+    queryKey: ["budgets"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("entities").select("*, tenants(name)").order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("budgets").select("*, entities(name), tenants(name)").order("updated_at", { ascending: false });
       if (error) throw error;
       return data;
     },
   });
 
-  const totalBudget = entities?.reduce((s, b) => s + Number(b.budget), 0) || 0;
-  const totalUsed = entities?.reduce((s, b) => s + Number(b.budget_used), 0) || 0;
-  const overBudget = entities?.filter((b) => Number(b.budget) > 0 && Number(b.budget_used) / Number(b.budget) > 0.9) || [];
+  const totalBudget = budgets?.reduce((s, b) => s + Number(b.amount), 0) || 0;
+  const totalUsed = budgets?.reduce((s, b) => s + Number(b.spent), 0) || 0;
+  const overBudget = budgets?.filter((b) => Number(b.amount) > 0 && Number(b.spent) / Number(b.amount) > 0.9) || [];
   const utilization = totalBudget > 0 ? Math.round((totalUsed / totalBudget) * 100) : 0;
 
   if (isLoading) {
@@ -45,26 +45,29 @@ const Budgets = () => {
           <div className="p-5 border-b border-border">
             <SectionHeader title="Entity Budgets" />
           </div>
-          {!entities?.length ? (
-            <p className="p-12 text-center text-sm text-muted-foreground">No entities with budgets yet</p>
+          {!budgets?.length ? (
+            <p className="p-12 text-center text-sm text-muted-foreground">No budgets configured yet</p>
           ) : (
             <div className="divide-y divide-border">
-              {entities.map((b, i) => {
-                const budget = Number(b.budget);
-                const used = Number(b.budget_used);
-                const pct = budget > 0 ? Math.round((used / budget) * 100) : 0;
+              {budgets.map((b, i) => {
+                const amount = Number(b.amount);
+                const spent = Number(b.spent);
+                const pct = amount > 0 ? Math.round((spent / amount) * 100) : 0;
                 const isWarning = pct > 90;
+                const entity = b.entities as any;
                 const tenant = b.tenants as any;
                 return (
                   <div key={b.id} className="p-5 animate-fade-in" style={{ animationDelay: `${(i + 4) * 50}ms` }}>
                     <div className="flex items-center justify-between mb-1">
                       <div>
-                        <p className="text-sm font-medium text-foreground">{b.name}</p>
-                        <p className="text-xs text-muted-foreground">{tenant?.name || "—"}</p>
+                        <p className="text-sm font-medium text-foreground">{entity?.name || "—"}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {tenant?.name || "—"} · {b.store_type} · {b.period}
+                        </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-semibold text-foreground">{formatCurrency(used)}</p>
-                        <p className="text-xs text-muted-foreground">of {formatCurrency(budget)}</p>
+                        <p className="text-sm font-semibold text-foreground">{formatCurrency(spent)}</p>
+                        <p className="text-xs text-muted-foreground">of {formatCurrency(amount)}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">

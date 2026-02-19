@@ -12,14 +12,14 @@ const Orders = () => {
   const { data: orders, isLoading } = useQuery({
     queryKey: ["orders"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("orders").select("*, profiles:user_id(full_name, email)").order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("orders").select("*, profiles:created_by(full_name, email), order_items(qty)").order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },
   });
 
-  const bulkOrders = orders?.filter((o) => o.type === "bulk") || [];
-  const staffOrders = orders?.filter((o) => o.type === "staff") || [];
+  const bulkOrders = orders?.filter((o) => o.store_type === "bulk") || [];
+  const staffOrders = orders?.filter((o) => o.store_type === "staff") || [];
 
   const OrderTable = ({ items }: { items: typeof orders }) => {
     if (!items?.length) return <p className="p-8 text-center text-sm text-muted-foreground">No orders found</p>;
@@ -29,6 +29,7 @@ const Orders = () => {
           <TableRow>
             <TableHead className="text-xs">Order ID</TableHead>
             <TableHead className="text-xs">User</TableHead>
+            <TableHead className="text-xs">Store</TableHead>
             <TableHead className="text-xs">Items</TableHead>
             <TableHead className="text-xs">Total</TableHead>
             <TableHead className="text-xs">Status</TableHead>
@@ -39,11 +40,17 @@ const Orders = () => {
         <TableBody>
           {items.map((order, i) => {
             const profile = order.profiles as any;
+            const itemsCount = (order.order_items as any[])?.reduce((s, it) => s + it.qty, 0) || 0;
             return (
               <TableRow key={order.id} className="text-sm animate-fade-in" style={{ animationDelay: `${i * 50}ms` }}>
                 <TableCell className="font-mono text-xs">{order.id.slice(0, 8)}</TableCell>
                 <TableCell className="font-medium">{profile?.full_name || profile?.email || "—"}</TableCell>
-                <TableCell>{order.items_count}</TableCell>
+                <TableCell>
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${order.store_type === "bulk" ? "bg-primary/10 text-primary" : "bg-accent/10 text-accent"}`}>
+                    {order.store_type}
+                  </span>
+                </TableCell>
+                <TableCell>{itemsCount}</TableCell>
                 <TableCell className="font-medium">{formatCurrency(Number(order.total))}</TableCell>
                 <TableCell><StatusBadge status={order.status} /></TableCell>
                 <TableCell className="text-muted-foreground text-xs">{new Date(order.created_at).toLocaleDateString()}</TableCell>
