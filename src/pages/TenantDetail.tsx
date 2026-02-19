@@ -321,17 +321,42 @@ function ProductsTab({ tenantId, products }: { tenantId: string; products: any[]
   const [showAdd, setShowAdd] = useState(false);
   const [name, setName] = useState("");
   const [sku, setSku] = useState("");
+  const [category, setCategory] = useState("general");
+  const [description, setDescription] = useState("");
   const [bulkPrice, setBulkPrice] = useState("");
   const [staffPrice, setStaffPrice] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const resetForm = () => {
+    setName(""); setSku(""); setCategory("general"); setDescription("");
+    setBulkPrice(""); setStaffPrice(""); setImageFile(null);
+  };
+
+  const uploadImage = async (productId: string, file: File) => {
+    const ext = file.name.split(".").pop();
+    const path = `${tenantId}/${productId}.${ext}`;
+    const { error } = await supabase.storage.from("product-images").upload(path, file, { upsert: true });
+    if (error) throw error;
+    const { data: { publicUrl } } = supabase.storage.from("product-images").getPublicUrl(path);
+    return publicUrl;
+  };
 
   const addProduct = useMutation({
     mutationFn: async () => {
+      setUploading(true);
       const { data: product, error } = await supabase
         .from("products")
-        .insert({ tenant_id: tenantId, name: name.trim(), sku: sku.trim().toUpperCase() })
+        .insert({ tenant_id: tenantId, name: name.trim(), sku: sku.trim().toUpperCase(), category: category.trim().toLowerCase(), description: description.trim() || null })
         .select()
         .single();
       if (error) throw error;
+
+      // Upload image if provided
+      if (imageFile) {
+        const imageUrl = await uploadImage(product.id, imageFile);
+        await supabase.from("products").update({ image_url: imageUrl }).eq("id", product.id);
+      }
 
       const prices = [];
       if (bulkPrice) prices.push({ tenant_id: tenantId, product_id: product.id, store_type: "bulk" as const, price: parseFloat(bulkPrice) });
@@ -345,12 +370,10 @@ function ProductsTab({ tenantId, products }: { tenantId: string; products: any[]
       toast.success("Produit ajouté");
       qc.invalidateQueries({ queryKey: ["products", tenantId] });
       setShowAdd(false);
-      setName("");
-      setSku("");
-      setBulkPrice("");
-      setStaffPrice("");
+      resetForm();
+      setUploading(false);
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: any) => { toast.error(err.message); setUploading(false); },
   });
 
   const toggleActive = useMutation({
@@ -376,8 +399,10 @@ function ProductsTab({ tenantId, products }: { tenantId: string; products: any[]
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="text-xs">Image</TableHead>
               <TableHead className="text-xs">Produit</TableHead>
               <TableHead className="text-xs">SKU</TableHead>
+              <TableHead className="text-xs">Catégorie</TableHead>
               <TableHead className="text-xs">Prix Bulk</TableHead>
               <TableHead className="text-xs">Prix Staff</TableHead>
               <TableHead className="text-xs">Statut</TableHead>
@@ -391,8 +416,21 @@ function ProductsTab({ tenantId, products }: { tenantId: string; products: any[]
               const staff = prices?.find((pr: any) => pr.store_type === "staff");
               return (
                 <TableRow key={p.id} className="text-sm">
-                  <TableCell className="font-medium">{p.name}</TableCell>
+                  <TableCell>
+                    <div className="w-10 h-10 rounded-md bg-muted/50 overflow-hidden shrink-0">
+                      {p.image_url ? (
+                        <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center"><Package className="w-4 h-4 text-muted-foreground/30" /></div>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <p className="font-medium">{p.name}</p>
+                    {p.description && <p className="text-xs text-muted-foreground truncate max-w-[200px]">{p.description}</p>}
+                  </TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">{p.sku}</TableCell>
+                  <TableCell><Badge variant="outline" className="text-xs capitalize">{p.category || "general"}</Badge></TableCell>
                   <TableCell>{bulk ? formatCurrency(Number(bulk.price)) : "—"}</TableCell>
                   <TableCell>{staff ? formatCurrency(Number(staff.price)) : "—"}</TableCell>
                   <TableCell>
@@ -412,17 +450,41 @@ function ProductsTab({ tenantId, products }: { tenantId: string; products: any[]
         </Table>
       )}
 
-      <Dialog open={showAdd} onOpenChange={setShowAdd}>
-        <DialogContent className="sm:max-w-md">
+      <Dialog open={showAdd} onOpenChange={(v) => { setShowAdd(v); if (!v) resetForm(); }}>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader><DialogTitle>Nouveau produit</DialogTitle></DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-4 max-h-[60vh] overflow-auto">
             <div className="space-y-2">
               <Label>Nom *</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Chaise ergonomique" maxLength={200} />
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="T-Shirt Premium" maxLength={200} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>SKU *</Label>
+                <Input value={sku} onChange={(e) => setSku(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))} placeholder="TSHIRT-01" maxLength={50} />
+              </div>
+              <div className="space-y-2">
+                <Label>Catégorie</Label>
+                <Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="vêtements" maxLength={50} />
+              </div>
             </div>
             <div className="space-y-2">
-              <Label>SKU *</Label>
-              <Input value={sku} onChange={(e) => setSku(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))} placeholder="CHAIR-ERG-01" maxLength={50} />
+              <Label>Description</Label>
+              <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description courte du produit" maxLength={500} />
+            </div>
+            <div className="space-y-2">
+              <Label>Image produit</Label>
+              <Input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setImageFile(e.target.files?.[0] || null)}
+                className="text-sm"
+              />
+              {imageFile && (
+                <div className="w-20 h-20 rounded-md overflow-hidden border border-border">
+                  <img src={URL.createObjectURL(imageFile)} alt="Preview" className="w-full h-full object-cover" />
+                </div>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -436,9 +498,9 @@ function ProductsTab({ tenantId, products }: { tenantId: string; products: any[]
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setShowAdd(false)}>Annuler</Button>
-            <Button onClick={() => addProduct.mutate()} disabled={!name.trim() || !sku.trim() || addProduct.isPending}>
-              {addProduct.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
+            <Button variant="outline" onClick={() => { setShowAdd(false); resetForm(); }}>Annuler</Button>
+            <Button onClick={() => addProduct.mutate()} disabled={!name.trim() || !sku.trim() || addProduct.isPending || uploading}>
+              {(addProduct.isPending || uploading) ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
               Créer
             </Button>
           </div>
@@ -447,6 +509,7 @@ function ProductsTab({ tenantId, products }: { tenantId: string; products: any[]
     </div>
   );
 }
+
 
 /* ─── Budgets Tab ─── */
 function BudgetsTab({ budgets }: { budgets: any[] }) {
