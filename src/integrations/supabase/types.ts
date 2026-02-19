@@ -14,26 +14,173 @@ export type Database = {
   }
   public: {
     Tables: {
+      addresses: {
+        Row: {
+          address_line1: string
+          city: string
+          country: string
+          entity_id: string
+          id: string
+          is_default: boolean
+          label: string
+          tenant_id: string
+          type: Database["public"]["Enums"]["address_type"]
+        }
+        Insert: {
+          address_line1: string
+          city: string
+          country: string
+          entity_id: string
+          id?: string
+          is_default?: boolean
+          label: string
+          tenant_id: string
+          type: Database["public"]["Enums"]["address_type"]
+        }
+        Update: {
+          address_line1?: string
+          city?: string
+          country?: string
+          entity_id?: string
+          id?: string
+          is_default?: boolean
+          label?: string
+          tenant_id?: string
+          type?: Database["public"]["Enums"]["address_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "addresses_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "addresses_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      billing_profiles: {
+        Row: {
+          address_line1: string | null
+          city: string | null
+          country: string | null
+          entity_id: string | null
+          id: string
+          is_default: boolean
+          name: string
+          tenant_id: string
+          vat: string | null
+        }
+        Insert: {
+          address_line1?: string | null
+          city?: string | null
+          country?: string | null
+          entity_id?: string | null
+          id?: string
+          is_default?: boolean
+          name: string
+          tenant_id: string
+          vat?: string | null
+        }
+        Update: {
+          address_line1?: string | null
+          city?: string | null
+          country?: string | null
+          entity_id?: string | null
+          id?: string
+          is_default?: boolean
+          name?: string
+          tenant_id?: string
+          vat?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_profiles_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_profiles_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budgets: {
+        Row: {
+          amount: number
+          entity_id: string
+          id: string
+          period: Database["public"]["Enums"]["budget_period"]
+          spent: number
+          store_type: Database["public"]["Enums"]["store_type"]
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          entity_id: string
+          id?: string
+          period?: Database["public"]["Enums"]["budget_period"]
+          spent?: number
+          store_type: Database["public"]["Enums"]["store_type"]
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          entity_id?: string
+          id?: string
+          period?: Database["public"]["Enums"]["budget_period"]
+          spent?: number
+          store_type?: Database["public"]["Enums"]["store_type"]
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budgets_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budgets_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       entities: {
         Row: {
-          budget: number
-          budget_used: number
+          code: string
           created_at: string
           id: string
           name: string
           tenant_id: string
         }
         Insert: {
-          budget?: number
-          budget_used?: number
+          code: string
           created_at?: string
           id?: string
           name: string
           tenant_id: string
         }
         Update: {
-          budget?: number
-          budget_used?: number
+          code?: string
           created_at?: string
           id?: string
           name?: string
@@ -49,45 +196,85 @@ export type Database = {
           },
         ]
       }
-      orders: {
+      order_items: {
         Row: {
-          approved_by: string | null
-          created_at: string
-          entity_id: string
           id: string
-          items_count: number
-          status: string
+          order_id: string
+          product_id: string
+          qty: number
           tenant_id: string
-          total: number
-          type: string
-          updated_at: string
-          user_id: string
+          unit_price: number
         }
         Insert: {
-          approved_by?: string | null
-          created_at?: string
-          entity_id: string
           id?: string
-          items_count?: number
-          status?: string
+          order_id: string
+          product_id: string
+          qty?: number
           tenant_id: string
-          total?: number
-          type: string
-          updated_at?: string
-          user_id: string
+          unit_price?: number
         }
         Update: {
-          approved_by?: string | null
+          id?: string
+          order_id?: string
+          product_id?: string
+          qty?: number
+          tenant_id?: string
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          created_at: string
+          created_by: string
+          entity_id: string
+          id: string
+          status: string
+          store_type: Database["public"]["Enums"]["store_type"]
+          tenant_id: string
+          total: number
+        }
+        Insert: {
           created_at?: string
+          created_by: string
+          entity_id: string
+          id?: string
+          status?: string
+          store_type: Database["public"]["Enums"]["store_type"]
+          tenant_id: string
+          total?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
           entity_id?: string
           id?: string
-          items_count?: number
           status?: string
+          store_type?: Database["public"]["Enums"]["store_type"]
           tenant_id?: string
           total?: number
-          type?: string
-          updated_at?: string
-          user_id?: string
         }
         Relationships: [
           {
@@ -99,6 +286,80 @@ export type Database = {
           },
           {
             foreignKeyName: "orders_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_prices: {
+        Row: {
+          currency: string
+          id: string
+          price: number
+          product_id: string
+          store_type: Database["public"]["Enums"]["store_type"]
+          tenant_id: string
+        }
+        Insert: {
+          currency?: string
+          id?: string
+          price?: number
+          product_id: string
+          store_type: Database["public"]["Enums"]["store_type"]
+          tenant_id: string
+        }
+        Update: {
+          currency?: string
+          id?: string
+          price?: number
+          product_id?: string
+          store_type?: Database["public"]["Enums"]["store_type"]
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_prices_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_prices_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      products: {
+        Row: {
+          active: boolean
+          id: string
+          name: string
+          sku: string
+          tenant_id: string
+        }
+        Insert: {
+          active?: boolean
+          id?: string
+          name: string
+          sku: string
+          tenant_id: string
+        }
+        Update: {
+          active?: boolean
+          id?: string
+          name?: string
+          sku?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -141,13 +402,46 @@ export type Database = {
           },
         ]
       }
+      tenant_branding: {
+        Row: {
+          accent_color: string
+          favicon_url: string | null
+          head_title: string | null
+          logo_url: string | null
+          primary_color: string
+          tenant_id: string
+        }
+        Insert: {
+          accent_color?: string
+          favicon_url?: string | null
+          head_title?: string | null
+          logo_url?: string | null
+          primary_color?: string
+          tenant_id: string
+        }
+        Update: {
+          accent_color?: string
+          favicon_url?: string | null
+          head_title?: string | null
+          logo_url?: string | null
+          primary_color?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_branding_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenants: {
         Row: {
           created_at: string
           id: string
           name: string
-          plan: string
-          primary_color: string
           slug: string
           status: string
           updated_at: string
@@ -156,8 +450,6 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
-          plan?: string
-          primary_color?: string
           slug: string
           status?: string
           updated_at?: string
@@ -166,45 +458,11 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
-          plan?: string
-          primary_color?: string
           slug?: string
           status?: string
           updated_at?: string
         }
         Relationships: []
-      }
-      user_budget_caps: {
-        Row: {
-          entity_id: string
-          id: string
-          monthly_cap: number
-          monthly_spent: number
-          user_id: string
-        }
-        Insert: {
-          entity_id: string
-          id?: string
-          monthly_cap?: number
-          monthly_spent?: number
-          user_id: string
-        }
-        Update: {
-          entity_id?: string
-          id?: string
-          monthly_cap?: number
-          monthly_spent?: number
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "user_budget_caps_entity_id_fkey"
-            columns: ["entity_id"]
-            isOneToOne: false
-            referencedRelation: "entities"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       user_roles: {
         Row: {
@@ -239,7 +497,10 @@ export type Database = {
       }
     }
     Enums: {
+      address_type: "shipping" | "billing"
       app_role: "super_admin" | "tenant_admin" | "entity_manager" | "staff"
+      budget_period: "monthly" | "quarterly" | "yearly"
+      store_type: "bulk" | "staff"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -367,7 +628,10 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      address_type: ["shipping", "billing"],
       app_role: ["super_admin", "tenant_admin", "entity_manager", "staff"],
+      budget_period: ["monthly", "quarterly", "yearly"],
+      store_type: ["bulk", "staff"],
     },
   },
 } as const

@@ -14,7 +14,7 @@ const Dashboard = () => {
   const { data: tenants, isLoading: tenantsLoading } = useQuery({
     queryKey: ["tenants"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("tenants").select("*").order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("tenants").select("*, tenant_branding(primary_color)").order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },
@@ -23,7 +23,7 @@ const Dashboard = () => {
   const { data: orders, isLoading: ordersLoading } = useQuery({
     queryKey: ["orders"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("orders").select("*, profiles:user_id(full_name, email)").order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("orders").select("*, profiles:created_by(full_name, email)").order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },
@@ -33,15 +33,6 @@ const Dashboard = () => {
     queryKey: ["profiles-count"],
     queryFn: async () => {
       const { data, error } = await supabase.from("profiles").select("id");
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const { data: entities } = useQuery({
-    queryKey: ["entities"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("entities").select("*");
       if (error) throw error;
       return data;
     },
@@ -57,9 +48,7 @@ const Dashboard = () => {
     return (
       <>
         <TopBar title="Dashboard" subtitle="Super Admin Overview" />
-        <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        </div>
+        <div className="flex-1 flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
       </>
     );
   }
@@ -88,7 +77,7 @@ const Dashboard = () => {
                   <TableRow>
                     <TableHead className="text-xs">Order</TableHead>
                     <TableHead className="text-xs">User</TableHead>
-                    <TableHead className="text-xs">Type</TableHead>
+                    <TableHead className="text-xs">Store</TableHead>
                     <TableHead className="text-xs">Total</TableHead>
                     <TableHead className="text-xs">Status</TableHead>
                   </TableRow>
@@ -101,8 +90,8 @@ const Dashboard = () => {
                         <TableCell className="font-mono text-xs">{order.id.slice(0, 8)}</TableCell>
                         <TableCell>{profile?.full_name || profile?.email || "—"}</TableCell>
                         <TableCell>
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${order.type === "bulk" ? "bg-primary/10 text-primary" : "bg-accent/10 text-accent"}`}>
-                            {order.type}
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${order.store_type === "bulk" ? "bg-primary/10 text-primary" : "bg-accent/10 text-accent"}`}>
+                            {order.store_type}
                           </span>
                         </TableCell>
                         <TableCell className="font-medium">{formatCurrency(Number(order.total))}</TableCell>
@@ -146,7 +135,6 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Tenants */}
         <div className="bg-card rounded-lg border border-border shadow-card animate-fade-in" style={{ animationDelay: "300ms" }}>
           <div className="p-5 border-b border-border">
             <SectionHeader title="Tenants Overview" action={<Button variant="ghost" size="sm" onClick={() => navigate("/tenants")}>Manage</Button>} />
@@ -155,18 +143,22 @@ const Dashboard = () => {
             <p className="p-8 text-center text-sm text-muted-foreground">No tenants created yet</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-5">
-              {tenants.slice(0, 6).map((tenant) => (
-                <div key={tenant.id} className="flex items-center gap-3 p-3 rounded-md border border-border hover:shadow-card-hover transition-shadow cursor-pointer">
-                  <div className="w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold shrink-0" style={{ backgroundColor: tenant.primary_color + "20", color: tenant.primary_color }}>
-                    {tenant.name.charAt(0)}
+              {tenants.slice(0, 6).map((tenant) => {
+                const branding = tenant.tenant_branding as any;
+                const color = branding?.primary_color || "#0ea5e9";
+                return (
+                  <div key={tenant.id} className="flex items-center gap-3 p-3 rounded-md border border-border hover:shadow-card-hover transition-shadow cursor-pointer">
+                    <div className="w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold shrink-0" style={{ backgroundColor: color + "20", color }}>
+                      {tenant.name.charAt(0)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-foreground truncate">{tenant.name}</p>
+                      <p className="text-xs text-muted-foreground">{tenant.slug}</p>
+                    </div>
+                    <StatusBadge status={tenant.status} />
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-foreground truncate">{tenant.name}</p>
-                    <p className="text-xs text-muted-foreground">{tenant.slug}</p>
-                  </div>
-                  <StatusBadge status={tenant.status} />
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

@@ -10,7 +10,7 @@ const Tenants = () => {
   const { data: tenants, isLoading } = useQuery({
     queryKey: ["tenants"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("tenants").select("*").order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("tenants").select("*, tenant_branding(primary_color)").order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },
@@ -36,34 +36,36 @@ const Tenants = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead className="text-xs">Organization</TableHead>
-                  <TableHead className="text-xs">Plan</TableHead>
                   <TableHead className="text-xs">Status</TableHead>
                   <TableHead className="text-xs">Created</TableHead>
                   <TableHead className="text-xs w-10"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {tenants.map((tenant, i) => (
-                  <TableRow key={tenant.id} className="text-sm animate-fade-in" style={{ animationDelay: `${i * 50}ms` }}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-md flex items-center justify-center text-xs font-bold shrink-0" style={{ backgroundColor: tenant.primary_color + "20", color: tenant.primary_color }}>
-                          {tenant.name.charAt(0)}
+                {tenants.map((tenant, i) => {
+                  const branding = tenant.tenant_branding as any;
+                  const color = branding?.primary_color || "#0ea5e9";
+                  return (
+                    <TableRow key={tenant.id} className="text-sm animate-fade-in" style={{ animationDelay: `${i * 50}ms` }}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-md flex items-center justify-center text-xs font-bold shrink-0" style={{ backgroundColor: color + "20", color }}>
+                            {tenant.name.charAt(0)}
+                          </div>
+                          <div>
+                            <p className="font-medium text-foreground">{tenant.name}</p>
+                            <p className="text-xs text-muted-foreground">{tenant.slug}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-medium text-foreground">{tenant.name}</p>
-                          <p className="text-xs text-muted-foreground">{tenant.slug}</p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="capitalize text-sm">{tenant.plan}</TableCell>
-                    <TableCell><StatusBadge status={tenant.status} /></TableCell>
-                    <TableCell className="text-muted-foreground text-xs">{new Date(tenant.created_at).toLocaleDateString()}</TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0"><MoreHorizontal className="w-4 h-4" /></Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      </TableCell>
+                      <TableCell><StatusBadge status={tenant.status} /></TableCell>
+                      <TableCell className="text-muted-foreground text-xs">{new Date(tenant.created_at).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0"><MoreHorizontal className="w-4 h-4" /></Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
