@@ -47,7 +47,7 @@ const Dashboard = () => {
       if (error) throw error;
     },
     onSuccess: (_, { status }) => {
-      toast.success(`Order ${status}`);
+      toast.success(`Commande ${status === "approved" ? "approuvée" : "rejetée"}`);
       qc.invalidateQueries({ queryKey: ["orders"] });
     },
     onError: (err: any) => toast.error(err.message),
@@ -62,7 +62,7 @@ const Dashboard = () => {
   if (loading) {
     return (
       <>
-        <TopBar title="Dashboard" subtitle="Super Admin Overview" />
+        <TopBar title="Tableau de bord" subtitle="Vue d'ensemble" />
         <div className="flex-1 flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
       </>
     );
@@ -70,31 +70,31 @@ const Dashboard = () => {
 
   return (
     <>
-      <TopBar title="Dashboard" subtitle="Super Admin Overview" />
+      <TopBar title="Tableau de bord" subtitle="Vue d'ensemble de la plateforme" />
       <div className="p-6 space-y-6 overflow-auto">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard label="Boutiques" value={(tenants?.length || 0).toString()} icon={<Building2 className="w-4 h-4 text-primary" />} delay={0} />
-          <StatCard label="Total Users" value={(profiles?.length || 0).toString()} icon={<Users className="w-4 h-4 text-primary" />} delay={50} />
-          <StatCard label="Active Orders" value={activeOrders.length.toString()} icon={<ShoppingCart className="w-4 h-4 text-primary" />} delay={100} />
-          <StatCard label="Total Revenue" value={formatCurrency(totalRevenue)} icon={<TrendingUp className="w-4 h-4 text-primary" />} delay={150} />
+          <StatCard label="Utilisateurs" value={(profiles?.length || 0).toString()} icon={<Users className="w-4 h-4 text-primary" />} delay={50} />
+          <StatCard label="Commandes actives" value={activeOrders.length.toString()} icon={<ShoppingCart className="w-4 h-4 text-primary" />} delay={100} />
+          <StatCard label="Chiffre d'affaires" value={formatCurrency(totalRevenue)} icon={<TrendingUp className="w-4 h-4 text-primary" />} delay={150} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 bg-card rounded-lg border border-border shadow-card animate-fade-in" style={{ animationDelay: "200ms" }}>
             <div className="p-5 border-b border-border">
-              <SectionHeader title="Recent Orders" action={<Button variant="ghost" size="sm" onClick={() => navigate("/orders")}>View all</Button>} />
+              <SectionHeader title="Commandes récentes" action={<Button variant="ghost" size="sm" onClick={() => navigate("/orders")}>Voir tout</Button>} />
             </div>
             {recentOrders.length === 0 ? (
-              <p className="p-8 text-center text-sm text-muted-foreground">No orders yet</p>
+              <p className="p-8 text-center text-sm text-muted-foreground">Aucune commande</p>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="text-xs">Order</TableHead>
-                    <TableHead className="text-xs">User</TableHead>
-                    <TableHead className="text-xs">Store</TableHead>
+                    <TableHead className="text-xs">Commande</TableHead>
+                    <TableHead className="text-xs">Utilisateur</TableHead>
+                    <TableHead className="text-xs">Type</TableHead>
                     <TableHead className="text-xs">Total</TableHead>
-                    <TableHead className="text-xs">Status</TableHead>
+                    <TableHead className="text-xs">Statut</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -119,11 +119,10 @@ const Dashboard = () => {
             )}
           </div>
 
-          {/* Pending Approvals Widget */}
           <div className="bg-card rounded-lg border border-border shadow-card animate-fade-in" style={{ animationDelay: "250ms" }}>
             <div className="p-5 border-b border-border">
               <SectionHeader
-                title="Pending Approvals"
+                title="Approbations en attente"
                 action={
                   pendingApprovals.length > 0 ? (
                     <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20 text-xs">
@@ -137,7 +136,7 @@ const Dashboard = () => {
               {pendingApprovals.length === 0 ? (
                 <div className="text-center py-8">
                   <CheckCircle className="w-8 h-8 text-success/40 mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">All caught up!</p>
+                  <p className="text-sm text-muted-foreground">Tout est à jour !</p>
                 </div>
               ) : (
                 pendingApprovals.map((order) => {
@@ -146,7 +145,7 @@ const Dashboard = () => {
                   return (
                     <div key={order.id} className="flex items-center justify-between p-3 rounded-md bg-secondary/50 border border-border">
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-foreground truncate">{profile?.full_name || "User"}</p>
+                        <p className="text-sm font-medium text-foreground truncate">{profile?.full_name || "Utilisateur"}</p>
                         <p className="text-xs text-muted-foreground flex items-center gap-1">
                           <Clock className="w-3 h-3 shrink-0" />
                           {formatCurrency(Number(order.total))}
@@ -160,23 +159,11 @@ const Dashboard = () => {
                         </div>
                       </div>
                       <div className="flex gap-1.5 ml-2 shrink-0">
-                        <Button
-                          size="sm"
-                          variant="default"
-                          className="h-7 text-xs gap-1"
-                          disabled={updateStatus.isPending}
-                          onClick={() => updateStatus.mutate({ id: order.id, status: "approved" })}
-                        >
-                          <CheckCircle className="w-3 h-3" /> Approve
+                        <Button size="sm" variant="default" className="h-7 text-xs gap-1" disabled={updateStatus.isPending} onClick={() => updateStatus.mutate({ id: order.id, status: "approved" })}>
+                          <CheckCircle className="w-3 h-3" /> Approuver
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs gap-1"
-                          disabled={updateStatus.isPending}
-                          onClick={() => updateStatus.mutate({ id: order.id, status: "rejected" })}
-                        >
-                          <XCircle className="w-3 h-3" /> Reject
+                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1" disabled={updateStatus.isPending} onClick={() => updateStatus.mutate({ id: order.id, status: "rejected" })}>
+                          <XCircle className="w-3 h-3" /> Rejeter
                         </Button>
                       </div>
                     </div>
@@ -192,14 +179,14 @@ const Dashboard = () => {
             <SectionHeader title="Aperçu des Boutiques" action={<Button variant="ghost" size="sm" onClick={() => navigate("/tenants")}>Gérer</Button>} />
           </div>
           {!tenants?.length ? (
-            <p className="p-8 text-center text-sm text-muted-foreground">No tenants created yet</p>
+            <p className="p-8 text-center text-sm text-muted-foreground">Aucune boutique créée</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-5">
               {tenants.slice(0, 6).map((tenant) => {
                 const branding = tenant.tenant_branding as any;
                 const color = branding?.primary_color || "#0ea5e9";
                 return (
-                  <div key={tenant.id} className="flex items-center gap-3 p-3 rounded-md border border-border hover:shadow-card-hover transition-shadow cursor-pointer">
+                  <div key={tenant.id} className="flex items-center gap-3 p-3 rounded-md border border-border hover:shadow-card-hover transition-shadow cursor-pointer" onClick={() => navigate(`/tenants/${tenant.id}`)}>
                     <div className="w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold shrink-0" style={{ backgroundColor: color + "20", color }}>
                       {tenant.name.charAt(0)}
                     </div>
