@@ -27,6 +27,7 @@ const superAdminNav = [
 
 const tenantNav = [
   { to: "/tenant", icon: LayoutDashboard, label: "Dashboard" },
+  { to: "/store", icon: ShoppingCart, label: "Boutique" },
 ];
 
 const AppSidebar = () => {
