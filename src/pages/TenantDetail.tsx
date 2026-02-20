@@ -85,7 +85,7 @@ const TenantDetail = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
-        .select("*, profiles:created_by(full_name, email), order_items(qty, unit_price, products(name))")
+        .select("*, profiles:profiles!orders_created_by_profiles_fkey(full_name, email), order_items(qty, unit_price, products(name))")
         .eq("tenant_id", id!)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -99,7 +99,7 @@ const TenantDetail = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("*, user_roles(role)")
+        .select("*, user_roles!user_roles_user_id_profiles_fkey(role)")
         .eq("tenant_id", id!)
         .order("created_at", { ascending: false });
       if (error) throw error;

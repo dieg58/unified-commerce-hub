@@ -26,7 +26,7 @@ const Dashboard = () => {
   const { data: orders, isLoading: ordersLoading } = useQuery({
     queryKey: ["orders"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("orders").select("*, profiles:created_by(full_name, email), entities(name)").order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("orders").select("*, profiles:profiles!orders_created_by_profiles_fkey(full_name, email), entities(name)").order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },
