@@ -602,6 +602,7 @@ function UsersTab({ tenantId, users }: { tenantId: string; users: any[] }) {
 
 /* ─── Entities Tab ─── */
 function EntitiesTab({ tenantId, entities }: { tenantId: string; entities: any[] }) {
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const [showAdd, setShowAdd] = useState(false);
   const [editingEntity, setEditingEntity] = useState<any>(null);
@@ -728,7 +729,7 @@ function EntitiesTab({ tenantId, entities }: { tenantId: string; entities: any[]
           </TableHeader>
           <TableBody>
             {entities.map((e) => (
-              <TableRow key={e.id} className="text-sm">
+              <TableRow key={e.id} className="text-sm cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/tenants/${tenantId}/entities/${e.id}`)}>
                 <TableCell className="font-medium">{e.name}</TableCell>
                 <TableCell className="font-mono text-xs text-muted-foreground">{e.code}</TableCell>
                 <TableCell className="text-xs">{e.vat_rate ?? 20}%</TableCell>
@@ -745,10 +746,10 @@ function EntitiesTab({ tenantId, entities }: { tenantId: string; entities: any[]
                 <TableCell className="text-xs text-muted-foreground">{new Date(e.created_at).toLocaleDateString("fr-FR")}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEdit(e)}>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={(ev) => { ev.stopPropagation(); navigate(`/tenants/${tenantId}/entities/${e.id}`); }}>
                       <Pencil className="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive hover:text-destructive" onClick={() => deleteEntity.mutate(e.id)}>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive hover:text-destructive" onClick={(ev) => { ev.stopPropagation(); deleteEntity.mutate(e.id); }}>
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>

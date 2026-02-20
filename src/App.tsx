@@ -71,6 +71,7 @@ const SubdomainAwareRoutes = () => {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/tenants" element={<Tenants />} />
         <Route path="/tenants/:id" element={<TenantDetail />} />
+        <Route path="/tenants/:tenantId/entities/:id" element={<TenantEntityForm />} />
         <Route path="/orders" element={<Orders />} />
         <Route path="/orders/:orderId" element={<OrderDetail />} />
         <Route path="/store/:tenantId" element={<Storefront />} />
