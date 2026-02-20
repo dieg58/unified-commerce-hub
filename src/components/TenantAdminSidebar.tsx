@@ -13,10 +13,14 @@ import {
   Tag,
   Package,
   Wallet,
+  ExternalLink,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { getStorefrontUrl } from "@/lib/subdomain";
 
 type NavItem = { to: string; icon: any; label: string } | { separator: string };
 
@@ -33,7 +37,6 @@ const shopManagerNav: NavItem[] = [
   { separator: "Analyse" },
   { to: "/tenant/stats", icon: BarChart3, label: "Statistiques" },
   { to: "/tenant/settings", icon: Settings, label: "Paramètres" },
-  { to: "/shop", icon: Store, label: "Voir la boutique" },
 ];
 
 const deptManagerNav: NavItem[] = [
@@ -42,13 +45,26 @@ const deptManagerNav: NavItem[] = [
   { to: "/tenant/orders", icon: ShoppingCart, label: "Commandes" },
   { separator: "Analyse" },
   { to: "/tenant/stats", icon: BarChart3, label: "Statistiques" },
-  { to: "/shop", icon: Store, label: "Boutique" },
 ];
 
 const TenantAdminSidebar = () => {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const { isShopManager, signOut, profile } = useAuth();
+  const tenantId = profile?.tenant_id;
+
+  // Fetch tenant slug for storefront link
+  const { data: tenant } = useQuery({
+    queryKey: ["tenant-sidebar-slug", tenantId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("tenants").select("slug").eq("id", tenantId!).single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!tenantId,
+  });
+
+  const storefrontUrl = tenant?.slug ? getStorefrontUrl(tenant.slug) : null;
 
   const navItems = isShopManager ? shopManagerNav : deptManagerNav;
 
@@ -104,6 +120,26 @@ const TenantAdminSidebar = () => {
           );
         })}
       </nav>
+
+      {/* External link to storefront */}
+      {storefrontUrl && (
+        <div className="px-2 pb-1">
+          <a
+            href={storefrontUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors w-full"
+          >
+            <Store className="w-4 h-4 shrink-0" />
+            {!collapsed && (
+              <>
+                <span className="truncate flex-1">Voir la boutique</span>
+                <ExternalLink className="w-3 h-3 shrink-0 opacity-50" />
+              </>
+            )}
+          </a>
+        </div>
+      )}
 
       <div className="border-t border-sidebar-border p-2 space-y-1">
         {!collapsed && profile && (

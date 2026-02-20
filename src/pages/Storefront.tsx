@@ -4,6 +4,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useCart } from "@/hooks/useCart";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useSubdomain } from "@/components/SubdomainRouter";
+import { useTenantBySlug } from "@/hooks/useTenantBySlug";
 import { formatCurrency } from "@/lib/mock-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,7 +30,9 @@ const Storefront = () => {
   const [entityId, setEntityId] = useState<string>("");
 
   const { tenantId: paramTenantId } = useParams<{ tenantId: string }>();
-  const tenantId = paramTenantId || profile?.tenant_id;
+  const { tenantSlug } = useSubdomain();
+  const { data: subdomainTenant } = useTenantBySlug(tenantSlug);
+  const tenantId = paramTenantId || subdomainTenant?.id || profile?.tenant_id;
 
   // Fetch tenant branding
   const { data: tenant } = useQuery({

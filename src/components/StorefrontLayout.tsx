@@ -4,6 +4,8 @@ import { Store, ShoppingCart, User, LogOut, ChevronLeft, ChevronRight } from "lu
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import { useSubdomain } from "@/components/SubdomainRouter";
+import { useTenantBySlug } from "@/hooks/useTenantBySlug";
 
 const navItems = [
   { to: "/shop", icon: Store, label: "Boutique" },
@@ -15,6 +17,12 @@ const StorefrontLayout = () => {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const { signOut, profile } = useAuth();
+  const { tenantSlug } = useSubdomain();
+  const { data: subdomainTenant } = useTenantBySlug(tenantSlug);
+
+  // Use branding from subdomain tenant if available
+  const branding = subdomainTenant?.tenant_branding as any;
+  const storeName = branding?.head_title || subdomainTenant?.name || "Ma Boutique";
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -25,12 +33,16 @@ const StorefrontLayout = () => {
         )}
       >
         <div className="flex items-center gap-3 px-4 h-16 border-b border-sidebar-border">
-          <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center shrink-0">
-            <Store className="w-4 h-4 text-primary-foreground" />
-          </div>
+          {branding?.logo_url ? (
+            <img src={branding.logo_url} alt={storeName} className="w-8 h-8 rounded-lg object-contain shrink-0" />
+          ) : (
+            <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center shrink-0">
+              <Store className="w-4 h-4 text-primary-foreground" />
+            </div>
+          )}
           {!collapsed && (
             <span className="text-sidebar-accent-foreground font-semibold text-sm tracking-tight truncate">
-              Ma Boutique
+              {storeName}
             </span>
           )}
         </div>
@@ -39,7 +51,7 @@ const StorefrontLayout = () => {
           {navItems.map((item) => {
             const isActive =
               item.to === "/shop"
-                ? location.pathname === "/shop" || location.pathname === "/store"
+                ? location.pathname === "/shop" || location.pathname === "/" || location.pathname === "/store"
                 : location.pathname.startsWith(item.to);
             return (
               <NavLink
