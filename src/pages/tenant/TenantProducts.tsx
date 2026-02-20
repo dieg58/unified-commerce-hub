@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { formatCurrency } from "@/lib/mock-data";
 
 const TenantProducts = () => {
-  const { profile } = useAuth();
+  const { profile, isSuperAdmin } = useAuth();
   const tenantId = profile?.tenant_id;
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
@@ -79,7 +79,7 @@ const TenantProducts = () => {
                   <TableHead className="text-xs">Prix</TableHead>
                   <TableHead className="text-xs text-center">Bulk</TableHead>
                   <TableHead className="text-xs text-center">Staff</TableHead>
-                  <TableHead className="text-xs text-center">Min. Bulk</TableHead>
+                  {isSuperAdmin && <TableHead className="text-xs text-center">Min. Bulk</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -124,20 +124,22 @@ const TenantProducts = () => {
                           onCheckedChange={v => updateProduct.mutate({ id: product.id, active_staff: v })}
                         />
                       </TableCell>
-                      <TableCell className="text-center">
-                        <Input
-                          type="number"
-                          min={1}
-                          className="w-16 h-7 text-xs text-center mx-auto"
-                          defaultValue={product.min_bulk_qty}
-                          onBlur={(e) => {
-                            const val = Math.max(1, parseInt(e.target.value) || 1);
-                            if (val !== product.min_bulk_qty) {
-                              updateProduct.mutate({ id: product.id, min_bulk_qty: val });
-                            }
-                          }}
-                        />
-                      </TableCell>
+                      {isSuperAdmin && (
+                        <TableCell className="text-center">
+                          <Input
+                            type="number"
+                            min={1}
+                            className="w-16 h-7 text-xs text-center mx-auto"
+                            defaultValue={product.min_bulk_qty}
+                            onBlur={(e) => {
+                              const val = Math.max(1, parseInt(e.target.value) || 1);
+                              if (val !== product.min_bulk_qty) {
+                                updateProduct.mutate({ id: product.id, min_bulk_qty: val });
+                              }
+                            }}
+                          />
+                        </TableCell>
+                      )}
                     </TableRow>
                   );
                 })}
