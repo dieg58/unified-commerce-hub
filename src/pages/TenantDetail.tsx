@@ -537,9 +537,26 @@ function UsersTab({ tenantId, users }: { tenantId: string; users: any[] }) {
 function EntitiesTab({ tenantId, entities }: { tenantId: string; entities: any[] }) {
   const qc = useQueryClient();
   const [showAdd, setShowAdd] = useState(false);
+  const [editingEntity, setEditingEntity] = useState<any>(null);
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [requiresApproval, setRequiresApproval] = useState(false);
+  const [vatRate, setVatRate] = useState("20");
+  const [paymentOnOrder, setPaymentOnOrder] = useState(false);
+
+  const resetForm = () => {
+    setName(""); setCode(""); setRequiresApproval(false);
+    setVatRate("20"); setPaymentOnOrder(false); setEditingEntity(null);
+  };
+
+  const openEdit = (e: any) => {
+    setName(e.name);
+    setCode(e.code);
+    setRequiresApproval(e.requires_approval);
+    setVatRate(String(e.vat_rate ?? 20));
+    setPaymentOnOrder(e.payment_on_order ?? false);
+    setEditingEntity(e);
+  };
 
   const addEntity = useMutation({
     mutationFn: async () => {
@@ -548,6 +565,8 @@ function EntitiesTab({ tenantId, entities }: { tenantId: string; entities: any[]
         name: name.trim(),
         code: code.trim().toUpperCase() || name.trim().toUpperCase().replace(/\s+/g, "-").slice(0, 10),
         requires_approval: requiresApproval,
+        vat_rate: parseFloat(vatRate) || 20,
+        payment_on_order: paymentOnOrder,
       });
       if (error) throw error;
     },
@@ -555,7 +574,27 @@ function EntitiesTab({ tenantId, entities }: { tenantId: string; entities: any[]
       toast.success("Entité créée");
       qc.invalidateQueries({ queryKey: ["entities", tenantId] });
       setShowAdd(false);
-      setName(""); setCode(""); setRequiresApproval(false);
+      resetForm();
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const updateEntity = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("entities").update({
+        name: name.trim(),
+        code: code.trim().toUpperCase(),
+        requires_approval: requiresApproval,
+        vat_rate: parseFloat(vatRate) || 20,
+        payment_on_order: paymentOnOrder,
+      }).eq("id", editingEntity.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Entité mise à jour");
+      qc.invalidateQueries({ queryKey: ["entities", tenantId] });
+      setEditingEntity(null);
+      resetForm();
     },
     onError: (err: any) => toast.error(err.message),
   });
@@ -572,21 +611,37 @@ function EntitiesTab({ tenantId, entities }: { tenantId: string; entities: any[]
     onError: (err: any) => toast.error(err.message),
   });
 
-  const toggleApproval = useMutation({
-    mutationFn: async ({ entityId, current }: { entityId: string; current: boolean }) => {
-      const { error } = await supabase.from("entities").update({ requires_approval: !current }).eq("id", entityId);
-      if (error) throw error;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["entities", tenantId] }),
-    onError: (err: any) => toast.error(err.message),
-  });
+  const EntityFormFields = () => (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label>Nom *</Label>
+        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Siège principal" maxLength={100} />
+      </div>
+      <div className="space-y-2">
+        <Label>Code</Label>
+        <Input value={code} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))} placeholder="Auto-généré si vide" maxLength={10} />
+      </div>
+      <div className="space-y-2">
+        <Label>Taux de TVA (%)</Label>
+        <Input type="number" min="0" max="100" step="0.1" value={vatRate} onChange={(e) => setVatRate(e.target.value)} placeholder="20" />
+      </div>
+      <div className="flex items-center justify-between py-2">
+        <Label className="cursor-pointer">Approbation requise (commandes bulk)</Label>
+        <Switch checked={requiresApproval} onCheckedChange={setRequiresApproval} />
+      </div>
+      <div className="flex items-center justify-between py-2">
+        <Label className="cursor-pointer">Paiement à la commande</Label>
+        <Switch checked={paymentOnOrder} onCheckedChange={setPaymentOnOrder} />
+      </div>
+    </div>
+  );
 
   return (
     <div className="bg-card rounded-lg border border-border shadow-card">
       <div className="p-5 border-b border-border">
         <SectionHeader
           title={`Entités / Départements (${entities.length})`}
-          action={<Button size="sm" className="gap-1.5" onClick={() => setShowAdd(true)}><Plus className="w-4 h-4" /> Ajouter</Button>}
+          action={<Button size="sm" className="gap-1.5" onClick={() => { resetForm(); setShowAdd(true); }}><Plus className="w-4 h-4" /> Ajouter</Button>}
         />
       </div>
       {!entities.length ? (
@@ -597,9 +652,11 @@ function EntitiesTab({ tenantId, entities }: { tenantId: string; entities: any[]
             <TableRow>
               <TableHead className="text-xs">Nom</TableHead>
               <TableHead className="text-xs">Code</TableHead>
-              <TableHead className="text-xs">Approbation requise</TableHead>
+              <TableHead className="text-xs">TVA</TableHead>
+              <TableHead className="text-xs">Approbation</TableHead>
+              <TableHead className="text-xs">Paiement cmd</TableHead>
               <TableHead className="text-xs">Créée le</TableHead>
-              <TableHead className="text-xs w-10"></TableHead>
+              <TableHead className="text-xs w-20"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -607,14 +664,27 @@ function EntitiesTab({ tenantId, entities }: { tenantId: string; entities: any[]
               <TableRow key={e.id} className="text-sm">
                 <TableCell className="font-medium">{e.name}</TableCell>
                 <TableCell className="font-mono text-xs text-muted-foreground">{e.code}</TableCell>
+                <TableCell className="text-xs">{e.vat_rate ?? 20}%</TableCell>
                 <TableCell>
-                  <Switch checked={e.requires_approval} onCheckedChange={() => toggleApproval.mutate({ entityId: e.id, current: e.requires_approval })} />
+                  <Badge variant="outline" className={e.requires_approval ? "bg-primary/10 text-primary border-primary/20" : "bg-secondary text-muted-foreground"}>
+                    {e.requires_approval ? "Oui" : "Non"}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline" className={e.payment_on_order ? "bg-primary/10 text-primary border-primary/20" : "bg-secondary text-muted-foreground"}>
+                    {e.payment_on_order ? "Oui" : "Non"}
+                  </Badge>
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">{new Date(e.created_at).toLocaleDateString("fr-FR")}</TableCell>
                 <TableCell>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive hover:text-destructive" onClick={() => deleteEntity.mutate(e.id)}>
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEdit(e)}>
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive hover:text-destructive" onClick={() => deleteEntity.mutate(e.id)}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -622,28 +692,31 @@ function EntitiesTab({ tenantId, entities }: { tenantId: string; entities: any[]
         </Table>
       )}
 
-      <Dialog open={showAdd} onOpenChange={setShowAdd}>
+      {/* Add Dialog */}
+      <Dialog open={showAdd} onOpenChange={(o) => { if (!o) resetForm(); setShowAdd(o); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Nouvelle entité</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Nom *</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Siège principal" maxLength={100} />
-            </div>
-            <div className="space-y-2">
-              <Label>Code</Label>
-              <Input value={code} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))} placeholder="Auto-généré si vide" maxLength={10} />
-            </div>
-            <div className="flex items-center gap-3">
-              <Switch checked={requiresApproval} onCheckedChange={setRequiresApproval} />
-              <Label>Approbation requise pour les commandes bulk</Label>
-            </div>
-          </div>
+          <EntityFormFields />
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setShowAdd(false)}>Annuler</Button>
+            <Button variant="outline" onClick={() => { setShowAdd(false); resetForm(); }}>Annuler</Button>
             <Button onClick={() => addEntity.mutate()} disabled={!name.trim() || addEntity.isPending}>
               {addEntity.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
               Créer
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={!!editingEntity} onOpenChange={(o) => { if (!o) resetForm(); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Modifier l'entité</DialogTitle></DialogHeader>
+          <EntityFormFields />
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => resetForm()}>Annuler</Button>
+            <Button onClick={() => updateEntity.mutate()} disabled={!name.trim() || updateEntity.isPending}>
+              {updateEntity.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Save className="w-4 h-4 mr-1" />}
+              Enregistrer
             </Button>
           </div>
         </DialogContent>
