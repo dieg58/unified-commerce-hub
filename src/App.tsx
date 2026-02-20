@@ -18,6 +18,11 @@ import TenantOrders from "./pages/tenant/TenantOrders";
 import TenantStats from "./pages/tenant/TenantStats";
 import TenantUsers from "./pages/tenant/TenantUsers";
 import TenantSettings from "./pages/tenant/TenantSettings";
+import TenantAddresses from "./pages/tenant/TenantAddresses";
+import TenantEntities from "./pages/tenant/TenantEntities";
+import TenantDiscountCodes from "./pages/tenant/TenantDiscountCodes";
+import TenantProducts from "./pages/tenant/TenantProducts";
+import TenantBudgets from "./pages/tenant/TenantBudgets";
 import Storefront from "./pages/Storefront";
 import MyOrders from "./pages/shop/MyOrders";
 import MyProfile from "./pages/shop/MyProfile";
@@ -74,6 +79,11 @@ const SubdomainAwareRoutes = () => {
         <Route path="/tenant/stats" element={<TenantStats />} />
         <Route path="/tenant/users" element={<TenantUsers />} />
         <Route path="/tenant/settings" element={<TenantSettings />} />
+        <Route path="/tenant/addresses" element={<TenantAddresses />} />
+        <Route path="/tenant/entities" element={<TenantEntities />} />
+        <Route path="/tenant/discounts" element={<TenantDiscountCodes />} />
+        <Route path="/tenant/products" element={<TenantProducts />} />
+        <Route path="/tenant/budgets" element={<TenantBudgets />} />
       </Route>
 
       {/* Employee storefront routes */}

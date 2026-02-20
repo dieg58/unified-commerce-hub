@@ -9,6 +9,11 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
+  MapPin,
+  Building2,
+  Tag,
+  Package,
+  Wallet,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -17,8 +22,13 @@ import { useAuth } from "@/hooks/useAuth";
 const shopManagerNav = [
   { to: "/tenant", icon: LayoutDashboard, label: "Tableau de bord" },
   { to: "/tenant/orders", icon: ShoppingCart, label: "Commandes" },
-  { to: "/tenant/stats", icon: BarChart3, label: "Statistiques" },
+  { to: "/tenant/products", icon: Package, label: "Produits" },
+  { to: "/tenant/entities", icon: Building2, label: "Entités" },
   { to: "/tenant/users", icon: Users, label: "Utilisateurs" },
+  { to: "/tenant/budgets", icon: Wallet, label: "Budgets" },
+  { to: "/tenant/addresses", icon: MapPin, label: "Adresses" },
+  { to: "/tenant/discounts", icon: Tag, label: "Codes promo" },
+  { to: "/tenant/stats", icon: BarChart3, label: "Statistiques" },
   { to: "/tenant/settings", icon: Settings, label: "Paramètres" },
   { to: "/shop", icon: Store, label: "Boutique" },
 ];
