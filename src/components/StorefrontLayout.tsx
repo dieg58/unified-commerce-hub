@@ -16,13 +16,24 @@ const navItems = [
 const StorefrontLayout = () => {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
-  const { signOut, profile } = useAuth();
+  const { signOut, profile, isShopManager, isDeptManager, isSuperAdmin } = useAuth();
   const { tenantSlug } = useSubdomain();
   const { data: subdomainTenant } = useTenantBySlug(tenantSlug);
 
   // Use branding from subdomain tenant if available
   const branding = subdomainTenant?.tenant_branding as any;
   const storeName = branding?.head_title || subdomainTenant?.name || "Ma Boutique";
+
+  // Employees (not manager/admin) see no sidebar
+  const showSidebar = isShopManager || isDeptManager || isSuperAdmin;
+
+  if (!showSidebar) {
+    return (
+      <main className="min-h-screen bg-background">
+        <Outlet />
+      </main>
+    );
+  }
 
   return (
     <div className="flex min-h-screen bg-background">
