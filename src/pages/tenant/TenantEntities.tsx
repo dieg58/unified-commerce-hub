@@ -14,6 +14,34 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Plus, Loader2, Pencil, Building2 } from "lucide-react";
 import { toast } from "sonner";
 
+const vatRatesByCountry: Record<string, number> = {
+  "Belgique": 21, "Belgium": 21, "BE": 21,
+  "France": 20, "FR": 20,
+  "Allemagne": 19, "Germany": 19, "DE": 19,
+  "Pays-Bas": 21, "Netherlands": 21, "NL": 21,
+  "Luxembourg": 17, "LU": 17,
+  "Espagne": 21, "Spain": 21, "ES": 21,
+  "Italie": 22, "Italy": 22, "IT": 22,
+  "Portugal": 23, "PT": 23,
+  "Autriche": 20, "Austria": 20, "AT": 20,
+  "Irlande": 23, "Ireland": 23, "IE": 23,
+  "Suisse": 8.1, "Switzerland": 8.1, "CH": 8.1,
+  "Royaume-Uni": 20, "United Kingdom": 20, "UK": 20, "GB": 20,
+  "Pologne": 23, "Poland": 23, "PL": 23,
+  "Suède": 25, "Sweden": 25, "SE": 25,
+  "Danemark": 25, "Denmark": 25, "DK": 25,
+  "Finlande": 25.5, "Finland": 25.5, "FI": 25.5,
+  "Grèce": 24, "Greece": 24, "GR": 24,
+  "Roumanie": 19, "Romania": 19, "RO": 19,
+  "République tchèque": 21, "Czech Republic": 21, "CZ": 21,
+  "Hongrie": 27, "Hungary": 27, "HU": 27,
+};
+
+const getVatRate = (country: string): string => {
+  const rate = vatRatesByCountry[country];
+  return rate !== undefined ? String(rate) : "20";
+};
+
 const emptyAddress = { label: "", address_line1: "", city: "", country: "Belgique" };
 
 const TenantEntities = () => {
@@ -22,7 +50,7 @@ const TenantEntities = () => {
   const qc = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
-  const [form, setForm] = useState({ name: "", code: "", vat_rate: "20", vat: "", requires_approval: false, payment_on_order: false });
+  const [form, setForm] = useState({ name: "", code: "", vat_rate: "21", vat: "", requires_approval: false, payment_on_order: false });
   const [billingAddr, setBillingAddr] = useState({ ...emptyAddress });
   const [sameAddress, setSameAddress] = useState(true);
   const [shippingAddr, setShippingAddr] = useState({ ...emptyAddress });
@@ -133,7 +161,7 @@ const TenantEntities = () => {
 
   const openAdd = () => {
     setEditing(null);
-    setForm({ name: "", code: "", vat_rate: "20", vat: "", requires_approval: false, payment_on_order: false });
+    setForm({ name: "", code: "", vat_rate: "21", vat: "", requires_approval: false, payment_on_order: false });
     setBillingAddr({ ...emptyAddress });
     setSameAddress(true);
     setShippingAddr({ ...emptyAddress });
@@ -236,7 +264,8 @@ const TenantEntities = () => {
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label className="text-xs">Taux de TVA (%)</Label>
-                      <Input type="number" value={form.vat_rate} onChange={e => setForm(f => ({ ...f, vat_rate: e.target.value }))} />
+                      <Input type="number" value={form.vat_rate} readOnly className="bg-muted cursor-not-allowed" />
+                      <p className="text-[10px] text-muted-foreground">Automatique selon le pays</p>
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs">N° de TVA</Label>
@@ -271,7 +300,11 @@ const TenantEntities = () => {
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs">Pays</Label>
-                      <Input value={billingAddr.country} onChange={e => setBillingAddr(a => ({ ...a, country: e.target.value }))} placeholder="Belgique" />
+                      <Input value={billingAddr.country} onChange={e => {
+                        const country = e.target.value;
+                        setBillingAddr(a => ({ ...a, country }));
+                        setForm(f => ({ ...f, vat_rate: getVatRate(country) }));
+                      }} placeholder="Belgique" />
                     </div>
                   </div>
                 </div>
