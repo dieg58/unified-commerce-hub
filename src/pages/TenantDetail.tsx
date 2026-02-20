@@ -831,6 +831,7 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
   const [newCatName, setNewCatName] = useState("");
   const [name, setName] = useState("");
   const [sku, setSku] = useState("");
+  const [skuManual, setSkuManual] = useState(false);
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [bulkPrice, setBulkPrice] = useState("");
@@ -838,6 +839,31 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
   const [stockType, setStockType] = useState<string>("in_stock");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+
+  // Auto-generate SKU from product name
+  const generateSku = (productName: string) => {
+    const base = productName
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // remove accents
+      .toUpperCase()
+      .replace(/[^A-Z0-9 ]/g, "")
+      .trim()
+      .split(/\s+/)
+      .slice(0, 3)
+      .join("-");
+    if (!base) return "";
+    // Find next available number
+    const existingSkus = products?.map((p) => p.sku) || [];
+    let num = 1;
+    while (existingSkus.includes(`${base}-${String(num).padStart(2, "0")}`)) num++;
+    return `${base}-${String(num).padStart(2, "0")}`;
+  };
+
+  const handleNameChange = (val: string) => {
+    setName(val);
+    if (!skuManual && !editingProduct) {
+      setSku(generateSku(val));
+    }
+  };
 
   // Variants
   type VariantRow = { label: string; value: string; skuSuffix: string; priceAdj: string };
@@ -873,7 +899,7 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
   const removeVariant = (i: number) => setVariants((prev) => prev.filter((_, idx) => idx !== i));
 
   const resetForm = () => {
-    setName(""); setSku(""); setCategory(""); setDescription("");
+    setName(""); setSku(""); setSkuManual(false); setCategory(""); setDescription("");
     setBulkPrice(""); setStaffPrice(""); setImageFile(null);
     setStockType("in_stock"); setVariants([]); setEditingProduct(null);
   };
@@ -1184,12 +1210,12 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Nom du produit *</Label>
-                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="T-Shirt Premium" maxLength={200} />
+                <Input value={name} onChange={(e) => handleNameChange(e.target.value)} placeholder="T-Shirt Premium" maxLength={200} />
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-2">
-                  <Label>SKU *</Label>
-                  <Input value={sku} onChange={(e) => setSku(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))} placeholder="TSHIRT-01" maxLength={50} />
+                  <Label>SKU * <span className="text-muted-foreground font-normal text-[10px]">(auto)</span></Label>
+                  <Input value={sku} onChange={(e) => { setSkuManual(true); setSku(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, "")); }} placeholder="TSHIRT-01" maxLength={50} />
                 </div>
                 <div className="space-y-2">
                   <Label>Catégorie</Label>
