@@ -39,12 +39,14 @@ export const RequireShopManager = ({ children }: { children: ReactNode }) => {
   return <>{children}</>;
 };
 
-/** Redirects to the right home based on role */
+/** Redirects to the right home based on role – only employees can access /shop */
 export const RequireEmployee = ({ children }: { children: ReactNode }) => {
-  const { session, loading, isSuperAdmin } = useAuth();
+  const { session, loading, isSuperAdmin, isShopManager, isDeptManager, roles } = useAuth();
   if (loading) return <LoadingScreen />;
   if (!session) return <Navigate to="/login" replace />;
+  if (roles.length === 0) return <LoadingScreen />;
   if (isSuperAdmin) return <Navigate to="/dashboard" replace />;
+  if (isShopManager || isDeptManager) return <Navigate to="/tenant" replace />;
   return <>{children}</>;
 };
 

@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { CartProvider } from "@/hooks/useCart";
-import { RequireSuperAdmin, RequireTenantUser } from "@/components/RouteGuards";
+import { RequireSuperAdmin, RequireTenantUser, RequireEmployee } from "@/components/RouteGuards";
 import AppLayout from "./components/AppLayout";
 import TenantAdminLayout from "./components/TenantAdminLayout";
 import StorefrontLayout from "./components/StorefrontLayout";
@@ -88,8 +88,8 @@ const SubdomainAwareRoutes = () => {
         <Route path="/tenant/budgets" element={<TenantBudgets />} />
       </Route>
 
-      {/* Employee storefront routes */}
-      <Route element={<RequireTenantUser><StorefrontLayout /></RequireTenantUser>}>
+      {/* Employee storefront routes – shop_managers & dept_managers are redirected to /tenant */}
+      <Route element={<RequireEmployee><StorefrontLayout /></RequireEmployee>}>
         <Route path="/shop" element={<Storefront />} />
         <Route path="/shop/orders" element={<MyOrders />} />
         <Route path="/shop/profile" element={<MyProfile />} />
