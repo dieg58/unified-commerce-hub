@@ -85,7 +85,7 @@ export const mockOrders: Order[] = [
 ];
 
 export const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount);
+  new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(amount);
 
 export const getStatusColor = (status: string) => {
   const colors: Record<string, string> = {
