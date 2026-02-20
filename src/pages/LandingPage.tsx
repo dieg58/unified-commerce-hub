@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
@@ -7,6 +8,7 @@ import heroImg from "@/assets/hero-merch.jpg";
 import webshopImg from "@/assets/services-webshop.jpg";
 import storageImg from "@/assets/services-storage.jpg";
 import shippingImg from "@/assets/services-shipping.jpg";
+import DemoRequestDialog from "@/components/DemoRequestDialog";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -72,6 +74,7 @@ const testimonials = [
 
 const LandingPage = () => {
   const { session, loading, isSuperAdmin } = useAuth();
+  const [demoOpen, setDemoOpen] = useState(false);
 
   if (loading) {
     return (
@@ -101,8 +104,8 @@ const LandingPage = () => {
             <Button variant="ghost" size="sm" asChild>
               <Link to="/login">Se connecter</Link>
             </Button>
-            <Button size="sm" asChild>
-              <Link to="/login">Demander une démo</Link>
+            <Button size="sm" onClick={() => setDemoOpen(true)}>
+              Demander une démo
             </Button>
           </div>
         </div>
@@ -338,6 +341,8 @@ const LandingPage = () => {
           </p>
         </div>
       </footer>
+
+      <DemoRequestDialog open={demoOpen} onOpenChange={setDemoOpen} />
     </div>
   );
 };
