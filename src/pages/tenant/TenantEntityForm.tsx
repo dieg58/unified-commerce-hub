@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Loader2, Building2, FileText, MapPin, Settings2, Truck, Wallet } from "lucide-react";
+import { ArrowLeft, Loader2, Building2, FileText, MapPin, Settings2, Truck, Wallet, CheckCircle2, XCircle, Search } from "lucide-react";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/mock-data";
 
@@ -91,6 +91,45 @@ const TenantEntityForm = () => {
   const [sameAddress, setSameAddress] = useState(true);
   const [shippingAddr, setShippingAddr] = useState({ ...emptyAddress });
   const [budget, setBudget] = useState({ amount: "0", period: "monthly" as string });
+  const [vatStatus, setVatStatus] = useState<"idle" | "loading" | "valid" | "invalid">("idle");
+  const [vatCompanyName, setVatCompanyName] = useState("");
+
+  const validateVat = async () => {
+    if (!form.vat.trim()) return;
+    setVatStatus("loading");
+    try {
+      const { data, error } = await supabase.functions.invoke("validate-vat", {
+        body: { vatNumber: form.vat },
+      });
+      if (error) throw error;
+      if (data.valid) {
+        setVatStatus("valid");
+        setVatCompanyName(data.name || "");
+        // Auto-fill name if empty
+        if (!form.name && data.name) {
+          setForm(f => ({ ...f, name: data.name }));
+        }
+        // Auto-fill billing address
+        if (data.country) {
+          const newCountry = data.country;
+          setBillingAddr(a => ({
+            ...a,
+            address_line1: data.address || a.address_line1,
+            city: data.city || a.city,
+            country: newCountry || a.country,
+          }));
+          setForm(f => ({ ...f, vat_rate: getVatRate(newCountry) }));
+        }
+        toast.success("Numéro de TVA valide");
+      } else {
+        setVatStatus("invalid");
+        toast.error(data.error || "Numéro de TVA invalide");
+      }
+    } catch {
+      setVatStatus("invalid");
+      toast.error("Erreur lors de la vérification");
+    }
+  };
 
   const { data: entity } = useQuery({
     queryKey: ["tenant-entity", id],
@@ -266,10 +305,41 @@ const TenantEntityForm = () => {
         </Section>
 
         {/* ─── Fiscalité ──────────────────────────────────────────────── */}
-        <Section icon={FileText} title="Fiscalité" description="Le taux de TVA est déterminé automatiquement par le pays de facturation">
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium">N° de TVA</Label>
-            <Input value={form.vat} onChange={e => setForm(f => ({ ...f, vat: e.target.value }))} placeholder="BE0123456789" className="font-mono max-w-sm" />
+        <Section icon={FileText} title="Fiscalité" description="Vérifiez le numéro de TVA pour auto-remplir les informations">
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">N° de TVA</Label>
+              <div className="flex gap-2 max-w-md">
+                <div className="relative flex-1">
+                  <Input
+                    value={form.vat}
+                    onChange={e => { setForm(f => ({ ...f, vat: e.target.value })); setVatStatus("idle"); }}
+                    placeholder="BE0123456789"
+                    className={`font-mono pr-9 ${vatStatus === "valid" ? "border-emerald-500" : vatStatus === "invalid" ? "border-destructive" : ""}`}
+                  />
+                  {vatStatus === "valid" && <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500" />}
+                  {vatStatus === "invalid" && <XCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-destructive" />}
+                </div>
+                <Button type="button" variant="outline" size="sm" className="shrink-0 gap-1.5" onClick={validateVat} disabled={vatStatus === "loading" || !form.vat.trim()}>
+                  {vatStatus === "loading" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                  Vérifier
+                </Button>
+              </div>
+            </div>
+            {vatStatus === "valid" && vatCompanyName && (
+              <div className="rounded-md bg-emerald-500/10 border border-emerald-500/20 px-3 py-2.5 animate-fade-in">
+                <p className="text-xs text-emerald-700 dark:text-emerald-400">
+                  ✓ Entreprise : <span className="font-semibold">{vatCompanyName}</span>
+                </p>
+              </div>
+            )}
+            {vatStatus === "invalid" && (
+              <div className="rounded-md bg-destructive/10 border border-destructive/20 px-3 py-2.5 animate-fade-in">
+                <p className="text-xs text-destructive">
+                  ✗ Ce numéro de TVA n'a pas pu être vérifié dans le système VIES
+                </p>
+              </div>
+            )}
           </div>
         </Section>
 
