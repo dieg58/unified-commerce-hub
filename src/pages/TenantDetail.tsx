@@ -204,35 +204,6 @@ const TenantDetail = () => {
           ))}
         </div>
 
-        {/* Billing mode toggles */}
-        <div className="bg-card rounded-lg border border-border p-4 flex flex-wrap items-center gap-6">
-          <p className="text-sm font-medium text-foreground">Sans refacturation produits <span className="text-muted-foreground font-normal">(seule la livraison est facturée)</span></p>
-          <div className="flex items-center gap-2">
-            <Switch
-              checked={tenant.no_product_billing_bulk ?? false}
-              onCheckedChange={async (checked) => {
-                const { error } = await supabase.from("tenants").update({ no_product_billing_bulk: checked }).eq("id", id!);
-                if (error) { toast.error("Erreur"); return; }
-                qc.invalidateQueries({ queryKey: ["tenant", id] });
-                toast.success(checked ? "Bulk : sans refacturation" : "Bulk : refacturation activée");
-              }}
-            />
-            <Label className="text-sm">Bulk</Label>
-          </div>
-          <div className="flex items-center gap-2">
-            <Switch
-              checked={tenant.no_product_billing_staff ?? false}
-              onCheckedChange={async (checked) => {
-                const { error } = await supabase.from("tenants").update({ no_product_billing_staff: checked }).eq("id", id!);
-                if (error) { toast.error("Erreur"); return; }
-                qc.invalidateQueries({ queryKey: ["tenant", id] });
-                toast.success(checked ? "Staff : sans refacturation" : "Staff : refacturation activée");
-              }}
-            />
-            <Label className="text-sm">Staff</Label>
-          </div>
-        </div>
-
         {/* Tabs */}
         <Tabs defaultValue="users" className="w-full">
           <TabsList className="bg-secondary flex-wrap h-auto gap-1 p-1">
@@ -247,18 +218,23 @@ const TenantDetail = () => {
           <TabsContent value="users" className="mt-4">
             <UsersTab tenantId={id!} users={users || []} />
           </TabsContent>
+
           <TabsContent value="entities" className="mt-4">
             <EntitiesTab tenantId={id!} entities={entities || []} />
           </TabsContent>
+
           <TabsContent value="products" className="mt-4">
             <ProductsTab tenantId={id!} products={products || []} categories={categories || []} />
           </TabsContent>
+
           <TabsContent value="orders" className="mt-4">
-            <OrdersTab tenantId={id!} orders={orders || []} />
+            <OrdersTab tenantId={id!} orders={orders || []} entities={entities || []} users={users || []} />
           </TabsContent>
+
           <TabsContent value="budgets" className="mt-4">
             <BudgetsTab tenantId={id!} budgets={budgets || []} entities={entities || []} />
           </TabsContent>
+
           <TabsContent value="branding" className="mt-4">
             <BrandingTab tenant={tenant} branding={branding} />
           </TabsContent>
@@ -270,554 +246,61 @@ const TenantDetail = () => {
 
 /* ─── Users Tab ─── */
 function UsersTab({ tenantId, users }: { tenantId: string; users: any[] }) {
-  const qc = useQueryClient();
-  const [showInvite, setShowInvite] = useState(false);
-  const [invEmail, setInvEmail] = useState("");
-  const [invName, setInvName] = useState("");
-  const [invRole, setInvRole] = useState<string>("employee");
-
   const roleLabels: Record<string, string> = {
-    shop_manager: "Responsable Boutique",
-    dept_manager: "Responsable Département",
-    employee: "Employé",
+    super_admin: "Super Admin", shop_manager: "Responsable Boutique",
+    dept_manager: "Responsable Département", employee: "Employé",
   };
-  const roleColors: Record<string, string> = {
-    shop_manager: "bg-primary/10 text-primary border-primary/20",
-    dept_manager: "bg-accent/10 text-accent border-accent/20",
-    employee: "bg-secondary text-muted-foreground border-border",
-  };
-
-  const { data: invitations } = useQuery({
-    queryKey: ["invitations", tenantId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("invitations")
-        .select("*")
-        .eq("tenant_id", tenantId)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const { data: lastSignIns } = useQuery({
-    queryKey: ["last-signins", tenantId],
-    queryFn: async () => {
-      if (!users.length) return {};
-      const { data, error } = await supabase.functions.invoke("get-users-last-signin", {
-        body: { user_ids: users.map((u) => u.id) },
-      });
-      if (error) return {};
-      return (data as Record<string, string | null>) || {};
-    },
-    enabled: users.length > 0,
-  });
-
-  const pendingInvitations = invitations?.filter((i) => i.status === "pending") || [];
-
-  const sendInvite = useMutation({
-    mutationFn: async () => {
-      const email = invEmail.trim().toLowerCase();
-
-      // Check for existing pending invitation
-      const { data: existing } = await supabase
-        .from("invitations")
-        .select("id")
-        .eq("tenant_id", tenantId)
-        .eq("email", email)
-        .eq("status", "pending")
-        .maybeSingle();
-      if (existing) throw new Error("Une invitation est déjà en attente pour cet email");
-
-      // Delete old non-pending invitations to avoid unique constraint
-      await supabase.from("invitations").delete().eq("tenant_id", tenantId).eq("email", email);
-
-      // Record invitation in DB
-      const { error: dbErr } = await supabase.from("invitations").insert({
-        tenant_id: tenantId,
-        email,
-        full_name: invName.trim(),
-        role: invRole as any,
-        invited_by: (await supabase.auth.getUser()).data.user!.id,
-      });
-      if (dbErr) throw dbErr;
-
-      // Call edge function to create user & assign role
-      const { data, error } = await supabase.functions.invoke("invite-user", {
-        body: {
-          email: invEmail.trim().toLowerCase(),
-          full_name: invName.trim(),
-          role: invRole,
-          tenant_id: tenantId,
-        },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      return data;
-    },
-    onSuccess: (data) => {
-      toast.success(data?.is_new
-        ? `Invitation envoyée à ${invEmail}`
-        : `${invEmail} ajouté à la boutique`
-      );
-      qc.invalidateQueries({ queryKey: ["boutique-users", tenantId] });
-      qc.invalidateQueries({ queryKey: ["invitations", tenantId] });
-      setShowInvite(false);
-      setInvEmail(""); setInvName(""); setInvRole("employee");
-    },
-    onError: (err: any) => toast.error(err.message),
-  });
-
-  const cancelInvitation = useMutation({
-    mutationFn: async (invId: string) => {
-      const { error } = await supabase.from("invitations").delete().eq("id", invId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Invitation annulée");
-      qc.invalidateQueries({ queryKey: ["invitations", tenantId] });
-    },
-    onError: (err: any) => toast.error(err.message),
-  });
-
-  const resendInvitation = useMutation({
-    mutationFn: async (inv: any) => {
-      const { data, error } = await supabase.functions.invoke("invite-user", {
-        body: {
-          email: inv.email,
-          full_name: inv.full_name,
-          role: inv.role,
-          tenant_id: tenantId,
-        },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      return data;
-    },
-    onSuccess: () => {
-      toast.success("Email d'invitation renvoyé");
-    },
-    onError: (err: any) => toast.error(err.message),
-  });
-
-  const changeRole = useMutation({
-    mutationFn: async ({ userId, newRole }: { userId: string; newRole: string }) => {
-      const { error: delErr } = await supabase.from("user_roles").delete().eq("user_id", userId);
-      if (delErr) throw delErr;
-      const { error } = await supabase.from("user_roles").insert({ user_id: userId, role: newRole as any });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Rôle mis à jour");
-      qc.invalidateQueries({ queryKey: ["boutique-users", tenantId] });
-    },
-    onError: (err: any) => toast.error(err.message),
-  });
-
-  const removeFromBoutique = useMutation({
-    mutationFn: async (userId: string) => {
-      const { error } = await supabase.from("profiles").update({ tenant_id: null }).eq("id", userId);
-      if (error) throw error;
-      const { error: roleErr } = await supabase.from("user_roles").delete().eq("user_id", userId);
-      if (roleErr) throw roleErr;
-    },
-    onSuccess: () => {
-      toast.success("Utilisateur retiré de la boutique");
-      qc.invalidateQueries({ queryKey: ["boutique-users", tenantId] });
-    },
-    onError: (err: any) => toast.error(err.message),
-  });
-
   return (
-    <div className="space-y-4">
-      {/* Pending invitations */}
-      {pendingInvitations.length > 0 && (
-        <div className="bg-card rounded-lg border border-border shadow-card">
-          <div className="p-4 border-b border-border">
-            <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-warning" />
-              <h4 className="text-sm font-semibold text-foreground">Invitations en attente ({pendingInvitations.length})</h4>
-            </div>
-          </div>
-          <div className="divide-y divide-border">
-            {pendingInvitations.map((inv) => (
-              <div key={inv.id} className="flex items-center justify-between px-5 py-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-warning/10 flex items-center justify-center">
-                    <Mail className="w-4 h-4 text-warning" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{inv.full_name || inv.email}</p>
-                    <p className="text-xs text-muted-foreground">{inv.email}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className={roleColors[inv.role] || ""}>{roleLabels[inv.role] || inv.role}</Badge>
-                  <span className="text-xs text-muted-foreground">{new Date(inv.created_at).toLocaleDateString("fr-FR")}</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 gap-1 text-xs"
-                    disabled={resendInvitation.isPending}
-                    onClick={() => resendInvitation.mutate(inv)}
-                  >
-                    {resendInvitation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
-                    Renvoyer
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => cancelInvitation.mutate(inv.id)}>
-                    <X className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+    <div className="bg-card rounded-lg border border-border shadow-card">
+      <div className="p-5 border-b border-border"><SectionHeader title={`Utilisateurs (${users.length})`} /></div>
+      {!users.length ? (
+        <div className="p-8 text-center"><Users className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" /><p className="text-sm text-muted-foreground">Aucun utilisateur</p></div>
+      ) : (
+        <Table><TableHeader><TableRow>
+          <TableHead className="text-xs">Nom</TableHead><TableHead className="text-xs">Email</TableHead>
+          <TableHead className="text-xs">Rôle</TableHead><TableHead className="text-xs">Inscrit le</TableHead>
+        </TableRow></TableHeader><TableBody>
+          {users.map((u) => {
+            const roles = (u.user_roles as any[]) || [];
+            const role = roles[0]?.role || "employee";
+            return (<TableRow key={u.id} className="text-sm">
+              <TableCell className="font-medium">{u.full_name || "—"}</TableCell>
+              <TableCell className="text-muted-foreground">{u.email}</TableCell>
+              <TableCell><Badge variant="outline" className="text-xs">{roleLabels[role] || role}</Badge></TableCell>
+              <TableCell className="text-xs text-muted-foreground">{new Date(u.created_at).toLocaleDateString("fr-FR")}</TableCell>
+            </TableRow>);
+          })}
+        </TableBody></Table>
       )}
-
-      {/* Users list */}
-      <div className="bg-card rounded-lg border border-border shadow-card">
-        <div className="p-5 border-b border-border">
-          <SectionHeader
-            title={`Utilisateurs (${users.length})`}
-            action={
-              <div className="flex gap-2">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  {Object.entries(roleLabels).map(([key, label]) => {
-                    const count = users.filter(u => (u.user_roles as any[])?.some(r => r.role === key)).length;
-                    return count > 0 ? (
-                      <Badge key={key} variant="outline" className={`${roleColors[key]} text-[10px]`}>{count} {label}</Badge>
-                    ) : null;
-                  })}
-                </div>
-                <Button size="sm" className="gap-1.5" onClick={() => setShowInvite(true)}>
-                  <UserPlus className="w-4 h-4" /> Inviter
-                </Button>
-              </div>
-            }
-          />
-        </div>
-        {!users.length ? (
-          <div className="p-8 text-center">
-            <UserPlus className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground mb-3">Aucun utilisateur dans cette boutique</p>
-            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setShowInvite(true)}>
-              <Mail className="w-4 h-4" /> Inviter le premier utilisateur
-            </Button>
-          </div>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-xs">Utilisateur</TableHead>
-                <TableHead className="text-xs">Email</TableHead>
-                <TableHead className="text-xs">Rôle</TableHead>
-                <TableHead className="text-xs">Inscrit le</TableHead>
-                <TableHead className="text-xs">Dernière connexion</TableHead>
-                <TableHead className="text-xs w-10"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.map((user, i) => {
-                const roles = user.user_roles as any[];
-                const currentRole = roles?.[0]?.role || "employee";
-                return (
-                  <TableRow key={user.id} className="text-sm animate-fade-in" style={{ animationDelay: `${i * 30}ms` }}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
-                          {(user.full_name || user.email).charAt(0).toUpperCase()}
-                        </div>
-                        <span className="font-medium">{user.full_name || "—"}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-xs">{user.email}</TableCell>
-                    <TableCell>
-                      <Select value={currentRole} onValueChange={(v) => changeRole.mutate({ userId: user.id, newRole: v })}>
-                        <SelectTrigger className="h-7 w-[200px] text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="shop_manager">Responsable Boutique</SelectItem>
-                          <SelectItem value="dept_manager">Responsable Département</SelectItem>
-                          <SelectItem value="employee">Employé</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{new Date(user.created_at).toLocaleDateString("fr-FR")}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {lastSignIns?.[user.id]
-                        ? new Date(lastSignIns[user.id]!).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })
-                        : <span className="text-muted-foreground/50 italic">Jamais</span>}
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0"><MoreHorizontal className="w-4 h-4" /></Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => resendInvitation.mutate({ email: user.email, full_name: user.full_name, role: currentRole })}>
-                            <Send className="w-4 h-4 mr-2" /> Renvoyer l'invitation
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive" onClick={() => removeFromBoutique.mutate(user.id)}>
-                            <Trash2 className="w-4 h-4 mr-2" /> Retirer de la boutique
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        )}
-      </div>
-
-      {/* Invite Dialog */}
-      <Dialog open={showInvite} onOpenChange={setShowInvite}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle className="flex items-center gap-2"><UserPlus className="w-5 h-5" /> Inviter un utilisateur</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Email *</Label>
-              <Input
-                type="email"
-                value={invEmail}
-                onChange={(e) => setInvEmail(e.target.value)}
-                placeholder="utilisateur@entreprise.com"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Nom complet</Label>
-              <Input
-                value={invName}
-                onChange={(e) => setInvName(e.target.value)}
-                placeholder="Jean Dupont"
-                maxLength={100}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Rôle</Label>
-              <Select value={invRole} onValueChange={setInvRole}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="shop_manager">Responsable Boutique</SelectItem>
-                  <SelectItem value="dept_manager">Responsable Département</SelectItem>
-                  <SelectItem value="employee">Employé</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="rounded-md bg-muted/50 border border-border p-3 text-xs text-muted-foreground">
-              <p>L'utilisateur recevra un email avec un lien pour définir son mot de passe et accéder à la boutique.</p>
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setShowInvite(false)}>Annuler</Button>
-            <Button
-              onClick={() => sendInvite.mutate()}
-              disabled={!invEmail.trim() || sendInvite.isPending}
-              className="gap-1.5"
-            >
-              {sendInvite.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              Envoyer l'invitation
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
 
 /* ─── Entities Tab ─── */
 function EntitiesTab({ tenantId, entities }: { tenantId: string; entities: any[] }) {
-  const navigate = useNavigate();
-  const qc = useQueryClient();
-  const [showAdd, setShowAdd] = useState(false);
-  const [editingEntity, setEditingEntity] = useState<any>(null);
-  const [name, setName] = useState("");
-  const [code, setCode] = useState("");
-  const [requiresApproval, setRequiresApproval] = useState(false);
-  const [vatRate, setVatRate] = useState("20");
-  const [paymentOnOrder, setPaymentOnOrder] = useState(false);
-
-  const resetForm = () => {
-    setName(""); setCode(""); setRequiresApproval(false);
-    setVatRate("20"); setPaymentOnOrder(false); setEditingEntity(null);
-  };
-
-  const openEdit = (e: any) => {
-    setName(e.name);
-    setCode(e.code);
-    setRequiresApproval(e.requires_approval);
-    setVatRate(String(e.vat_rate ?? 20));
-    setPaymentOnOrder(e.payment_on_order ?? false);
-    setEditingEntity(e);
-  };
-
-  const addEntity = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.from("entities").insert({
-        tenant_id: tenantId,
-        name: name.trim(),
-        code: code.trim().toUpperCase() || name.trim().toUpperCase().replace(/\s+/g, "-").slice(0, 10),
-        requires_approval: requiresApproval,
-        vat_rate: parseFloat(vatRate) || 20,
-        payment_on_order: paymentOnOrder,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Entité créée");
-      qc.invalidateQueries({ queryKey: ["entities", tenantId] });
-      setShowAdd(false);
-      resetForm();
-    },
-    onError: (err: any) => toast.error(err.message),
-  });
-
-  const updateEntity = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.from("entities").update({
-        name: name.trim(),
-        code: code.trim().toUpperCase(),
-        requires_approval: requiresApproval,
-        vat_rate: parseFloat(vatRate) || 20,
-        payment_on_order: paymentOnOrder,
-      }).eq("id", editingEntity.id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Entité mise à jour");
-      qc.invalidateQueries({ queryKey: ["entities", tenantId] });
-      setEditingEntity(null);
-      resetForm();
-    },
-    onError: (err: any) => toast.error(err.message),
-  });
-
-  const deleteEntity = useMutation({
-    mutationFn: async (entityId: string) => {
-      const { error } = await supabase.from("entities").delete().eq("id", entityId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Entité supprimée");
-      qc.invalidateQueries({ queryKey: ["entities", tenantId] });
-    },
-    onError: (err: any) => toast.error(err.message),
-  });
-
-  const EntityFormFields = () => (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <Label>Nom *</Label>
-        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Siège principal" maxLength={100} />
-      </div>
-      <div className="space-y-2">
-        <Label>Code</Label>
-        <Input value={code} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))} placeholder="Auto-généré si vide" maxLength={10} />
-      </div>
-      <div className="space-y-2">
-        <Label>Taux de TVA (%)</Label>
-        <Input type="number" min="0" max="100" step="0.1" value={vatRate} onChange={(e) => setVatRate(e.target.value)} placeholder="20" />
-      </div>
-      <div className="flex items-center justify-between py-2">
-        <Label className="cursor-pointer">Approbation requise (commandes bulk)</Label>
-        <Switch checked={requiresApproval} onCheckedChange={setRequiresApproval} />
-      </div>
-      <div className="flex items-center justify-between py-2">
-        <Label className="cursor-pointer">Paiement à la commande</Label>
-        <Switch checked={paymentOnOrder} onCheckedChange={setPaymentOnOrder} />
-      </div>
-    </div>
-  );
-
   return (
     <div className="bg-card rounded-lg border border-border shadow-card">
-      <div className="p-5 border-b border-border">
-        <SectionHeader
-          title={`Entités / Départements (${entities.length})`}
-          action={<Button size="sm" className="gap-1.5" onClick={() => { resetForm(); setShowAdd(true); }}><Plus className="w-4 h-4" /> Ajouter</Button>}
-        />
-      </div>
+      <div className="p-5 border-b border-border"><SectionHeader title={`Entités (${entities.length})`} /></div>
       {!entities.length ? (
-        <p className="p-8 text-center text-sm text-muted-foreground">Aucune entité</p>
+        <div className="p-8 text-center"><Building2 className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" /><p className="text-sm text-muted-foreground">Aucune entité</p></div>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="text-xs">Nom</TableHead>
-              <TableHead className="text-xs">Code</TableHead>
-              <TableHead className="text-xs">TVA</TableHead>
-              <TableHead className="text-xs">Approbation</TableHead>
-              <TableHead className="text-xs">Paiement cmd</TableHead>
-              <TableHead className="text-xs">Créée le</TableHead>
-              <TableHead className="text-xs w-20"></TableHead>
+        <Table><TableHeader><TableRow>
+          <TableHead className="text-xs">Nom</TableHead><TableHead className="text-xs">Code</TableHead>
+          <TableHead className="text-xs">TVA</TableHead><TableHead className="text-xs">Taux TVA</TableHead>
+          <TableHead className="text-xs">Approbation</TableHead><TableHead className="text-xs">Paiement</TableHead>
+        </TableRow></TableHeader><TableBody>
+          {entities.map((e) => (
+            <TableRow key={e.id} className="text-sm">
+              <TableCell className="font-medium">{e.name}</TableCell>
+              <TableCell className="font-mono text-xs text-muted-foreground">{e.code}</TableCell>
+              <TableCell className="text-xs text-muted-foreground">{e.vat || "—"}</TableCell>
+              <TableCell>{e.vat_rate}%</TableCell>
+              <TableCell><Badge variant="outline" className={`text-[10px] ${e.requires_approval ? "bg-warning/10 text-warning" : "bg-muted"}`}>{e.requires_approval ? "Requise" : "Non"}</Badge></TableCell>
+              <TableCell><Badge variant="outline" className={`text-[10px] ${e.payment_on_order ? "bg-primary/10 text-primary" : "bg-muted"}`}>{e.payment_on_order ? "À la commande" : "Sur facture"}</Badge></TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {entities.map((e) => (
-              <TableRow key={e.id} className="text-sm cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/tenants/${tenantId}/entities/${e.id}`)}>
-                <TableCell className="font-medium">{e.name}</TableCell>
-                <TableCell className="font-mono text-xs text-muted-foreground">{e.code}</TableCell>
-                <TableCell className="text-xs">{e.vat_rate ?? 20}%</TableCell>
-                <TableCell>
-                  <Badge variant="outline" className={e.requires_approval ? "bg-primary/10 text-primary border-primary/20" : "bg-secondary text-muted-foreground"}>
-                    {e.requires_approval ? "Oui" : "Non"}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <Badge variant="outline" className={e.payment_on_order ? "bg-primary/10 text-primary border-primary/20" : "bg-secondary text-muted-foreground"}>
-                    {e.payment_on_order ? "Oui" : "Non"}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-xs text-muted-foreground">{new Date(e.created_at).toLocaleDateString("fr-FR")}</TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={(ev) => { ev.stopPropagation(); navigate(`/tenants/${tenantId}/entities/${e.id}`); }}>
-                      <Pencil className="w-4 h-4" />
-                    </Button>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive hover:text-destructive" onClick={(ev) => { ev.stopPropagation(); deleteEntity.mutate(e.id); }}>
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+          ))}
+        </TableBody></Table>
       )}
-
-      {/* Add Dialog */}
-      <Dialog open={showAdd} onOpenChange={(o) => { if (!o) resetForm(); setShowAdd(o); }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Nouvelle entité</DialogTitle></DialogHeader>
-          <EntityFormFields />
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => { setShowAdd(false); resetForm(); }}>Annuler</Button>
-            <Button onClick={() => addEntity.mutate()} disabled={!name.trim() || addEntity.isPending}>
-              {addEntity.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
-              Créer
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Dialog */}
-      <Dialog open={!!editingEntity} onOpenChange={(o) => { if (!o) resetForm(); }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Modifier l'entité</DialogTitle></DialogHeader>
-          <EntityFormFields />
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => resetForm()}>Annuler</Button>
-            <Button onClick={() => updateEntity.mutate()} disabled={!name.trim() || updateEntity.isPending}>
-              {updateEntity.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Save className="w-4 h-4 mr-1" />}
-              Enregistrer
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
@@ -837,13 +320,15 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
   const [bulkPrice, setBulkPrice] = useState("");
   const [staffPrice, setStaffPrice] = useState("");
   const [stockType, setStockType] = useState<string>("in_stock");
+  const [noBillingBulk, setNoBillingBulk] = useState(false);
+  const [noBillingStaff, setNoBillingStaff] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
 
   // Auto-generate SKU from product name
   const generateSku = (productName: string) => {
     const base = productName
-      .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // remove accents
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
       .toUpperCase()
       .replace(/[^A-Z0-9 ]/g, "")
       .trim()
@@ -851,7 +336,6 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
       .slice(0, 3)
       .join("-");
     if (!base) return "";
-    // Find next available number
     const existingSkus = products?.map((p) => p.sku) || [];
     let num = 1;
     while (existingSkus.includes(`${base}-${String(num).padStart(2, "0")}`)) num++;
@@ -876,11 +360,14 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
     const staff = prices?.find((pr: any) => pr.store_type === "staff");
     setName(p.name);
     setSku(p.sku);
+    setSkuManual(true);
     setCategory(p.category || "");
     setDescription(p.description || "");
     setBulkPrice(bulk ? String(bulk.price) : "");
     setStaffPrice(staff ? String(staff.price) : "");
     setStockType(p.stock_type || "in_stock");
+    setNoBillingBulk(!!p.no_billing_bulk);
+    setNoBillingStaff(!!p.no_billing_staff);
     setImageFile(null);
     setVariants(
       (pvariants || []).map((v: any) => ({
@@ -901,7 +388,8 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
   const resetForm = () => {
     setName(""); setSku(""); setSkuManual(false); setCategory(""); setDescription("");
     setBulkPrice(""); setStaffPrice(""); setImageFile(null);
-    setStockType("in_stock"); setVariants([]); setEditingProduct(null);
+    setStockType("in_stock"); setNoBillingBulk(false); setNoBillingStaff(false);
+    setVariants([]); setEditingProduct(null);
   };
 
   const uploadImage = async (productId: string, file: File) => {
@@ -925,6 +413,8 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
           category: category.trim().toLowerCase(),
           description: description.trim() || null,
           stock_type: stockType as any,
+          no_billing_bulk: noBillingBulk,
+          no_billing_staff: noBillingStaff,
         })
         .select()
         .single();
@@ -943,7 +433,6 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
         if (pErr) throw pErr;
       }
 
-      // Insert variants
       const validVariants = variants.filter((v) => v.label.trim() && v.value.trim());
       if (validVariants.length) {
         const { error: vErr } = await supabase.from("product_variants").insert(
@@ -961,64 +450,51 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
       }
     },
     onSuccess: () => {
-      toast.success("Produit ajouté");
+      toast.success("Produit créé");
       qc.invalidateQueries({ queryKey: ["products", tenantId] });
       setShowAdd(false);
       resetForm();
-      setUploading(false);
     },
-    onError: (err: any) => { toast.error(err.message); setUploading(false); },
-  });
-
-  const toggleActive = useMutation({
-    mutationFn: async ({ productId, current }: { productId: string; current: boolean }) => {
-      const { error } = await supabase.from("products").update({ active: !current }).eq("id", productId);
-      if (error) throw error;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["products", tenantId] }),
     onError: (err: any) => toast.error(err.message),
+    onSettled: () => setUploading(false),
   });
 
   const updateProduct = useMutation({
     mutationFn: async () => {
+      if (!editingProduct) return;
       setUploading(true);
-      const productId = editingProduct.id;
       const { error } = await supabase.from("products").update({
         name: name.trim(),
         sku: sku.trim().toUpperCase(),
         category: category.trim().toLowerCase(),
         description: description.trim() || null,
         stock_type: stockType as any,
-      }).eq("id", productId);
+        no_billing_bulk: noBillingBulk,
+        no_billing_staff: noBillingStaff,
+      }).eq("id", editingProduct.id);
       if (error) throw error;
 
       if (imageFile) {
-        const imageUrl = await uploadImage(productId, imageFile);
-        await supabase.from("products").update({ image_url: imageUrl }).eq("id", productId);
+        const imageUrl = await uploadImage(editingProduct.id, imageFile);
+        await supabase.from("products").update({ image_url: imageUrl }).eq("id", editingProduct.id);
       }
 
-      // Upsert prices
       for (const st of ["bulk", "staff"] as const) {
         const val = st === "bulk" ? bulkPrice : staffPrice;
-        const existing = (editingProduct.product_prices as any[])?.find((pr: any) => pr.store_type === st);
         if (val) {
-          if (existing) {
-            await supabase.from("product_prices").update({ price: parseFloat(val) }).eq("id", existing.id);
-          } else {
-            await supabase.from("product_prices").insert({ tenant_id: tenantId, product_id: productId, store_type: st, price: parseFloat(val) });
-          }
-        } else if (existing) {
-          await supabase.from("product_prices").delete().eq("id", existing.id);
+          await supabase.from("product_prices").upsert(
+            { tenant_id: tenantId, product_id: editingProduct.id, store_type: st, price: parseFloat(val) },
+            { onConflict: "product_id,store_type,tenant_id" }
+          );
         }
       }
 
-      // Replace variants
-      await supabase.from("product_variants").delete().eq("product_id", productId);
+      await supabase.from("product_variants").delete().eq("product_id", editingProduct.id);
       const validVariants = variants.filter((v) => v.label.trim() && v.value.trim());
       if (validVariants.length) {
-        const { error: vErr } = await supabase.from("product_variants").insert(
+        await supabase.from("product_variants").insert(
           validVariants.map((v, i) => ({
-            product_id: productId,
+            product_id: editingProduct.id,
             tenant_id: tenantId,
             variant_label: v.label.trim(),
             variant_value: v.value.trim(),
@@ -1027,7 +503,6 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
             sort_order: i,
           }))
         );
-        if (vErr) throw vErr;
       }
     },
     onSuccess: () => {
@@ -1035,15 +510,25 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
       qc.invalidateQueries({ queryKey: ["products", tenantId] });
       setEditingProduct(null);
       resetForm();
-      setUploading(false);
     },
-    onError: (err: any) => { toast.error(err.message); setUploading(false); },
+    onError: (err: any) => toast.error(err.message),
+    onSettled: () => setUploading(false),
+  });
+
+  const toggleActive = useMutation({
+    mutationFn: async ({ productId, current }: { productId: string; current: boolean }) => {
+      const { error } = await supabase.from("products").update({ active: !current }).eq("id", productId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Statut mis à jour");
+      qc.invalidateQueries({ queryKey: ["products", tenantId] });
+    },
+    onError: (err: any) => toast.error(err.message),
   });
 
   const deleteProduct = useMutation({
     mutationFn: async (productId: string) => {
-      await supabase.from("product_variants").delete().eq("product_id", productId);
-      await supabase.from("product_prices").delete().eq("product_id", productId);
       const { error } = await supabase.from("products").delete().eq("id", productId);
       if (error) throw error;
     },
@@ -1054,20 +539,17 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
     onError: (err: any) => toast.error(err.message),
   });
 
-  // Category management mutations
   const addCategory = useMutation({
     mutationFn: async () => {
-      const slug = newCatName.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+      if (!newCatName.trim()) return;
+      const slug = newCatName.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
       const { error } = await supabase.from("product_categories").insert({
-        tenant_id: tenantId,
-        name: newCatName.trim(),
-        slug,
-        sort_order: categories.length,
+        tenant_id: tenantId, name: newCatName.trim(), slug, sort_order: (categories?.length || 0),
       });
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Catégorie ajoutée");
+      toast.success("Catégorie créée");
       qc.invalidateQueries({ queryKey: ["product-categories", tenantId] });
       setNewCatName("");
     },
@@ -1085,7 +567,6 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
     },
     onError: (err: any) => toast.error(err.message),
   });
-
 
   const getVariantSummary = (pvariants: any[]) => {
     if (!pvariants?.length) return null;
@@ -1274,6 +755,17 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
                   <Input type="number" value={staffPrice} onChange={(e) => setStaffPrice(e.target.value)} placeholder="0.00" min="0" step="0.01" />
                 </div>
               </div>
+              <div className="flex flex-wrap gap-4 mt-2">
+                <label className="flex items-center gap-2 text-xs">
+                  <Switch checked={noBillingBulk} onCheckedChange={setNoBillingBulk} />
+                  <span>Offert en Bulk <span className="text-muted-foreground">(sans refacturation)</span></span>
+                </label>
+                <label className="flex items-center gap-2 text-xs">
+                  <Switch checked={noBillingStaff} onCheckedChange={setNoBillingStaff} />
+                  <span>Offert en Staff <span className="text-muted-foreground">(sans refacturation)</span></span>
+                </label>
+              </div>
+              </div>
             </div>
 
             {/* Variants */}
@@ -1446,6 +938,17 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
                   <Input type="number" value={staffPrice} onChange={(e) => setStaffPrice(e.target.value)} placeholder="0.00" min="0" step="0.01" />
                 </div>
               </div>
+              <div className="flex flex-wrap gap-4 mt-2">
+                <label className="flex items-center gap-2 text-xs">
+                  <Switch checked={noBillingBulk} onCheckedChange={setNoBillingBulk} />
+                  <span>Offert en Bulk</span>
+                </label>
+                <label className="flex items-center gap-2 text-xs">
+                  <Switch checked={noBillingStaff} onCheckedChange={setNoBillingStaff} />
+                  <span>Offert en Staff</span>
+                </label>
+              </div>
+              </div>
             </div>
             <div>
               <div className="flex items-center justify-between mb-2">
@@ -1558,7 +1061,7 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
     </div>
   );
 }
-function OrdersTab({ tenantId, orders }: { tenantId: string; orders: any[] }) {
+function OrdersTab({ tenantId, orders, entities, users }: { tenantId: string; orders: any[]; entities?: any[]; users?: any[] }) {
   const qc = useQueryClient();
   const [viewOrder, setViewOrder] = useState<any>(null);
 

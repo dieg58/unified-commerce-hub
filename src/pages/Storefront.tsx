@@ -90,10 +90,10 @@ const Storefront = () => {
   const headTitle = branding?.head_title || tenantName;
   const logoUrl = branding?.logo_url;
 
-  // No product billing: products are free, only shipping is charged
-  const noProductBilling = storeType === "bulk"
-    ? !!tenant?.no_product_billing_bulk
-    : !!tenant?.no_product_billing_staff;
+  // Per-product no-billing check helper
+  const isProductFree = (product: any) => {
+    return storeType === "bulk" ? !!product.no_billing_bulk : !!product.no_billing_staff;
+  };
 
   // Categories from products
   const categories = useMemo(() => {
@@ -122,7 +122,10 @@ const Storefront = () => {
 
   const selectedBudget = budgets?.find((b) => b.entity_id === entityId && b.store_type === storeType);
   const budgetRemaining = selectedBudget ? Number(selectedBudget.amount) - Number(selectedBudget.spent) : null;
-  const effectiveTotal = noProductBilling ? 0 : total;
+  // Calculate effective total: exclude free products
+  const freeProductIds = new Set(products?.filter((p) => isProductFree(p)).map((p) => p.id) || []);
+  const effectiveTotal = items.reduce((s, i) => s + (freeProductIds.has(i.productId) ? 0 : i.price * i.qty), 0);
+  const hasAnyFreeItems = items.some((i) => freeProductIds.has(i.productId));
   const isBudgetExceeded = storeType === "staff" && budgetRemaining !== null && effectiveTotal > budgetRemaining;
   const selectedEntity = entities?.find((e) => e.id === entityId);
   const requiresApproval = storeType === "bulk" && selectedEntity?.requires_approval;
@@ -142,7 +145,7 @@ const Storefront = () => {
       if (oErr) throw oErr;
       const orderItems = items.map((item) => ({
         order_id: order.id, tenant_id: tenantId, product_id: item.productId,
-        qty: item.qty, unit_price: noProductBilling ? 0 : item.price,
+        qty: item.qty, unit_price: freeProductIds.has(item.productId) ? 0 : item.price,
       }));
       const { error: iErr } = await supabase.from("order_items").insert(orderItems);
       if (iErr) throw iErr;
@@ -215,7 +218,7 @@ const Storefront = () => {
                 <CartPanel
                   items={items} updateQty={updateQty} removeItem={removeItem}
                   total={effectiveTotal} onCheckout={() => setCheckoutOpen(true)}
-                  primaryColor={primaryColor} noProductBilling={noProductBilling}
+                  primaryColor={primaryColor} freeProductIds={freeProductIds}
                 />
               </SheetContent>
             </Sheet>
@@ -362,7 +365,7 @@ const Storefront = () => {
                     )}
                     <div className="mt-auto flex items-center justify-between pt-2">
                       <p className="text-lg font-bold" style={{ color: primaryColor }}>
-                        {noProductBilling ? (
+                        {isProductFree(product) ? (
                           <span className="flex items-center gap-1.5">
                             <span className="line-through text-sm text-muted-foreground font-normal">{formatCurrency(price)}</span>
                             <span>Offert</span>
@@ -437,21 +440,24 @@ const Storefront = () => {
             )}
             <div className="rounded-lg border border-border p-3 space-y-2">
               <p className="text-sm font-medium">Résumé</p>
-              {noProductBilling && (
+              {hasAnyFreeItems && (
                 <div className="flex items-center gap-1.5 text-xs text-primary font-medium">
                   <CheckCircle className="w-3.5 h-3.5" />
-                  Produits offerts — seule la livraison sera facturée
+                  Certains produits sont offerts — seule la livraison sera facturée
                 </div>
               )}
-              {items.map((item) => (
-                <div key={item.productId} className="flex justify-between text-xs text-muted-foreground">
-                  <span>{item.name} × {item.qty}</span>
-                  <span>{noProductBilling ? <span className="line-through">{formatCurrency(item.price * item.qty)}</span> : formatCurrency(item.price * item.qty)}</span>
-                </div>
-              ))}
+              {items.map((item) => {
+                const isFree = freeProductIds.has(item.productId);
+                return (
+                  <div key={item.productId} className="flex justify-between text-xs text-muted-foreground">
+                    <span>{item.name} × {item.qty}</span>
+                    <span>{isFree ? <><span className="line-through">{formatCurrency(item.price * item.qty)}</span> <span className="text-primary font-medium">Offert</span></> : formatCurrency(item.price * item.qty)}</span>
+                  </div>
+                );
+              })}
               <div className="border-t border-border pt-2 flex justify-between text-sm font-bold">
-                <span>Total produits</span>
-                <span>{noProductBilling ? "Offert" : formatCurrency(effectiveTotal)}</span>
+                <span>Total</span>
+                <span>{formatCurrency(effectiveTotal)}</span>
               </div>
             </div>
           </div>
@@ -475,19 +481,20 @@ const Storefront = () => {
 
 /* ─── Cart Panel Component ─── */
 function CartPanel({
-  items, updateQty, removeItem, total, onCheckout, primaryColor, noProductBilling = false,
+  items, updateQty, removeItem, total, onCheckout, primaryColor, freeProductIds = new Set(),
 }: {
   items: any[]; updateQty: (id: string, qty: number) => void;
   removeItem: (id: string) => void; total: number;
-  onCheckout: () => void; primaryColor: string; noProductBilling?: boolean;
+  onCheckout: () => void; primaryColor: string; freeProductIds?: Set<string>;
 }) {
+  const hasAnyFree = items.some((i) => freeProductIds.has(i.productId));
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-auto py-4 space-y-3">
-        {noProductBilling && items.length > 0 && (
+        {hasAnyFree && items.length > 0 && (
           <div className="flex items-center gap-1.5 text-xs text-primary font-medium p-2 rounded-md bg-primary/5 border border-primary/20">
             <CheckCircle className="w-3.5 h-3.5" />
-            Produits offerts — seule la livraison sera facturée
+            Certains produits sont offerts
           </div>
         )}
         {items.length === 0 ? (
@@ -496,7 +503,9 @@ function CartPanel({
             <p className="text-sm text-muted-foreground">Votre panier est vide</p>
           </div>
         ) : (
-          items.map((item: any) => (
+          items.map((item: any) => {
+            const isFree = freeProductIds.has(item.productId);
+            return (
             <div key={item.productId} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card">
               <div className="w-12 h-12 rounded-md bg-muted/50 flex items-center justify-center shrink-0">
                 <Package className="w-5 h-5 text-muted-foreground/30" />
@@ -504,11 +513,7 @@ function CartPanel({
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
                 <p className="text-xs text-muted-foreground">
-                  {noProductBilling ? (
-                    <><span className="line-through">{formatCurrency(item.price)}</span> <span className="text-primary font-medium">Offert</span> × {item.qty}</>
-                  ) : (
-                    <>{formatCurrency(item.price)} × {item.qty}</>
-                  )}
+                  {isFree ? (<><span className="line-through">{formatCurrency(item.price)}</span> <span className="text-primary font-medium">Offert</span> × {item.qty}</>) : (<>{formatCurrency(item.price)} × {item.qty}</>)}
                 </p>
               </div>
               <div className="flex items-center gap-1">
@@ -524,14 +529,15 @@ function CartPanel({
                 </button>
               </div>
             </div>
-          ))
+            );
+          })
         )}
       </div>
       {items.length > 0 && (
         <div className="border-t border-border pt-4 pb-6 space-y-3">
           <div className="flex justify-between">
-            <span className="text-sm text-muted-foreground">Total produits</span>
-            <span className="text-xl font-bold text-foreground">{noProductBilling ? "Offert" : formatCurrency(total)}</span>
+            <span className="text-sm text-muted-foreground">Total</span>
+            <span className="text-xl font-bold text-foreground">{formatCurrency(total)}</span>
           </div>
           <Button className="w-full text-white" style={{ backgroundColor: primaryColor }} onClick={onCheckout}>
             Passer commande
