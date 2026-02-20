@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, Building2, FileText, MapPin, Settings2, Truck } from "lucide-react";
 import { toast } from "sonner";
 
 const vatRatesByCountry: Record<string, number> = {
@@ -42,6 +42,24 @@ const getVatRate = (country: string): string => {
 
 const emptyAddress = { label: "", address_line1: "", city: "", country: "Belgique" };
 
+/* ─── Section card wrapper ────────────────────────────────────────────── */
+const Section = ({ icon: Icon, title, description, children }: { icon: any; title: string; description?: string; children: React.ReactNode }) => (
+  <div className="bg-card rounded-lg border border-border shadow-card animate-fade-in">
+    <div className="p-5 border-b border-border">
+      <div className="flex items-center gap-2.5">
+        <div className="w-8 h-8 rounded-md bg-primary/5 flex items-center justify-center shrink-0">
+          <Icon className="w-4 h-4 text-primary" />
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+          {description && <p className="text-xs text-muted-foreground mt-0.5">{description}</p>}
+        </div>
+      </div>
+    </div>
+    <div className="p-5">{children}</div>
+  </div>
+);
+
 const TenantEntityForm = () => {
   const { id } = useParams();
   const isEditing = id && id !== "new";
@@ -55,7 +73,6 @@ const TenantEntityForm = () => {
   const [sameAddress, setSameAddress] = useState(true);
   const [shippingAddr, setShippingAddr] = useState({ ...emptyAddress });
 
-  // Load entity data when editing
   const { data: entity } = useQuery({
     queryKey: ["tenant-entity", id],
     queryFn: async () => {
@@ -174,114 +191,146 @@ const TenantEntityForm = () => {
         title={isEditing ? "Modifier l'entité" : "Nouvelle entité"}
         subtitle={isEditing ? `Édition de ${entity?.name || "..."}` : "Créer une nouvelle entité"}
       />
-      <div className="p-6 max-w-2xl mx-auto space-y-6 overflow-auto">
-        <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={() => navigate("/tenant/entities")}>
+      <div className="p-6 max-w-3xl mx-auto space-y-5 overflow-auto pb-12">
+        {/* Back button */}
+        <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground -ml-2" onClick={() => navigate("/tenant/entities")}>
           <ArrowLeft className="w-4 h-4" /> Retour aux entités
         </Button>
 
-        <div className="bg-card rounded-lg border border-border shadow-card animate-fade-in p-6 space-y-6">
-          {/* Entity info */}
+        {/* ─── Identification ─────────────────────────────────────────── */}
+        <Section icon={Building2} title="Identification" description="Nom et code interne de l'entité">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Nom de l'entité</Label>
+              <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Ex: HQ Paris" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Code interne</Label>
+              <Input value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} placeholder="HQ-PAR" className="uppercase font-mono" />
+            </div>
+          </div>
+        </Section>
+
+        {/* ─── Fiscalité ──────────────────────────────────────────────── */}
+        <Section icon={FileText} title="Fiscalité" description="Taux de TVA calculé automatiquement selon le pays">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">N° de TVA</Label>
+              <Input value={form.vat} onChange={e => setForm(f => ({ ...f, vat: e.target.value }))} placeholder="BE0123456789" className="font-mono" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Taux de TVA</Label>
+              <div className="relative">
+                <Input type="number" value={form.vat_rate} readOnly className="bg-muted/50 cursor-not-allowed pr-8" />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
+              </div>
+              <p className="text-[10px] text-muted-foreground">Déterminé par le pays de facturation</p>
+            </div>
+          </div>
+        </Section>
+
+        {/* ─── Adresses (side by side on desktop) ─────────────────────── */}
+        <Section icon={MapPin} title="Adresses" description="Adresses de facturation et de livraison de l'entité">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Billing */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 pb-1">
+                <div className="w-5 h-5 rounded bg-accent/10 flex items-center justify-center">
+                  <FileText className="w-3 h-3 text-accent" />
+                </div>
+                <span className="text-xs font-semibold text-foreground uppercase tracking-wide">Facturation</span>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Libellé</Label>
+                <Input value={billingAddr.label} onChange={e => setBillingAddr(a => ({ ...a, label: e.target.value }))} placeholder="Ex: Siège social" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Adresse</Label>
+                <Input value={billingAddr.address_line1} onChange={e => setBillingAddr(a => ({ ...a, address_line1: e.target.value }))} placeholder="Rue et numéro" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Ville</Label>
+                  <Input value={billingAddr.city} onChange={e => setBillingAddr(a => ({ ...a, city: e.target.value }))} placeholder="Bruxelles" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Pays</Label>
+                  <Input value={billingAddr.country} onChange={e => {
+                    const country = e.target.value;
+                    setBillingAddr(a => ({ ...a, country }));
+                    setForm(f => ({ ...f, vat_rate: getVatRate(country) }));
+                  }} placeholder="Belgique" />
+                </div>
+              </div>
+            </div>
+
+            {/* Shipping */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 pb-1">
+                <div className="w-5 h-5 rounded bg-accent/10 flex items-center justify-center">
+                  <Truck className="w-3 h-3 text-accent" />
+                </div>
+                <span className="text-xs font-semibold text-foreground uppercase tracking-wide">Livraison</span>
+              </div>
+              <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2.5">
+                <Checkbox id="same-address" checked={sameAddress} onCheckedChange={(v) => setSameAddress(!!v)} />
+                <Label htmlFor="same-address" className="text-xs cursor-pointer text-muted-foreground">Identique à l'adresse de facturation</Label>
+              </div>
+              {!sameAddress && (
+                <div className="space-y-3 animate-fade-in">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Libellé</Label>
+                    <Input value={shippingAddr.label} onChange={e => setShippingAddr(a => ({ ...a, label: e.target.value }))} placeholder="Ex: Entrepôt" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Adresse</Label>
+                    <Input value={shippingAddr.address_line1} onChange={e => setShippingAddr(a => ({ ...a, address_line1: e.target.value }))} placeholder="Rue et numéro" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Ville</Label>
+                      <Input value={shippingAddr.city} onChange={e => setShippingAddr(a => ({ ...a, city: e.target.value }))} placeholder="Bruxelles" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Pays</Label>
+                      <Input value={shippingAddr.country} onChange={e => setShippingAddr(a => ({ ...a, country: e.target.value }))} placeholder="Belgique" />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </Section>
+
+        {/* ─── Options ────────────────────────────────────────────────── */}
+        <Section icon={Settings2} title="Options de commande" description="Paramètres de validation et de paiement">
           <div className="space-y-4">
-            <h4 className="text-sm font-semibold text-foreground">Informations</h4>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Nom</Label>
-                <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Ex: HQ Paris" />
+            <div className="flex items-center justify-between rounded-md bg-muted/30 px-4 py-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">Approbation des commandes</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Les commandes doivent être validées par un responsable</p>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Code</Label>
-                <Input value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} placeholder="HQ-PAR" className="uppercase" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Taux de TVA (%)</Label>
-                <Input type="number" value={form.vat_rate} readOnly className="bg-muted cursor-not-allowed" />
-                <p className="text-[10px] text-muted-foreground">Automatique selon le pays</p>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">N° de TVA</Label>
-                <Input value={form.vat} onChange={e => setForm(f => ({ ...f, vat: e.target.value }))} placeholder="BE0123456789" />
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <Label className="text-xs">Exiger l'approbation des commandes</Label>
               <Switch checked={form.requires_approval} onCheckedChange={v => setForm(f => ({ ...f, requires_approval: v }))} />
             </div>
-            <div className="flex items-center justify-between">
-              <Label className="text-xs">Paiement à la commande</Label>
+            <div className="flex items-center justify-between rounded-md bg-muted/30 px-4 py-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">Paiement à la commande</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Le paiement est requis au moment de la commande</p>
+              </div>
               <Switch checked={form.payment_on_order} onCheckedChange={v => setForm(f => ({ ...f, payment_on_order: v }))} />
             </div>
           </div>
+        </Section>
 
-          {/* Billing address */}
-          <div className="space-y-4 border-t border-border pt-5">
-            <h4 className="text-sm font-semibold text-foreground">Adresse de facturation</h4>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Libellé</Label>
-              <Input value={billingAddr.label} onChange={e => setBillingAddr(a => ({ ...a, label: e.target.value }))} placeholder="Ex: Siège social" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Adresse</Label>
-              <Input value={billingAddr.address_line1} onChange={e => setBillingAddr(a => ({ ...a, address_line1: e.target.value }))} placeholder="Rue et numéro" />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Ville</Label>
-                <Input value={billingAddr.city} onChange={e => setBillingAddr(a => ({ ...a, city: e.target.value }))} placeholder="Bruxelles" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Pays</Label>
-                <Input value={billingAddr.country} onChange={e => {
-                  const country = e.target.value;
-                  setBillingAddr(a => ({ ...a, country }));
-                  setForm(f => ({ ...f, vat_rate: getVatRate(country) }));
-                }} placeholder="Belgique" />
-              </div>
-            </div>
-          </div>
-
-          {/* Shipping address */}
-          <div className="space-y-4 border-t border-border pt-5">
-            <h4 className="text-sm font-semibold text-foreground">Adresse de livraison</h4>
-            <div className="flex items-center gap-2">
-              <Checkbox id="same-address" checked={sameAddress} onCheckedChange={(v) => setSameAddress(!!v)} />
-              <Label htmlFor="same-address" className="text-xs cursor-pointer">Identique à l'adresse de facturation</Label>
-            </div>
-            {!sameAddress && (
-              <div className="space-y-4 animate-fade-in">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Libellé</Label>
-                  <Input value={shippingAddr.label} onChange={e => setShippingAddr(a => ({ ...a, label: e.target.value }))} placeholder="Ex: Entrepôt" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Adresse</Label>
-                  <Input value={shippingAddr.address_line1} onChange={e => setShippingAddr(a => ({ ...a, address_line1: e.target.value }))} placeholder="Rue et numéro" />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Ville</Label>
-                    <Input value={shippingAddr.city} onChange={e => setShippingAddr(a => ({ ...a, city: e.target.value }))} placeholder="Bruxelles" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Pays</Label>
-                    <Input value={shippingAddr.country} onChange={e => setShippingAddr(a => ({ ...a, country: e.target.value }))} placeholder="Belgique" />
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Actions */}
-          <div className="flex gap-3 pt-2">
-            <Button variant="outline" className="flex-1" onClick={() => navigate("/tenant/entities")}>
-              Annuler
-            </Button>
-            <Button className="flex-1" onClick={() => saveEntity.mutate()} disabled={saveEntity.isPending}>
-              {saveEntity.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-              {isEditing ? "Enregistrer" : "Créer l'entité"}
-            </Button>
-          </div>
+        {/* ─── Actions ────────────────────────────────────────────────── */}
+        <div className="flex gap-3 pt-1 sticky bottom-0 bg-background/80 backdrop-blur-sm py-4 -mx-6 px-6 border-t border-border">
+          <Button variant="outline" className="flex-1" onClick={() => navigate("/tenant/entities")}>
+            Annuler
+          </Button>
+          <Button className="flex-1" onClick={() => saveEntity.mutate()} disabled={saveEntity.isPending}>
+            {saveEntity.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+            {isEditing ? "Enregistrer les modifications" : "Créer l'entité"}
+          </Button>
         </div>
       </div>
     </>
