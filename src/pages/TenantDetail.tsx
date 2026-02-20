@@ -275,10 +275,25 @@ function UsersTab({ tenantId, users }: { tenantId: string; users: any[] }) {
 
   const sendInvite = useMutation({
     mutationFn: async () => {
+      const email = invEmail.trim().toLowerCase();
+
+      // Check for existing pending invitation
+      const { data: existing } = await supabase
+        .from("invitations")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .eq("email", email)
+        .eq("status", "pending")
+        .maybeSingle();
+      if (existing) throw new Error("Une invitation est déjà en attente pour cet email");
+
+      // Delete old non-pending invitations to avoid unique constraint
+      await supabase.from("invitations").delete().eq("tenant_id", tenantId).eq("email", email);
+
       // Record invitation in DB
       const { error: dbErr } = await supabase.from("invitations").insert({
         tenant_id: tenantId,
-        email: invEmail.trim().toLowerCase(),
+        email,
         full_name: invName.trim(),
         role: invRole as any,
         invited_by: (await supabase.auth.getUser()).data.user!.id,
