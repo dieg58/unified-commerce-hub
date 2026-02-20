@@ -1,10 +1,16 @@
 /**
+ * The base domain used for tenant subdomains.
+ * Each tenant storefront is accessible at {slug}.inkoo.eu
+ */
+export const BASE_DOMAIN = "inkoo.eu";
+
+/**
  * Detects the tenant slug from the current hostname's subdomain.
  * 
  * Examples:
- *   orange.b2b-inkoo.com → "orange"
+ *   orange.inkoo.eu → "orange"
  *   orange.localhost → "orange"
- *   b2b-inkoo.com → null (no subdomain)
+ *   inkoo.eu → null (no subdomain)
  *   localhost:5173 → null
  *   preview--xxx.lovable.app → null (lovable preview)
  */
@@ -17,6 +23,9 @@ export function getTenantSlugFromSubdomain(): string | null {
   // Skip localhost without subdomain
   if (hostname === "localhost" || hostname === "127.0.0.1") return null;
 
+  // Skip bare base domain
+  if (hostname === BASE_DOMAIN || hostname === `www.${BASE_DOMAIN}`) return null;
+
   const parts = hostname.split(".");
 
   // For localhost with subdomain: orange.localhost
@@ -24,8 +33,8 @@ export function getTenantSlugFromSubdomain(): string | null {
     return parts[0];
   }
 
-  // For real domains: orange.example.com (3+ parts) 
-  // Skip www
+  // For inkoo.eu: orange.inkoo.eu → 3 parts
+  // For other domains: orange.example.com → 3+ parts
   if (parts.length >= 3) {
     const sub = parts[0];
     if (sub === "www") return null;
@@ -40,4 +49,11 @@ export function getTenantSlugFromSubdomain(): string | null {
  */
 export function isSubdomainContext(): boolean {
   return getTenantSlugFromSubdomain() !== null;
+}
+
+/**
+ * Build the full storefront URL for a given tenant slug
+ */
+export function getStorefrontUrl(slug: string): string {
+  return `https://${slug}.${BASE_DOMAIN}`;
 }

@@ -3,6 +3,7 @@ import TopBar from "@/components/TopBar";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { getStorefrontUrl } from "@/lib/subdomain";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -195,7 +196,7 @@ const TenantSettings = () => {
     }
   };
 
-  const storeUrl = tenant?.slug ? `${window.location.origin}` : null;
+  const storeUrl = tenant?.slug ? getStorefrontUrl(tenant.slug) : null;
   const createdAt = tenant?.created_at ? new Date(tenant.created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : null;
 
   return (
@@ -353,6 +354,7 @@ const TenantSettings = () => {
         <Section icon={Globe} title="Accès & URL" description="Liens d'accès à votre boutique">
           <div className="space-y-1 divide-y divide-border">
             <InfoRow label="Identifiant boutique" value={tenant?.slug} mono />
+            <InfoRow label="Domaine" value={storeUrl || "—"} mono />
             <InfoRow label="Statut" value={tenant?.status === "active" ? "✅ Active" : "⏸️ Inactive"} />
             <InfoRow label="Créée le" value={createdAt} />
           </div>
@@ -361,7 +363,7 @@ const TenantSettings = () => {
               <div>
                 <p className="text-xs font-medium text-foreground">URL de la boutique</p>
                 <p className="text-xs text-muted-foreground font-mono mt-0.5">
-                  {tenant.slug}.votredomaine.com
+                  {tenant.slug}.inkoo.eu
                 </p>
               </div>
               <Button variant="outline" size="sm" className="gap-1.5 text-xs" asChild>
