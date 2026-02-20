@@ -16,7 +16,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import {
   ArrowLeft, Loader2, Plus, Pencil, Save, X, MoreHorizontal, Trash2,
   Building2, ShoppingCart, Wallet, Package, Palette, Users, Store,
-  CheckCircle, XCircle, Eye, Mail, Send, Clock, UserPlus, Tag
+  CheckCircle, XCircle, Eye, Mail, Send, Clock, UserPlus, Tag, Sparkles
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -1749,6 +1749,37 @@ function BrandingTab({ tenant, branding }: { tenant: any; branding: any }) {
   const [headTitle, setHeadTitle] = useState(branding?.head_title || "");
   const [logoUrl, setLogoUrl] = useState(branding?.logo_url || "");
   const [faviconUrl, setFaviconUrl] = useState(branding?.favicon_url || "");
+  const [websiteUrl, setWebsiteUrl] = useState("");
+  const [extracting, setExtracting] = useState(false);
+
+  const handleExtractBranding = async () => {
+    if (!websiteUrl.trim()) return;
+    setExtracting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("extract-branding", {
+        body: { url: websiteUrl.trim() },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "Extraction échouée");
+
+      const b = data.branding;
+      if (b.primaryColor) setPrimaryColor(b.primaryColor);
+      if (b.accentColor) setAccentColor(b.accentColor);
+      if (b.logo) setLogoUrl(b.logo);
+      if (b.title && !headTitle) setHeadTitle(b.title);
+
+      toast.success("Branding extrait automatiquement !", {
+        description: "Couleurs, logo et titre pré-remplis. Ajustez si nécessaire puis enregistrez.",
+      });
+    } catch (err: any) {
+      console.error("Branding extraction error:", err);
+      toast.error("Impossible d'extraire le branding", {
+        description: err.message || "Vérifiez l'URL et réessayez.",
+      });
+    } finally {
+      setExtracting(false);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -1799,6 +1830,37 @@ function BrandingTab({ tenant, branding }: { tenant: any; branding: any }) {
             <div className="space-y-2">
               <Label>Titre du navigateur</Label>
               <Input value={headTitle} onChange={(e) => setHeadTitle(e.target.value)} placeholder="Ma Boutique" maxLength={100} />
+            </div>
+            {/* Website URL extraction */}
+            <div className="space-y-2">
+              <Label>Site web du client <span className="text-muted-foreground font-normal">(extraction automatique)</span></Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  value={websiteUrl}
+                  onChange={(e) => setWebsiteUrl(e.target.value)}
+                  placeholder="https://www.exemple.com"
+                  maxLength={500}
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExtractBranding}
+                  disabled={!websiteUrl.trim() || extracting}
+                  className="shrink-0 gap-1.5"
+                >
+                  {extracting ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-3.5 h-3.5" />
+                  )}
+                  {extracting ? "Analyse..." : "Auto-remplir"}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Renseignez l'URL du site pour extraire automatiquement les couleurs, logo et titre.
+              </p>
             </div>
             <div className="space-y-2">
               <Label>URL du logo</Label>
