@@ -1,7 +1,8 @@
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { motion } from "framer-motion";
+import { useAuth } from "@/hooks/useAuth";
 import {
   Store,
   ShieldCheck,
@@ -11,6 +12,7 @@ import {
   CreditCard,
   ArrowRight,
   CheckCircle2,
+  Loader2,
 } from "lucide-react";
 
 const features = [
@@ -65,6 +67,22 @@ const fadeUp = {
 };
 
 const LandingPage = () => {
+  const { session, loading, isSuperAdmin } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Redirect authenticated users to their dashboard
+  if (session) {
+    if (isSuperAdmin) return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/shop" replace />;
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Nav */}
