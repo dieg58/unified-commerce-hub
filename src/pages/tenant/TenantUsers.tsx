@@ -3,10 +3,11 @@ import TopBar from "@/components/TopBar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Loader2, MoreHorizontal } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { Plus, Loader2, MoreHorizontal, CheckCircle, XCircle, Clock } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 
 const roleLabels: Record<string, string> = {
   shop_manager: "Responsable Boutique",
@@ -24,6 +25,7 @@ const TenantUsers = () => {
   const { profile } = useAuth();
   const tenantId = profile?.tenant_id;
   const [roleFilter, setRoleFilter] = useState<string>("all");
+  const queryClient = useQueryClient();
 
   const { data: profiles, isLoading } = useQuery({
     queryKey: ["tenant-users", tenantId],
@@ -54,6 +56,56 @@ const TenantUsers = () => {
     enabled: !!profiles?.length,
   });
 
+  // Pending signup requests
+  const { data: signupRequests } = useQuery({
+    queryKey: ["signup-requests", tenantId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("signup_requests")
+        .select("*")
+        .eq("tenant_id", tenantId!)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!tenantId,
+  });
+
+  const reviewMutation = useMutation({
+    mutationFn: async ({ requestId, userId, approve }: { requestId: string; userId: string; approve: boolean }) => {
+      if (approve) {
+        // Set profile tenant_id
+        const { error: pErr } = await supabase
+          .from("profiles")
+          .update({ tenant_id: tenantId! })
+          .eq("id", userId);
+        if (pErr) throw pErr;
+        // Assign employee role
+        const { error: rErr } = await supabase
+          .from("user_roles")
+          .insert({ user_id: userId, role: "employee" as any });
+        if (rErr) throw rErr;
+      }
+      // Update request status
+      const { error } = await supabase
+        .from("signup_requests")
+        .update({
+          status: approve ? "approved" : "rejected",
+          reviewed_by: profile!.id,
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq("id", requestId);
+      if (error) throw error;
+    },
+    onSuccess: (_, { approve }) => {
+      toast.success(approve ? "Utilisateur approuvé" : "Demande rejetée");
+      queryClient.invalidateQueries({ queryKey: ["signup-requests", tenantId] });
+      queryClient.invalidateQueries({ queryKey: ["tenant-users", tenantId] });
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
   const getRoles = (userId: string) => allRoles?.filter((r) => r.user_id === userId).map((r) => r.role) || [];
 
   const filteredProfiles = profiles?.filter(user => {
@@ -67,6 +119,56 @@ const TenantUsers = () => {
     <>
       <TopBar title="Utilisateurs" subtitle="Gérer les utilisateurs de votre boutique" />
       <div className="p-6 space-y-6 overflow-auto">
+        {/* Pending signup requests */}
+        {signupRequests && signupRequests.length > 0 && (
+          <div className="bg-card rounded-lg border border-warning/30 shadow-card animate-fade-in">
+            <div className="p-5 border-b border-border flex items-center gap-2">
+              <Clock className="w-5 h-5 text-warning" />
+              <h3 className="text-sm font-semibold text-foreground">
+                Demandes d'inscription en attente ({signupRequests.length})
+              </h3>
+            </div>
+            <div className="divide-y divide-border">
+              {signupRequests.map((req) => (
+                <div key={req.id} className="px-5 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-warning/10 flex items-center justify-center text-xs font-semibold text-warning shrink-0">
+                      {(req.full_name || req.email).split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{req.full_name || "—"}</p>
+                      <p className="text-xs text-muted-foreground">{req.email}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground mr-2">
+                      {new Date(req.created_at).toLocaleDateString("fr-FR")}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1 text-destructive hover:text-destructive"
+                      disabled={reviewMutation.isPending}
+                      onClick={() => reviewMutation.mutate({ requestId: req.id, userId: req.user_id, approve: false })}
+                    >
+                      <XCircle className="w-3.5 h-3.5" /> Refuser
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="gap-1"
+                      disabled={reviewMutation.isPending}
+                      onClick={() => reviewMutation.mutate({ requestId: req.id, userId: req.user_id, approve: true })}
+                    >
+                      <CheckCircle className="w-3.5 h-3.5" /> Approuver
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Existing users table */}
         <div className="bg-card rounded-lg border border-border shadow-card animate-fade-in">
           <div className="p-5 border-b border-border flex items-center justify-between">
             <h3 className="text-sm font-semibold text-foreground">Utilisateurs ({filteredProfiles.length})</h3>
