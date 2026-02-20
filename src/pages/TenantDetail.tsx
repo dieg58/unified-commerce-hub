@@ -16,7 +16,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import {
   ArrowLeft, Loader2, Plus, Pencil, Save, X, MoreHorizontal, Trash2,
   Building2, ShoppingCart, Wallet, Package, Palette, Users, Store,
-  CheckCircle, XCircle, Eye
+  CheckCircle, XCircle, Eye, Mail, Send, Clock, UserPlus
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -228,6 +228,11 @@ const TenantDetail = () => {
 /* ─── Users Tab ─── */
 function UsersTab({ tenantId, users }: { tenantId: string; users: any[] }) {
   const qc = useQueryClient();
+  const [showInvite, setShowInvite] = useState(false);
+  const [invEmail, setInvEmail] = useState("");
+  const [invName, setInvName] = useState("");
+  const [invRole, setInvRole] = useState<string>("employee");
+
   const roleLabels: Record<string, string> = {
     shop_manager: "Responsable Boutique",
     dept_manager: "Responsable Département",
@@ -239,9 +244,73 @@ function UsersTab({ tenantId, users }: { tenantId: string; users: any[] }) {
     employee: "bg-secondary text-muted-foreground border-border",
   };
 
+  const { data: invitations } = useQuery({
+    queryKey: ["invitations", tenantId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("invitations")
+        .select("*")
+        .eq("tenant_id", tenantId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const pendingInvitations = invitations?.filter((i) => i.status === "pending") || [];
+
+  const sendInvite = useMutation({
+    mutationFn: async () => {
+      // Record invitation in DB
+      const { error: dbErr } = await supabase.from("invitations").insert({
+        tenant_id: tenantId,
+        email: invEmail.trim().toLowerCase(),
+        full_name: invName.trim(),
+        role: invRole as any,
+        invited_by: (await supabase.auth.getUser()).data.user!.id,
+      });
+      if (dbErr) throw dbErr;
+
+      // Call edge function to create user & assign role
+      const { data, error } = await supabase.functions.invoke("invite-user", {
+        body: {
+          email: invEmail.trim().toLowerCase(),
+          full_name: invName.trim(),
+          role: invRole,
+          tenant_id: tenantId,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success(data?.is_new
+        ? `Invitation envoyée à ${invEmail}`
+        : `${invEmail} ajouté à la boutique`
+      );
+      qc.invalidateQueries({ queryKey: ["boutique-users", tenantId] });
+      qc.invalidateQueries({ queryKey: ["invitations", tenantId] });
+      setShowInvite(false);
+      setInvEmail(""); setInvName(""); setInvRole("employee");
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const cancelInvitation = useMutation({
+    mutationFn: async (invId: string) => {
+      const { error } = await supabase.from("invitations").delete().eq("id", invId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Invitation annulée");
+      qc.invalidateQueries({ queryKey: ["invitations", tenantId] });
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
   const changeRole = useMutation({
     mutationFn: async ({ userId, newRole }: { userId: string; newRole: string }) => {
-      // Delete existing roles for this user then insert new one
       const { error: delErr } = await supabase.from("user_roles").delete().eq("user_id", userId);
       if (delErr) throw delErr;
       const { error } = await supabase.from("user_roles").insert({ user_id: userId, role: newRole as any });
@@ -269,83 +338,183 @@ function UsersTab({ tenantId, users }: { tenantId: string; users: any[] }) {
   });
 
   return (
-    <div className="bg-card rounded-lg border border-border shadow-card">
-      <div className="p-5 border-b border-border">
-        <SectionHeader
-          title={`Utilisateurs (${users.length})`}
-          action={
-            <div className="flex gap-2">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                {Object.entries(roleLabels).map(([key, label]) => {
-                  const count = users.filter(u => (u.user_roles as any[])?.some(r => r.role === key)).length;
-                  return count > 0 ? (
-                    <Badge key={key} variant="outline" className={`${roleColors[key]} text-[10px]`}>{count} {label}</Badge>
-                  ) : null;
-                })}
-              </div>
+    <div className="space-y-4">
+      {/* Pending invitations */}
+      {pendingInvitations.length > 0 && (
+        <div className="bg-card rounded-lg border border-border shadow-card">
+          <div className="p-4 border-b border-border">
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-warning" />
+              <h4 className="text-sm font-semibold text-foreground">Invitations en attente ({pendingInvitations.length})</h4>
             </div>
-          }
-        />
-      </div>
-      {!users.length ? (
-        <p className="p-8 text-center text-sm text-muted-foreground">Aucun utilisateur dans cette boutique</p>
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="text-xs">Utilisateur</TableHead>
-              <TableHead className="text-xs">Email</TableHead>
-              <TableHead className="text-xs">Rôle</TableHead>
-              <TableHead className="text-xs">Inscrit le</TableHead>
-              <TableHead className="text-xs w-10"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {users.map((user, i) => {
-              const roles = user.user_roles as any[];
-              const currentRole = roles?.[0]?.role || "employee";
-              return (
-                <TableRow key={user.id} className="text-sm animate-fade-in" style={{ animationDelay: `${i * 30}ms` }}>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
-                        {(user.full_name || user.email).charAt(0).toUpperCase()}
-                      </div>
-                      <span className="font-medium">{user.full_name || "—"}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-xs">{user.email}</TableCell>
-                  <TableCell>
-                    <Select value={currentRole} onValueChange={(v) => changeRole.mutate({ userId: user.id, newRole: v })}>
-                      <SelectTrigger className="h-7 w-[200px] text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="shop_manager">Responsable Boutique</SelectItem>
-                        <SelectItem value="dept_manager">Responsable Département</SelectItem>
-                        <SelectItem value="employee">Employé</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{new Date(user.created_at).toLocaleDateString("fr-FR")}</TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0"><MoreHorizontal className="w-4 h-4" /></Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem className="text-destructive" onClick={() => removeFromBoutique.mutate(user.id)}>
-                          <Trash2 className="w-4 h-4 mr-2" /> Retirer de la boutique
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+          </div>
+          <div className="divide-y divide-border">
+            {pendingInvitations.map((inv) => (
+              <div key={inv.id} className="flex items-center justify-between px-5 py-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-warning/10 flex items-center justify-center">
+                    <Mail className="w-4 h-4 text-warning" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{inv.full_name || inv.email}</p>
+                    <p className="text-xs text-muted-foreground">{inv.email}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className={roleColors[inv.role] || ""}>{roleLabels[inv.role] || inv.role}</Badge>
+                  <span className="text-xs text-muted-foreground">{new Date(inv.created_at).toLocaleDateString("fr-FR")}</span>
+                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => cancelInvitation.mutate(inv.id)}>
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
+
+      {/* Users list */}
+      <div className="bg-card rounded-lg border border-border shadow-card">
+        <div className="p-5 border-b border-border">
+          <SectionHeader
+            title={`Utilisateurs (${users.length})`}
+            action={
+              <div className="flex gap-2">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  {Object.entries(roleLabels).map(([key, label]) => {
+                    const count = users.filter(u => (u.user_roles as any[])?.some(r => r.role === key)).length;
+                    return count > 0 ? (
+                      <Badge key={key} variant="outline" className={`${roleColors[key]} text-[10px]`}>{count} {label}</Badge>
+                    ) : null;
+                  })}
+                </div>
+                <Button size="sm" className="gap-1.5" onClick={() => setShowInvite(true)}>
+                  <UserPlus className="w-4 h-4" /> Inviter
+                </Button>
+              </div>
+            }
+          />
+        </div>
+        {!users.length ? (
+          <div className="p-8 text-center">
+            <UserPlus className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground mb-3">Aucun utilisateur dans cette boutique</p>
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setShowInvite(true)}>
+              <Mail className="w-4 h-4" /> Inviter le premier utilisateur
+            </Button>
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-xs">Utilisateur</TableHead>
+                <TableHead className="text-xs">Email</TableHead>
+                <TableHead className="text-xs">Rôle</TableHead>
+                <TableHead className="text-xs">Inscrit le</TableHead>
+                <TableHead className="text-xs w-10"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {users.map((user, i) => {
+                const roles = user.user_roles as any[];
+                const currentRole = roles?.[0]?.role || "employee";
+                return (
+                  <TableRow key={user.id} className="text-sm animate-fade-in" style={{ animationDelay: `${i * 30}ms` }}>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
+                          {(user.full_name || user.email).charAt(0).toUpperCase()}
+                        </div>
+                        <span className="font-medium">{user.full_name || "—"}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-xs">{user.email}</TableCell>
+                    <TableCell>
+                      <Select value={currentRole} onValueChange={(v) => changeRole.mutate({ userId: user.id, newRole: v })}>
+                        <SelectTrigger className="h-7 w-[200px] text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="shop_manager">Responsable Boutique</SelectItem>
+                          <SelectItem value="dept_manager">Responsable Département</SelectItem>
+                          <SelectItem value="employee">Employé</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{new Date(user.created_at).toLocaleDateString("fr-FR")}</TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0"><MoreHorizontal className="w-4 h-4" /></Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem className="text-destructive" onClick={() => removeFromBoutique.mutate(user.id)}>
+                            <Trash2 className="w-4 h-4 mr-2" /> Retirer de la boutique
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
+      </div>
+
+      {/* Invite Dialog */}
+      <Dialog open={showInvite} onOpenChange={setShowInvite}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><UserPlus className="w-5 h-5" /> Inviter un utilisateur</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Email *</Label>
+              <Input
+                type="email"
+                value={invEmail}
+                onChange={(e) => setInvEmail(e.target.value)}
+                placeholder="utilisateur@entreprise.com"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Nom complet</Label>
+              <Input
+                value={invName}
+                onChange={(e) => setInvName(e.target.value)}
+                placeholder="Jean Dupont"
+                maxLength={100}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Rôle</Label>
+              <Select value={invRole} onValueChange={setInvRole}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="shop_manager">Responsable Boutique</SelectItem>
+                  <SelectItem value="dept_manager">Responsable Département</SelectItem>
+                  <SelectItem value="employee">Employé</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="rounded-md bg-muted/50 border border-border p-3 text-xs text-muted-foreground">
+              <p>L'utilisateur recevra un email avec un lien pour définir son mot de passe et accéder à la boutique.</p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setShowInvite(false)}>Annuler</Button>
+            <Button
+              onClick={() => sendInvite.mutate()}
+              disabled={!invEmail.trim() || sendInvite.isPending}
+              className="gap-1.5"
+            >
+              {sendInvite.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              Envoyer l'invitation
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
