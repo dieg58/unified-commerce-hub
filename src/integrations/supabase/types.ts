@@ -631,10 +631,13 @@ export type Database = {
       products: {
         Row: {
           active: boolean
+          active_bulk: boolean
+          active_staff: boolean
           category: string
           description: string | null
           id: string
           image_url: string | null
+          min_bulk_qty: number
           name: string
           sku: string
           stock_type: Database["public"]["Enums"]["stock_type"]
@@ -642,10 +645,13 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          active_bulk?: boolean
+          active_staff?: boolean
           category?: string
           description?: string | null
           id?: string
           image_url?: string | null
+          min_bulk_qty?: number
           name: string
           sku: string
           stock_type?: Database["public"]["Enums"]["stock_type"]
@@ -653,10 +659,13 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          active_bulk?: boolean
+          active_staff?: boolean
           category?: string
           description?: string | null
           id?: string
           image_url?: string | null
+          min_bulk_qty?: number
           name?: string
           sku?: string
           stock_type?: Database["public"]["Enums"]["stock_type"]

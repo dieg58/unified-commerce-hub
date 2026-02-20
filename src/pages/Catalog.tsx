@@ -73,7 +73,11 @@ const Catalog = () => {
                       </div>
                       <div className="flex items-center justify-between">
                         <Badge variant="outline" className="text-[10px] capitalize">{product.category || "général"}</Badge>
-                        <StatusBadge status={product.active ? "active" : "inactive"} />
+                        <div className="flex gap-1">
+                          {product.active_bulk && <Badge variant="secondary" className="text-[9px] px-1">B</Badge>}
+                          {product.active_staff && <Badge variant="secondary" className="text-[9px] px-1">S</Badge>}
+                          {!product.active_bulk && !product.active_staff && <StatusBadge status="inactive" />}
+                        </div>
                       </div>
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
                         <div className="space-y-0.5">

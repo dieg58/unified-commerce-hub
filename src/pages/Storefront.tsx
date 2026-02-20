@@ -56,7 +56,6 @@ const Storefront = () => {
         .from("products")
         .select("*, product_prices(*)")
         .eq("tenant_id", tenantId!)
-        .eq("active", true)
         .order("name");
       if (error) throw error;
       return data;
@@ -100,6 +99,8 @@ const Storefront = () => {
 
   const filteredProducts = useMemo(() => {
     return products?.filter((p) => {
+      const isActiveForStore = storeType === "bulk" ? p.active_bulk : p.active_staff;
+      if (!isActiveForStore) return false;
       const prices = p.product_prices as any[];
       const hasPrice = prices?.some((pr: any) => pr.store_type === storeType);
       const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.toLowerCase().includes(search.toLowerCase());
