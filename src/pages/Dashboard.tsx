@@ -82,7 +82,7 @@ const Dashboard = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 bg-card rounded-lg border border-border shadow-card animate-fade-in" style={{ animationDelay: "200ms" }}>
             <div className="p-5 border-b border-border">
-              <SectionHeader title="Commandes récentes" action={<Button variant="ghost" size="sm" onClick={() => navigate("/orders")}>Voir tout</Button>} />
+              <SectionHeader title="Commandes récentes" action={<Button variant="ghost" size="sm" onClick={() => navigate("/tenants")}>Voir les boutiques</Button>} />
             </div>
             {recentOrders.length === 0 ? (
               <p className="p-8 text-center text-sm text-muted-foreground">Aucune commande</p>

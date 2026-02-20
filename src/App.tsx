@@ -11,10 +11,6 @@ import TenantAdminLayout from "./components/TenantAdminLayout";
 import Dashboard from "./pages/Dashboard";
 import Tenants from "./pages/Tenants";
 import TenantDetail from "./pages/TenantDetail";
-import UsersPage from "./pages/UsersPage";
-import Orders from "./pages/Orders";
-import Budgets from "./pages/Budgets";
-import Catalog from "./pages/Catalog";
 import SettingsPage from "./pages/SettingsPage";
 import TenantDashboard from "./pages/TenantDashboard";
 import TenantOrders from "./pages/tenant/TenantOrders";
@@ -45,10 +41,7 @@ const App = () => (
                   <Route path="/" element={<Dashboard />} />
                   <Route path="/tenants" element={<Tenants />} />
                   <Route path="/tenants/:id" element={<TenantDetail />} />
-                  <Route path="/users" element={<UsersPage />} />
-                  <Route path="/orders" element={<Orders />} />
-                  <Route path="/budgets" element={<Budgets />} />
-                  <Route path="/catalog" element={<Catalog />} />
+                  <Route path="/tenants/:id" element={<TenantDetail />} />
                   <Route path="/store/:tenantId" element={<Storefront />} />
                   <Route path="/settings" element={<SettingsPage />} />
                 </Route>
