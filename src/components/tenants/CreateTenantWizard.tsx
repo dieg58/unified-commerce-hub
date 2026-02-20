@@ -6,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, ArrowRight, ArrowLeft, Check } from "lucide-react";
+import { Loader2, ArrowRight, ArrowLeft, Check, Globe, AlertCircle } from "lucide-react";
+import { BASE_DOMAIN, getStorefrontUrl } from "@/lib/subdomain";
 
 interface Props {
   open: boolean;
@@ -14,6 +15,16 @@ interface Props {
 }
 
 const STEPS = ["Infos Boutique", "Branding", "Paramètres"];
+
+/** Sanitize a name into a valid URL slug */
+const toSlug = (name: string) =>
+  name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // remove accents
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 50);
 
 export default function CreateTenantWizard({ open, onOpenChange }: Props) {
   const qc = useQueryClient();
@@ -23,6 +34,9 @@ export default function CreateTenantWizard({ open, onOpenChange }: Props) {
   // Step 1
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
+  const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
+  const [checkingSlug, setCheckingSlug] = useState(false);
 
   // Step 2
   const [primaryColor, setPrimaryColor] = useState("#0ea5e9");
@@ -37,11 +51,50 @@ export default function CreateTenantWizard({ open, onOpenChange }: Props) {
     setStep(0);
     setName("");
     setSlug("");
+    setSlugManuallyEdited(false);
+    setSlugAvailable(null);
     setPrimaryColor("#0ea5e9");
     setAccentColor("#10b981");
     setHeadTitle("");
     setLogoUrl("");
     setDefaultEntities("HQ");
+  };
+
+  /** Check if slug is available */
+  const checkSlugAvailability = async (s: string) => {
+    if (s.length < 2) { setSlugAvailable(null); return; }
+    setCheckingSlug(true);
+    try {
+      const { data, error } = await supabase
+        .from("tenants")
+        .select("id")
+        .eq("slug", s)
+        .maybeSingle();
+      if (error) throw error;
+      setSlugAvailable(!data);
+    } catch {
+      setSlugAvailable(null);
+    } finally {
+      setCheckingSlug(false);
+    }
+  };
+
+  const handleNameChange = (value: string) => {
+    setName(value);
+    if (!slugManuallyEdited) {
+      const newSlug = toSlug(value);
+      setSlug(newSlug);
+      checkSlugAvailability(newSlug);
+    }
+  };
+
+  const handleSlugChange = (value: string) => {
+    const sanitized = value.replace(/[^a-z0-9-]/g, "");
+    setSlug(sanitized);
+    setSlugManuallyEdited(true);
+    setSlugAvailable(null);
+    // Debounce check
+    checkSlugAvailability(sanitized);
   };
 
   const handleCreate = async () => {
@@ -76,7 +129,6 @@ export default function CreateTenantWizard({ open, onOpenChange }: Props) {
           .single();
         if (eErr) throw eErr;
 
-        // Create budget placeholders for each store type
         const budgets = (["bulk", "staff"] as const).map((st) => ({
           tenant_id: tenant.id,
           entity_id: entity.id,
@@ -88,19 +140,19 @@ export default function CreateTenantWizard({ open, onOpenChange }: Props) {
         if (budErr) throw budErr;
       }
 
-      toast.success(`Boutique "${tenant.name}" créée avec succès`);
+      toast.success(`Boutique "${tenant.name}" créée — accessible sur ${getStorefrontUrl(tenant.slug)}`);
       qc.invalidateQueries({ queryKey: ["tenants"] });
       reset();
       onOpenChange(false);
     } catch (err: any) {
-      toast.error(err.message || "Failed to create tenant");
+      toast.error(err.message || "Erreur lors de la création");
     } finally {
       setSaving(false);
     }
   };
 
   const canNext = () => {
-    if (step === 0) return name.trim().length > 0 && slug.trim().length > 0;
+    if (step === 0) return name.trim().length > 0 && slug.trim().length >= 2 && slugAvailable === true;
     return true;
   };
 
@@ -125,18 +177,59 @@ export default function CreateTenantWizard({ open, onOpenChange }: Props) {
         </div>
 
         {/* Step content */}
-        <div className="space-y-4 min-h-[160px]">
+        <div className="space-y-4 min-h-[200px]">
           {step === 0 && (
             <>
               <div className="space-y-2">
                 <Label>Nom de la boutique *</Label>
-                <Input value={name} onChange={(e) => { setName(e.target.value); if (!slug || slug === name.toLowerCase().replace(/\s+/g, "-")) setSlug(e.target.value.toLowerCase().replace(/\s+/g, "-")); }} placeholder="Acme Corporation" maxLength={100} />
+                <Input value={name} onChange={(e) => handleNameChange(e.target.value)} placeholder="Acme Corporation" maxLength={100} />
               </div>
               <div className="space-y-2">
-                <Label>Slug *</Label>
-                <Input value={slug} onChange={(e) => setSlug(e.target.value.replace(/[^a-z0-9-]/g, ""))} placeholder="acme-corp" maxLength={50} />
-                <p className="text-xs text-muted-foreground">URL-safe identifier. Lowercase, numbers, hyphens only.</p>
+                <Label>Sous-domaine *</Label>
+                <div className="flex items-center gap-0">
+                  <Input
+                    value={slug}
+                    onChange={(e) => handleSlugChange(e.target.value)}
+                    placeholder="acme-corp"
+                    maxLength={50}
+                    className={`rounded-r-none font-mono text-sm ${
+                      slugAvailable === true ? "border-emerald-500 focus-visible:ring-emerald-500" :
+                      slugAvailable === false ? "border-destructive focus-visible:ring-destructive" : ""
+                    }`}
+                  />
+                  <div className="h-10 px-3 rounded-r-md border border-l-0 border-input bg-muted flex items-center">
+                    <span className="text-xs text-muted-foreground font-mono">.{BASE_DOMAIN}</span>
+                  </div>
+                </div>
+                {/* Status indicator */}
+                <div className="flex items-center gap-1.5 min-h-[20px]">
+                  {checkingSlug && (
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Loader2 className="w-3 h-3 animate-spin" /> Vérification...
+                    </span>
+                  )}
+                  {!checkingSlug && slugAvailable === true && slug.length >= 2 && (
+                    <span className="text-xs text-emerald-600 flex items-center gap-1">
+                      <Check className="w-3 h-3" /> {slug}.{BASE_DOMAIN} est disponible
+                    </span>
+                  )}
+                  {!checkingSlug && slugAvailable === false && (
+                    <span className="text-xs text-destructive flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" /> Ce sous-domaine est déjà pris
+                    </span>
+                  )}
+                </div>
               </div>
+              {/* URL Preview */}
+              {slug.length >= 2 && slugAvailable === true && (
+                <div className="rounded-lg border border-border bg-muted/30 p-3 flex items-center gap-2.5 animate-fade-in">
+                  <Globe className="w-4 h-4 text-primary shrink-0" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Votre boutique sera accessible à :</p>
+                    <p className="text-sm font-mono font-semibold text-foreground">{getStorefrontUrl(slug)}</p>
+                  </div>
+                </div>
+              )}
             </>
           )}
 
@@ -144,27 +237,35 @@ export default function CreateTenantWizard({ open, onOpenChange }: Props) {
             <>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Primary Color</Label>
+                  <Label>Couleur principale</Label>
                   <div className="flex items-center gap-2">
-                    <input type="color" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className="w-10 h-10 rounded border border-border cursor-pointer" />
+                    <input type="color" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className="w-10 h-10 rounded border border-border cursor-pointer bg-transparent" />
                     <Input value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className="font-mono text-sm" maxLength={7} />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Accent Color</Label>
+                  <Label>Couleur d'accent</Label>
                   <div className="flex items-center gap-2">
-                    <input type="color" value={accentColor} onChange={(e) => setAccentColor(e.target.value)} className="w-10 h-10 rounded border border-border cursor-pointer" />
+                    <input type="color" value={accentColor} onChange={(e) => setAccentColor(e.target.value)} className="w-10 h-10 rounded border border-border cursor-pointer bg-transparent" />
                     <Input value={accentColor} onChange={(e) => setAccentColor(e.target.value)} className="font-mono text-sm" maxLength={7} />
                   </div>
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Head Title</Label>
-                <Input value={headTitle} onChange={(e) => setHeadTitle(e.target.value)} placeholder="Acme Procurement" maxLength={100} />
+                <Label>Titre de la boutique</Label>
+                <Input value={headTitle} onChange={(e) => setHeadTitle(e.target.value)} placeholder={name || "Acme Procurement"} maxLength={100} />
               </div>
               <div className="space-y-2">
                 <Label>Logo URL</Label>
                 <Input value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://..." maxLength={500} />
+              </div>
+              {/* Branding preview */}
+              <div className="rounded-lg p-4 flex items-center gap-3" style={{ background: `linear-gradient(135deg, ${primaryColor}, ${accentColor})` }}>
+                {logoUrl && <img src={logoUrl} alt="Logo" className="w-8 h-8 rounded object-contain bg-white/20 p-0.5" />}
+                <div>
+                  <p className="text-white font-bold text-sm">{headTitle || name || "Aperçu"}</p>
+                  <p className="text-white/70 text-xs mt-0.5">{slug}.{BASE_DOMAIN}</p>
+                </div>
               </div>
             </>
           )}
@@ -172,19 +273,41 @@ export default function CreateTenantWizard({ open, onOpenChange }: Props) {
           {step === 2 && (
             <>
               <div className="space-y-2">
-                <Label>Default Entities (comma-separated)</Label>
-                <Input value={defaultEntities} onChange={(e) => setDefaultEntities(e.target.value)} placeholder="HQ, West Branch" maxLength={200} />
+                <Label>Entités par défaut (séparées par des virgules)</Label>
+                <Input value={defaultEntities} onChange={(e) => setDefaultEntities(e.target.value)} placeholder="HQ, Succursale Ouest" maxLength={200} />
                 <p className="text-xs text-muted-foreground">
-                  Each entity will get monthly budget placeholders for bulk & staff stores (amount = 0).
+                  Chaque entité aura un budget mensuel par défaut (montant = 0).
                 </p>
               </div>
-              <div className="rounded-lg border border-border p-4 bg-muted/30">
-                <p className="text-sm font-medium text-foreground mb-2">Summary</p>
-                <ul className="text-xs text-muted-foreground space-y-1">
-                  <li>Tenant: <strong className="text-foreground">{name}</strong> ({slug})</li>
-                  <li>Branding: <span style={{ color: primaryColor }}>●</span> {primaryColor} / <span style={{ color: accentColor }}>●</span> {accentColor}</li>
-                  <li>Entities: {defaultEntities.split(",").filter(e => e.trim()).length} to be created</li>
-                </ul>
+              <div className="rounded-lg border border-border p-4 bg-muted/30 space-y-3">
+                <p className="text-sm font-semibold text-foreground">Récapitulatif</p>
+                <div className="space-y-2 text-xs text-muted-foreground">
+                  <div className="flex justify-between">
+                    <span>Boutique</span>
+                    <span className="font-medium text-foreground">{name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Sous-domaine</span>
+                    <span className="font-mono text-foreground">{slug}.{BASE_DOMAIN}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Branding</span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-3 h-3 rounded-full inline-block" style={{ backgroundColor: primaryColor }} />
+                      <span className="w-3 h-3 rounded-full inline-block" style={{ backgroundColor: accentColor }} />
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Entités</span>
+                    <span className="text-foreground">{defaultEntities.split(",").filter(e => e.trim()).length} à créer</span>
+                  </div>
+                </div>
+                <div className="rounded-md bg-primary/5 border border-primary/10 px-3 py-2 flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-primary shrink-0" />
+                  <p className="text-xs font-medium text-foreground">
+                    Accessible automatiquement sur <span className="font-mono">{getStorefrontUrl(slug)}</span>
+                  </p>
+                </div>
               </div>
             </>
           )}
@@ -193,11 +316,11 @@ export default function CreateTenantWizard({ open, onOpenChange }: Props) {
         {/* Actions */}
         <div className="flex justify-between pt-2">
           <Button variant="outline" onClick={() => step > 0 ? setStep(step - 1) : onOpenChange(false)} disabled={saving}>
-            {step > 0 ? <><ArrowLeft className="w-4 h-4 mr-1" /> Back</> : "Cancel"}
+            {step > 0 ? <><ArrowLeft className="w-4 h-4 mr-1" /> Retour</> : "Annuler"}
           </Button>
           {step < 2 ? (
             <Button onClick={() => setStep(step + 1)} disabled={!canNext()}>
-              Next <ArrowRight className="w-4 h-4 ml-1" />
+              Suivant <ArrowRight className="w-4 h-4 ml-1" />
             </Button>
           ) : (
             <Button onClick={handleCreate} disabled={saving || !canNext()}>
