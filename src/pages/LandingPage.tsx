@@ -214,6 +214,80 @@ const LandingPage = () => {
         </div>
       </section>
 
+      {/* Testimonials */}
+      <section className="py-20 md:py-28 bg-card/50">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold tracking-tight">
+              Ils nous font confiance
+            </h2>
+            <p className="mt-4 text-muted-foreground text-lg max-w-xl mx-auto">
+              Des entreprises de toutes tailles utilisent Inkoo pour gérer leurs boutiques collaborateurs.
+            </p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-6">
+            {[
+              {
+                quote: "Inkoo a transformé notre gestion de dotation textile. Nos 2 000 collaborateurs commandent en autonomie, et nous avons divisé par 3 le temps de traitement.",
+                author: "Marie Lefèvre",
+                role: "Directrice RH",
+                company: "Groupe Véolia",
+                initials: "VE",
+              },
+              {
+                quote: "Le système de budgets par entité est exactement ce qu'il nous fallait. Chaque département gère son enveloppe sans dépasser les limites.",
+                author: "Thomas Durand",
+                role: "DAF",
+                company: "Bouygues Telecom",
+                initials: "BT",
+              },
+              {
+                quote: "La mise en place a été ultra rapide. En une semaine, notre boutique était en ligne avec notre branding et notre catalogue complet.",
+                author: "Sophie Martin",
+                role: "Responsable achats",
+                company: "Accor Hotels",
+                initials: "AH",
+              },
+            ].map((t, i) => (
+              <motion.div
+                key={t.author}
+                custom={i}
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true, margin: "-40px" }}
+                variants={fadeUp}
+              >
+                <Card className="h-full border-border/60">
+                  <CardContent className="p-6 flex flex-col h-full">
+                    <div className="flex gap-1 mb-4 text-warning">
+                      {[...Array(5)].map((_, j) => (
+                        <svg key={j} className="h-4 w-4 fill-current" viewBox="0 0 20 20">
+                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                      ))}
+                    </div>
+                    <p className="text-sm text-muted-foreground leading-relaxed flex-1 mb-6">
+                      "{t.quote}"
+                    </p>
+                    <div className="flex items-center gap-3 pt-4 border-t border-border">
+                      <div className="h-10 w-10 rounded-full gradient-primary flex items-center justify-center text-xs font-bold text-primary-foreground shrink-0">
+                        {t.initials}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold">{t.author}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {t.role} · {t.company}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* CTA */}
       <section className="py-20 md:py-28">
         <div className="container mx-auto px-4">
