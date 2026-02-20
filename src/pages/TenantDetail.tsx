@@ -204,6 +204,35 @@ const TenantDetail = () => {
           ))}
         </div>
 
+        {/* Billing mode toggles */}
+        <div className="bg-card rounded-lg border border-border p-4 flex flex-wrap items-center gap-6">
+          <p className="text-sm font-medium text-foreground">Sans refacturation produits <span className="text-muted-foreground font-normal">(seule la livraison est facturée)</span></p>
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={tenant.no_product_billing_bulk ?? false}
+              onCheckedChange={async (checked) => {
+                const { error } = await supabase.from("tenants").update({ no_product_billing_bulk: checked }).eq("id", id!);
+                if (error) { toast.error("Erreur"); return; }
+                qc.invalidateQueries({ queryKey: ["tenant", id] });
+                toast.success(checked ? "Bulk : sans refacturation" : "Bulk : refacturation activée");
+              }}
+            />
+            <Label className="text-sm">Bulk</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={tenant.no_product_billing_staff ?? false}
+              onCheckedChange={async (checked) => {
+                const { error } = await supabase.from("tenants").update({ no_product_billing_staff: checked }).eq("id", id!);
+                if (error) { toast.error("Erreur"); return; }
+                qc.invalidateQueries({ queryKey: ["tenant", id] });
+                toast.success(checked ? "Staff : sans refacturation" : "Staff : refacturation activée");
+              }}
+            />
+            <Label className="text-sm">Staff</Label>
+          </div>
+        </div>
+
         {/* Tabs */}
         <Tabs defaultValue="users" className="w-full">
           <TabsList className="bg-secondary flex-wrap h-auto gap-1 p-1">
