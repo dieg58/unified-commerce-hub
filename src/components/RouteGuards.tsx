@@ -31,7 +31,16 @@ export const RequireShopManager = ({ children }: { children: ReactNode }) => {
   if (loading) return <LoadingScreen />;
   if (!session) return <Navigate to="/login" replace />;
   if (isSuperAdmin) return <Navigate to="/" replace />;
-  if (!isShopManager) return <Navigate to="/tenant" replace />;
+  if (!isShopManager) return <Navigate to="/shop" replace />;
+  return <>{children}</>;
+};
+
+/** Redirects to the right home based on role */
+export const RequireEmployee = ({ children }: { children: ReactNode }) => {
+  const { session, loading, isSuperAdmin } = useAuth();
+  if (loading) return <LoadingScreen />;
+  if (!session) return <Navigate to="/login" replace />;
+  if (isSuperAdmin) return <Navigate to="/" replace />;
   return <>{children}</>;
 };
 
