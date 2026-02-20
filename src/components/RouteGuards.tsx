@@ -11,17 +11,21 @@ export const RequireAuth = ({ children }: { children: ReactNode }) => {
 };
 
 export const RequireSuperAdmin = ({ children }: { children: ReactNode }) => {
-  const { session, loading, isSuperAdmin } = useAuth();
+  const { session, loading, isSuperAdmin, roles } = useAuth();
   if (loading) return <LoadingScreen />;
   if (!session) return <Navigate to="/login" replace />;
+  // Wait for roles to be loaded before redirecting
+  if (roles.length === 0) return <LoadingScreen />;
   if (!isSuperAdmin) return <Navigate to="/tenant" replace />;
   return <>{children}</>;
 };
 
 export const RequireTenantUser = ({ children }: { children: ReactNode }) => {
-  const { session, loading, isSuperAdmin } = useAuth();
+  const { session, loading, isSuperAdmin, roles } = useAuth();
   if (loading) return <LoadingScreen />;
   if (!session) return <Navigate to="/login" replace />;
+  // Wait for roles to be loaded before redirecting
+  if (roles.length === 0) return <LoadingScreen />;
   if (isSuperAdmin) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 };
