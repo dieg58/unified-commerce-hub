@@ -13,6 +13,7 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
+  const [isForgot, setIsForgot] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -22,6 +23,20 @@ const Login = () => {
     e.preventDefault();
     setLoading(true);
 
+    if (isForgot) {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) {
+        toast({ title: "Erreur", description: error.message, variant: "destructive" });
+      } else {
+        toast({ title: "Email envoyé", description: "Consultez votre boîte mail pour réinitialiser votre mot de passe." });
+        setIsForgot(false);
+      }
+      setLoading(false);
+      return;
+    }
+
     if (isSignUp) {
       const { error } = await supabase.auth.signUp({
         email,
@@ -29,15 +44,15 @@ const Login = () => {
         options: { data: { full_name: fullName } },
       });
       if (error) {
-        toast({ title: "Error", description: error.message, variant: "destructive" });
+        toast({ title: "Erreur", description: error.message, variant: "destructive" });
       } else {
-        toast({ title: "Account created", description: "You can now sign in." });
+        toast({ title: "Compte créé", description: "Vérifiez votre email pour confirmer votre compte." });
         setIsSignUp(false);
       }
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
-        toast({ title: "Error", description: error.message, variant: "destructive" });
+        toast({ title: "Erreur", description: error.message, variant: "destructive" });
       } else {
         navigate(isSubdomain ? "/shop" : "/dashboard");
       }
@@ -52,16 +67,18 @@ const Login = () => {
           <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center mx-auto mb-4">
             <Package className="w-6 h-6 text-primary-foreground" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">INKOO B2B</h1>
+          <h1 className="text-2xl font-bold text-foreground">{isForgot ? "Mot de passe oublié" : "INKOO B2B"}</h1>
           <p className="text-sm text-muted-foreground">
-            {isSignUp
-              ? "Créez votre compte pour accéder à votre boutique entreprise."
-              : "Connectez-vous pour gérer vos commandes et accéder à votre catalogue personnalisé."}
+            {isForgot
+              ? "Entrez votre email pour recevoir un lien de réinitialisation."
+              : isSignUp
+                ? "Créez votre compte pour accéder à votre boutique entreprise."
+                : "Connectez-vous pour gérer vos commandes et accéder à votre catalogue personnalisé."}
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {isSignUp && (
+          {isSignUp && !isForgot && (
             <div className="space-y-2">
               <Label htmlFor="name" className="text-sm">Nom complet</Label>
               <Input
@@ -86,32 +103,53 @@ const Login = () => {
               className="h-10"
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="password" className="text-sm">Mot de passe</Label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-              minLength={6}
-              className="h-10"
-            />
-          </div>
+          {!isForgot && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password" className="text-sm">Mot de passe</Label>
+                {!isSignUp && (
+                  <button
+                    type="button"
+                    onClick={() => setIsForgot(true)}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    Mot de passe oublié ?
+                  </button>
+                )}
+              </div>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                minLength={6}
+                className="h-10"
+              />
+            </div>
+          )}
           <Button type="submit" className="w-full h-10" disabled={loading}>
-            {loading ? "Chargement…" : isSignUp ? "Créer mon compte" : "Se connecter"}
+            {loading ? "Chargement…" : isForgot ? "Envoyer le lien" : isSignUp ? "Créer mon compte" : "Se connecter"}
           </Button>
         </form>
 
         <p className="text-center text-sm text-muted-foreground">
-          {isSignUp ? "Déjà un compte ?" : "Pas encore de compte ?"}{" "}
-          <button
-            onClick={() => setIsSignUp(!isSignUp)}
-            className="text-primary font-medium hover:underline"
-          >
-            {isSignUp ? "Se connecter" : "Créer un compte"}
-          </button>
+          {isForgot ? (
+            <button onClick={() => setIsForgot(false)} className="text-primary font-medium hover:underline">
+              Retour à la connexion
+            </button>
+          ) : (
+            <>
+              {isSignUp ? "Déjà un compte ?" : "Pas encore de compte ?"}{" "}
+              <button
+                onClick={() => setIsSignUp(!isSignUp)}
+                className="text-primary font-medium hover:underline"
+              >
+                {isSignUp ? "Se connecter" : "Créer un compte"}
+              </button>
+            </>
+          )}
         </p>
       </div>
     </div>
