@@ -642,6 +642,7 @@ function EntitiesTab({ tenantId, entities }: { tenantId: string; entities: any[]
 function ProductsTab({ tenantId, products }: { tenantId: string; products: any[] }) {
   const qc = useQueryClient();
   const [showAdd, setShowAdd] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<any>(null);
   const [name, setName] = useState("");
   const [sku, setSku] = useState("");
   const [category, setCategory] = useState("general");
@@ -655,6 +656,30 @@ function ProductsTab({ tenantId, products }: { tenantId: string; products: any[]
   // Variants
   type VariantRow = { label: string; value: string; skuSuffix: string; priceAdj: string };
   const [variants, setVariants] = useState<VariantRow[]>([]);
+
+  const openEdit = (p: any) => {
+    const prices = p.product_prices as any[];
+    const pvariants = p.product_variants as any[];
+    const bulk = prices?.find((pr: any) => pr.store_type === "bulk");
+    const staff = prices?.find((pr: any) => pr.store_type === "staff");
+    setName(p.name);
+    setSku(p.sku);
+    setCategory(p.category || "general");
+    setDescription(p.description || "");
+    setBulkPrice(bulk ? String(bulk.price) : "");
+    setStaffPrice(staff ? String(staff.price) : "");
+    setStockType(p.stock_type || "in_stock");
+    setImageFile(null);
+    setVariants(
+      (pvariants || []).map((v: any) => ({
+        label: v.variant_label,
+        value: v.variant_value,
+        skuSuffix: v.sku_suffix || "",
+        priceAdj: String(v.price_adjustment || 0),
+      }))
+    );
+    setEditingProduct(p);
+  };
   const addVariantRow = () => setVariants((v) => [...v, { label: "", value: "", skuSuffix: "", priceAdj: "0" }]);
   const updateVariant = (i: number, field: keyof VariantRow, val: string) => {
     setVariants((prev) => prev.map((v, idx) => idx === i ? { ...v, [field]: val } : v));
@@ -664,7 +689,7 @@ function ProductsTab({ tenantId, products }: { tenantId: string; products: any[]
   const resetForm = () => {
     setName(""); setSku(""); setCategory("general"); setDescription("");
     setBulkPrice(""); setStaffPrice(""); setImageFile(null);
-    setStockType("in_stock"); setVariants([]);
+    setStockType("in_stock"); setVariants([]); setEditingProduct(null);
   };
 
   const uploadImage = async (productId: string, file: File) => {
@@ -740,6 +765,67 @@ function ProductsTab({ tenantId, products }: { tenantId: string; products: any[]
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["products", tenantId] }),
     onError: (err: any) => toast.error(err.message),
+  });
+
+  const updateProduct = useMutation({
+    mutationFn: async () => {
+      setUploading(true);
+      const productId = editingProduct.id;
+      const { error } = await supabase.from("products").update({
+        name: name.trim(),
+        sku: sku.trim().toUpperCase(),
+        category: category.trim().toLowerCase(),
+        description: description.trim() || null,
+        stock_type: stockType as any,
+      }).eq("id", productId);
+      if (error) throw error;
+
+      if (imageFile) {
+        const imageUrl = await uploadImage(productId, imageFile);
+        await supabase.from("products").update({ image_url: imageUrl }).eq("id", productId);
+      }
+
+      // Upsert prices
+      for (const st of ["bulk", "staff"] as const) {
+        const val = st === "bulk" ? bulkPrice : staffPrice;
+        const existing = (editingProduct.product_prices as any[])?.find((pr: any) => pr.store_type === st);
+        if (val) {
+          if (existing) {
+            await supabase.from("product_prices").update({ price: parseFloat(val) }).eq("id", existing.id);
+          } else {
+            await supabase.from("product_prices").insert({ tenant_id: tenantId, product_id: productId, store_type: st, price: parseFloat(val) });
+          }
+        } else if (existing) {
+          await supabase.from("product_prices").delete().eq("id", existing.id);
+        }
+      }
+
+      // Replace variants
+      await supabase.from("product_variants").delete().eq("product_id", productId);
+      const validVariants = variants.filter((v) => v.label.trim() && v.value.trim());
+      if (validVariants.length) {
+        const { error: vErr } = await supabase.from("product_variants").insert(
+          validVariants.map((v, i) => ({
+            product_id: productId,
+            tenant_id: tenantId,
+            variant_label: v.label.trim(),
+            variant_value: v.value.trim(),
+            sku_suffix: v.skuSuffix.trim() || null,
+            price_adjustment: parseFloat(v.priceAdj) || 0,
+            sort_order: i,
+          }))
+        );
+        if (vErr) throw vErr;
+      }
+    },
+    onSuccess: () => {
+      toast.success("Produit mis à jour");
+      qc.invalidateQueries({ queryKey: ["products", tenantId] });
+      setEditingProduct(null);
+      resetForm();
+      setUploading(false);
+    },
+    onError: (err: any) => { toast.error(err.message); setUploading(false); },
   });
 
   const deleteProduct = useMutation({
@@ -843,6 +929,9 @@ function ProductsTab({ tenantId, products }: { tenantId: string; products: any[]
                         <Button variant="ghost" size="sm" className="h-8 w-8 p-0"><MoreHorizontal className="w-4 h-4" /></Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => openEdit(p)}>
+                          <Pencil className="w-4 h-4 mr-2" /> Modifier
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => toggleActive.mutate({ productId: p.id, current: p.active })}>
                           {p.active ? <><X className="w-4 h-4 mr-2" /> Désactiver</> : <><CheckCircle className="w-4 h-4 mr-2" /> Activer</>}
                         </DropdownMenuItem>
@@ -1023,6 +1112,128 @@ function ProductsTab({ tenantId, products }: { tenantId: string; products: any[]
             <Button onClick={() => addProduct.mutate()} disabled={!name.trim() || !sku.trim() || addProduct.isPending || uploading} className="gap-1.5">
               {(addProduct.isPending || uploading) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
               Créer le produit
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Product Dialog */}
+      <Dialog open={!!editingProduct} onOpenChange={(v) => { if (!v) { setEditingProduct(null); resetForm(); } }}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><Pencil className="w-5 h-5" /> Modifier le produit</DialogTitle></DialogHeader>
+          <div className="space-y-5 max-h-[65vh] overflow-auto pr-1">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Nom du produit *</Label>
+                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom du produit" maxLength={200} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>SKU *</Label>
+                  <Input value={sku} onChange={(e) => setSku(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))} placeholder="SKU-001" maxLength={30} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Catégorie</Label>
+                  <Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="general" maxLength={50} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description optionnelle" maxLength={500} />
+              </div>
+              <div className="space-y-2">
+                <Label>Disponibilité</Label>
+                <Select value={stockType} onValueChange={setStockType}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="in_stock">En stock</SelectItem>
+                    <SelectItem value="made_to_order">Produit sur commande</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Changer l'image</Label>
+              <Input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} className="text-sm" />
+              {(imageFile || editingProduct?.image_url) && (
+                <div className="w-20 h-20 rounded-md overflow-hidden border border-border">
+                  <img src={imageFile ? URL.createObjectURL(imageFile) : editingProduct?.image_url} alt="Preview" className="w-full h-full object-cover" />
+                </div>
+              )}
+            </div>
+            <div>
+              <Label className="text-sm font-semibold">Tarification</Label>
+              <div className="grid grid-cols-2 gap-3 mt-2">
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Prix Bulk (€)</Label>
+                  <Input type="number" value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} placeholder="0.00" min="0" step="0.01" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Prix Staff (€)</Label>
+                  <Input type="number" value={staffPrice} onChange={(e) => setStaffPrice(e.target.value)} placeholder="0.00" min="0" step="0.01" />
+                </div>
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <Label className="text-sm font-semibold">Variantes</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">Couleurs, tailles, matières…</p>
+                </div>
+                <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={addVariantRow}>
+                  <Plus className="w-3.5 h-3.5" /> Ajouter
+                </Button>
+              </div>
+              {variants.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {variantPresets.map((preset) => (
+                      <Button key={preset} type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2"
+                        onClick={() => {
+                          const emptyIdx = variants.findIndex((v) => !v.label.trim());
+                          if (emptyIdx >= 0) updateVariant(emptyIdx, "label", preset);
+                          else setVariants((prev) => [...prev, { label: preset, value: "", skuSuffix: "", priceAdj: "0" }]);
+                        }}
+                      >{preset}</Button>
+                    ))}
+                  </div>
+                  {variants.map((v, i) => (
+                    <div key={i} className="grid grid-cols-[1fr_1fr_auto_auto_auto] gap-2 items-end rounded-md border border-border p-2.5 bg-muted/30">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-muted-foreground">Type</Label>
+                        <Input value={v.label} onChange={(e) => updateVariant(i, "label", e.target.value)} placeholder="Couleur" className="h-8 text-xs" maxLength={50} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-muted-foreground">Valeur</Label>
+                        <Input value={v.value} onChange={(e) => updateVariant(i, "value", e.target.value)} placeholder="Rouge" className="h-8 text-xs" maxLength={100} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-muted-foreground">Suffixe SKU</Label>
+                        <Input value={v.skuSuffix} onChange={(e) => updateVariant(i, "skuSuffix", e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))} placeholder="-RED" className="h-8 text-xs w-20" maxLength={10} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-muted-foreground">Ajust. €</Label>
+                        <Input type="number" value={v.priceAdj} onChange={(e) => updateVariant(i, "priceAdj", e.target.value)} className="h-8 text-xs w-20" step="0.01" />
+                      </div>
+                      <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive self-end" onClick={() => removeVariant(i)}>
+                        <X className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {variants.length === 0 && (
+                <div className="rounded-md border border-dashed border-border p-4 text-center">
+                  <p className="text-xs text-muted-foreground">Aucune variante.</p>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-border mt-2">
+            <Button variant="outline" onClick={() => { setEditingProduct(null); resetForm(); }}>Annuler</Button>
+            <Button onClick={() => updateProduct.mutate()} disabled={!name.trim() || !sku.trim() || updateProduct.isPending || uploading} className="gap-1.5">
+              {(updateProduct.isPending || uploading) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              Enregistrer
             </Button>
           </div>
         </DialogContent>
