@@ -1775,6 +1775,10 @@ function BrandingTab({ tenant, branding }: { tenant: any; branding: any }) {
   const [saving, setSaving] = useState(false);
   const [primaryColor, setPrimaryColor] = useState(branding?.primary_color || "#0ea5e9");
   const [accentColor, setAccentColor] = useState(branding?.accent_color || "#10b981");
+  const [backgroundColor, setBackgroundColor] = useState(branding?.background_color || "#ffffff");
+  const [textColor, setTextColor] = useState(branding?.text_color || "#1a1a1a");
+  const [secondaryColor, setSecondaryColor] = useState(branding?.secondary_color || "#f5f5f4");
+  const [buttonTextColor, setButtonTextColor] = useState(branding?.button_text_color || "#ffffff");
   const [headTitle, setHeadTitle] = useState(branding?.head_title || "");
   const [logoUrl, setLogoUrl] = useState(branding?.logo_url || "");
   const [faviconUrl, setFaviconUrl] = useState(branding?.favicon_url || "");
@@ -1794,6 +1798,10 @@ function BrandingTab({ tenant, branding }: { tenant: any; branding: any }) {
       const b = data.branding;
       if (b.primaryColor) setPrimaryColor(b.primaryColor);
       if (b.accentColor) setAccentColor(b.accentColor);
+      if (b.backgroundColor) setBackgroundColor(b.backgroundColor);
+      if (b.textColor) setTextColor(b.textColor);
+      if (b.secondaryColor) setSecondaryColor(b.secondaryColor);
+      if (b.buttonTextColor) setButtonTextColor(b.buttonTextColor);
       if (b.logo) setLogoUrl(b.logo);
       if (b.title && !headTitle) setHeadTitle(b.title);
 
@@ -1817,6 +1825,10 @@ function BrandingTab({ tenant, branding }: { tenant: any; branding: any }) {
         tenant_id: tenant.id,
         primary_color: primaryColor,
         accent_color: accentColor,
+        background_color: backgroundColor,
+        text_color: textColor,
+        secondary_color: secondaryColor,
+        button_text_color: buttonTextColor,
         head_title: headTitle || null,
         logo_url: logoUrl || null,
         favicon_url: faviconUrl || null,
@@ -1840,21 +1852,23 @@ function BrandingTab({ tenant, branding }: { tenant: any; branding: any }) {
       <div className="p-5 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Couleur primaire</Label>
-                <div className="flex items-center gap-2">
-                  <input type="color" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className="w-10 h-10 rounded border border-border cursor-pointer" />
-                  <Input value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className="font-mono text-sm" maxLength={7} />
+            <div className="grid grid-cols-3 gap-4">
+              {[
+                { label: "Couleur primaire", value: primaryColor, set: setPrimaryColor },
+                { label: "Couleur d'accent", value: accentColor, set: setAccentColor },
+                { label: "Couleur secondaire", value: secondaryColor, set: setSecondaryColor },
+                { label: "Fond de page", value: backgroundColor, set: setBackgroundColor },
+                { label: "Couleur du texte", value: textColor, set: setTextColor },
+                { label: "Texte des boutons", value: buttonTextColor, set: setButtonTextColor },
+              ].map((c) => (
+                <div key={c.label} className="space-y-1.5">
+                  <Label className="text-xs">{c.label}</Label>
+                  <div className="flex items-center gap-1.5">
+                    <input type="color" value={c.value} onChange={(e) => c.set(e.target.value)} className="w-8 h-8 rounded border border-border cursor-pointer shrink-0" />
+                    <Input value={c.value} onChange={(e) => c.set(e.target.value)} className="font-mono text-xs h-8" maxLength={7} />
+                  </div>
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Couleur d'accent</Label>
-                <div className="flex items-center gap-2">
-                  <input type="color" value={accentColor} onChange={(e) => setAccentColor(e.target.value)} className="w-10 h-10 rounded border border-border cursor-pointer" />
-                  <Input value={accentColor} onChange={(e) => setAccentColor(e.target.value)} className="font-mono text-sm" maxLength={7} />
-                </div>
-              </div>
+              ))}
             </div>
             <div className="space-y-2">
               <Label>Titre du navigateur</Label>
@@ -1909,18 +1923,19 @@ function BrandingTab({ tenant, branding }: { tenant: any; branding: any }) {
                 {logoUrl ? (
                   <img src={logoUrl} alt="Logo" className="h-6 w-6 rounded object-cover" />
                 ) : (
-                  <div className="h-6 w-6 rounded bg-white/20 flex items-center justify-center text-[10px] font-bold text-white">
+                  <div className="h-6 w-6 rounded flex items-center justify-center text-[10px] font-bold" style={{ backgroundColor: secondaryColor, color: primaryColor }}>
                     {tenant.name.charAt(0)}
                   </div>
                 )}
-                <span className="text-white text-sm font-medium">{headTitle || tenant.name}</span>
+                <span className="text-sm font-medium" style={{ color: buttonTextColor }}>{headTitle || tenant.name}</span>
               </div>
-              <div className="p-4 bg-background space-y-3">
-                <div className="h-3 w-3/4 rounded-full bg-muted" />
-                <div className="h-3 w-1/2 rounded-full bg-muted" />
+              <div className="p-4 space-y-3" style={{ backgroundColor }}>
+                <div className="h-3 w-3/4 rounded-full" style={{ backgroundColor: secondaryColor }} />
+                <p className="text-sm" style={{ color: textColor }}>Exemple de texte sur fond de page</p>
+                <div className="h-3 w-1/2 rounded-full" style={{ backgroundColor: secondaryColor }} />
                 <div className="flex gap-2 mt-3">
-                  <div className="h-8 px-4 rounded-md flex items-center text-xs font-medium text-white" style={{ backgroundColor: primaryColor }}>Bouton principal</div>
-                  <div className="h-8 px-4 rounded-md flex items-center text-xs font-medium text-white" style={{ backgroundColor: accentColor }}>Bouton accent</div>
+                  <div className="h-8 px-4 rounded-md flex items-center text-xs font-medium" style={{ backgroundColor: primaryColor, color: buttonTextColor }}>Bouton principal</div>
+                  <div className="h-8 px-4 rounded-md flex items-center text-xs font-medium" style={{ backgroundColor: accentColor, color: buttonTextColor }}>Bouton accent</div>
                 </div>
               </div>
             </div>
