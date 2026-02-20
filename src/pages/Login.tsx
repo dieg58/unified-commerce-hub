@@ -52,16 +52,18 @@ const Login = () => {
           <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center mx-auto mb-4">
             <Package className="w-6 h-6 text-primary-foreground" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">CommercePro</h1>
+          <h1 className="text-2xl font-bold text-foreground">INKOO B2B</h1>
           <p className="text-sm text-muted-foreground">
-            {isSignUp ? "Create your account" : "Sign in to your account"}
+            {isSignUp
+              ? "Créez votre compte pour accéder à votre boutique entreprise."
+              : "Connectez-vous pour gérer vos commandes et accéder à votre catalogue personnalisé."}
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {isSignUp && (
             <div className="space-y-2">
-              <Label htmlFor="name" className="text-sm">Full Name</Label>
+              <Label htmlFor="name" className="text-sm">Nom complet</Label>
               <Input
                 id="name"
                 value={fullName}
@@ -73,7 +75,7 @@ const Login = () => {
             </div>
           )}
           <div className="space-y-2">
-            <Label htmlFor="email" className="text-sm">Email</Label>
+            <Label htmlFor="email" className="text-sm">Adresse email</Label>
             <Input
               id="email"
               type="email"
@@ -85,7 +87,7 @@ const Login = () => {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password" className="text-sm">Password</Label>
+            <Label htmlFor="password" className="text-sm">Mot de passe</Label>
             <Input
               id="password"
               type="password"
@@ -98,17 +100,17 @@ const Login = () => {
             />
           </div>
           <Button type="submit" className="w-full h-10" disabled={loading}>
-            {loading ? "Loading…" : isSignUp ? "Create Account" : "Sign In"}
+            {loading ? "Chargement…" : isSignUp ? "Créer mon compte" : "Se connecter"}
           </Button>
         </form>
 
         <p className="text-center text-sm text-muted-foreground">
-          {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
+          {isSignUp ? "Déjà un compte ?" : "Pas encore de compte ?"}{" "}
           <button
             onClick={() => setIsSignUp(!isSignUp)}
             className="text-primary font-medium hover:underline"
           >
-            {isSignUp ? "Sign in" : "Sign up"}
+            {isSignUp ? "Se connecter" : "Créer un compte"}
           </button>
         </p>
       </div>
