@@ -18,22 +18,29 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 
-const shopManagerNav = [
+type NavItem = { to: string; icon: any; label: string } | { separator: string };
+
+const shopManagerNav: NavItem[] = [
   { to: "/tenant", icon: LayoutDashboard, label: "Tableau de bord" },
+  { separator: "Structure" },
   { to: "/tenant/entities", icon: Building2, label: "Entités" },
   { to: "/tenant/users", icon: Users, label: "Utilisateurs" },
   { to: "/tenant/budgets", icon: Wallet, label: "Budgets" },
+  { separator: "Commerce" },
   { to: "/tenant/products", icon: Package, label: "Produits" },
   { to: "/tenant/orders", icon: ShoppingCart, label: "Commandes" },
   { to: "/tenant/discounts", icon: Tag, label: "Codes promo" },
+  { separator: "Analyse" },
   { to: "/tenant/stats", icon: BarChart3, label: "Statistiques" },
   { to: "/tenant/settings", icon: Settings, label: "Paramètres" },
   { to: "/shop", icon: Store, label: "Voir la boutique" },
 ];
 
-const deptManagerNav = [
+const deptManagerNav: NavItem[] = [
   { to: "/tenant", icon: LayoutDashboard, label: "Tableau de bord" },
+  { separator: "Commerce" },
   { to: "/tenant/orders", icon: ShoppingCart, label: "Commandes" },
+  { separator: "Analyse" },
   { to: "/tenant/stats", icon: BarChart3, label: "Statistiques" },
   { to: "/shop", icon: Store, label: "Boutique" },
 ];
@@ -64,7 +71,20 @@ const TenantAdminSidebar = () => {
       </div>
 
       <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto">
-        {navItems.map((item) => {
+        {navItems.map((item, idx) => {
+          if ("separator" in item) {
+            return (
+              <div key={item.separator} className={cn("pt-3 pb-1", idx > 0 && "mt-1")}>
+                {!collapsed ? (
+                  <span className="px-3 text-[10px] font-semibold uppercase tracking-wider text-sidebar-muted">
+                    {item.separator}
+                  </span>
+                ) : (
+                  <div className="mx-3 h-px bg-sidebar-border" />
+                )}
+              </div>
+            );
+          }
           const isActive = location.pathname === item.to ||
             (item.to !== "/tenant" && location.pathname.startsWith(item.to));
           return (
