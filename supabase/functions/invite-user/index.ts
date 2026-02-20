@@ -67,6 +67,7 @@ Deno.serve(async (req) => {
     );
 
     let userId: string;
+    let tempPassword = "";
 
     if (existingUser) {
       userId = existingUser.id;
@@ -76,8 +77,8 @@ Deno.serve(async (req) => {
         .update({ tenant_id, full_name: full_name || existingUser.user_metadata?.full_name || "" })
         .eq("id", userId);
     } else {
-      // Create new user with a random password - they'll reset via email
-      const tempPassword = crypto.randomUUID() + "A1!";
+      // Create new user with a readable temporary password
+      tempPassword = crypto.randomUUID().slice(0, 8) + "Xk1!";
       const { data: newUser, error: createErr } = await adminClient.auth.admin.createUser({
         email,
         password: tempPassword,
@@ -114,28 +115,85 @@ Deno.serve(async (req) => {
     // Send invitation email via Resend
     const resendKey = Deno.env.get("RESEND_API_KEY");
     if (resendKey) {
-      let emailBody: string;
       let subject: string;
+      let contentBlock: string;
+
+      const roleLabels: Record<string, string> = {
+        super_admin: "Super Administrateur",
+        shop_manager: "Gestionnaire de boutique",
+        dept_manager: "Responsable de département",
+        employee: "Collaborateur",
+      };
+      const roleLabel = roleLabels[role] || role;
 
       if (!existingUser) {
-        // New user: generate a password reset link so they can set their password
-        const { data: linkData } = await adminClient.auth.admin.generateLink({
-          type: "recovery",
-          email,
-        });
-        const resetLink = linkData?.properties?.action_link || "";
-        subject = "Vous êtes invité(e) à rejoindre la plateforme";
-        emailBody = `<h2>Bienvenue ${full_name || ""} !</h2>
-          <p>Vous avez été invité(e) à rejoindre la plateforme en tant que <strong>${role}</strong>.</p>
-          <p>Cliquez sur le lien ci-dessous pour définir votre mot de passe et accéder à votre compte :</p>
-          <p><a href="${resetLink}" style="background:#292929;color:#fff;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;">Définir mon mot de passe</a></p>
-          <p>Si le bouton ne fonctionne pas, copiez ce lien : ${resetLink}</p>`;
+        subject = "🎉 Bienvenue sur Inkoo — Votre compte est prêt !";
+        contentBlock = `
+          <h1 style="margin:0 0 8px;font-size:24px;color:#1a1a1a;">Bienvenue${full_name ? `, ${full_name}` : ""} !</h1>
+          <p style="margin:0 0 24px;color:#555;font-size:15px;line-height:1.6;">
+            Vous avez été invité(e) à rejoindre la plateforme <strong>Inkoo</strong> en tant que <strong>${roleLabel}</strong>.
+          </p>
+          <div style="background:#f8f9fa;border-radius:10px;padding:20px 24px;margin-bottom:24px;">
+            <p style="margin:0 0 6px;font-size:13px;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Vos identifiants de connexion</p>
+            <table style="width:100%;border-collapse:collapse;">
+              <tr>
+                <td style="padding:8px 0;color:#555;font-size:14px;width:100px;">Email</td>
+                <td style="padding:8px 0;font-weight:600;color:#1a1a1a;font-size:14px;">${email}</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0;color:#555;font-size:14px;">Mot de passe</td>
+                <td style="padding:8px 0;font-weight:600;color:#1a1a1a;font-size:14px;font-family:monospace;letter-spacing:1px;">${tempPassword}</td>
+              </tr>
+            </table>
+          </div>
+          <p style="margin:0 0 24px;color:#555;font-size:14px;line-height:1.5;">
+            Nous vous recommandons de <strong>modifier votre mot de passe</strong> après votre première connexion.
+          </p>`;
       } else {
-        subject = "Vous avez été ajouté(e) à une nouvelle boutique";
-        emailBody = `<h2>Bonjour ${full_name || ""} !</h2>
-          <p>Vous avez été ajouté(e) à une boutique en tant que <strong>${role}</strong>.</p>
-          <p>Connectez-vous à la plateforme pour y accéder.</p>`;
+        subject = "📬 Vous avez été ajouté(e) à une nouvelle boutique";
+        contentBlock = `
+          <h1 style="margin:0 0 8px;font-size:24px;color:#1a1a1a;">Bonjour${full_name ? `, ${full_name}` : ""} !</h1>
+          <p style="margin:0 0 24px;color:#555;font-size:15px;line-height:1.6;">
+            Vous avez été ajouté(e) à une nouvelle boutique en tant que <strong>${roleLabel}</strong>.
+          </p>
+          <p style="margin:0 0 24px;color:#555;font-size:14px;line-height:1.5;">
+            Connectez-vous avec vos identifiants habituels pour y accéder.
+          </p>`;
       }
+
+      const emailHtml = `<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f0f0;padding:40px 20px;">
+    <tr><td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+        <!-- Header -->
+        <tr><td style="background:linear-gradient(135deg,#292929,#3d3d3d);padding:32px 40px;text-align:center;">
+          <h2 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:0.5px;">INKOO</h2>
+          <p style="margin:6px 0 0;color:rgba(255,255,255,0.7);font-size:13px;">Plateforme de commandes B2B</p>
+        </td></tr>
+        <!-- Body -->
+        <tr><td style="padding:36px 40px 20px;">
+          ${contentBlock}
+          <div style="text-align:center;margin:8px 0 28px;">
+            <a href="https://b2b-inkoo.lovable.app/login" style="display:inline-block;background:#292929;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;padding:14px 36px;border-radius:8px;">
+              Se connecter
+            </a>
+          </div>
+        </td></tr>
+        <!-- Footer -->
+        <tr><td style="padding:20px 40px 28px;border-top:1px solid #eee;text-align:center;">
+          <p style="margin:0;color:#aaa;font-size:12px;line-height:1.5;">
+            Cet email a été envoyé automatiquement par Inkoo.<br>
+            Si vous n'êtes pas à l'origine de cette demande, veuillez ignorer cet email.
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
 
       await fetch("https://api.resend.com/emails", {
         method: "POST",
@@ -147,7 +205,7 @@ Deno.serve(async (req) => {
           from: "Inkoo <onboarding@resend.dev>",
           to: [email],
           subject,
-          html: emailBody,
+          html: emailHtml,
         }),
       });
     }
