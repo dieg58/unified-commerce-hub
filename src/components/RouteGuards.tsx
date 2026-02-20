@@ -11,21 +11,19 @@ export const RequireAuth = ({ children }: { children: ReactNode }) => {
 };
 
 export const RequireSuperAdmin = ({ children }: { children: ReactNode }) => {
-  const { session, loading, isSuperAdmin, roles } = useAuth();
+  const { session, loading, isSuperAdmin, rolesLoaded } = useAuth();
   if (loading) return <LoadingScreen />;
   if (!session) return <Navigate to="/login" replace />;
-  // Wait for roles to be loaded before redirecting
-  if (roles.length === 0) return <LoadingScreen />;
+  if (!rolesLoaded) return <LoadingScreen />;
   if (!isSuperAdmin) return <Navigate to="/tenant" replace />;
   return <>{children}</>;
 };
 
 export const RequireTenantUser = ({ children }: { children: ReactNode }) => {
-  const { session, loading, isSuperAdmin, roles } = useAuth();
+  const { session, loading, isSuperAdmin, rolesLoaded } = useAuth();
   if (loading) return <LoadingScreen />;
   if (!session) return <Navigate to="/login" replace />;
-  // Wait for roles to be loaded before redirecting
-  if (roles.length === 0) return <LoadingScreen />;
+  if (!rolesLoaded) return <LoadingScreen />;
   if (isSuperAdmin) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 };
@@ -41,10 +39,10 @@ export const RequireShopManager = ({ children }: { children: ReactNode }) => {
 
 /** Redirects to the right home based on role – only employees can access /shop */
 export const RequireEmployee = ({ children }: { children: ReactNode }) => {
-  const { session, loading, isSuperAdmin, isShopManager, isDeptManager, roles } = useAuth();
+  const { session, loading, isSuperAdmin, isShopManager, isDeptManager, rolesLoaded } = useAuth();
   if (loading) return <LoadingScreen />;
   if (!session) return <Navigate to="/login" replace />;
-  if (roles.length === 0) return <LoadingScreen />;
+  if (!rolesLoaded) return <LoadingScreen />;
   if (isSuperAdmin) return <Navigate to="/dashboard" replace />;
   if (isShopManager || isDeptManager) return <Navigate to="/tenant" replace />;
   return <>{children}</>;
