@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, ArrowRight, ArrowLeft, Check, Globe, AlertCircle } from "lucide-react";
+import { Loader2, ArrowRight, ArrowLeft, Check, Globe, AlertCircle, Sparkles } from "lucide-react";
 import { BASE_DOMAIN, getStorefrontUrl } from "@/lib/subdomain";
 
 interface Props {
@@ -21,7 +21,7 @@ const toSlug = (name: string) =>
   name
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "") // remove accents
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 50);
@@ -37,6 +37,8 @@ export default function CreateTenantWizard({ open, onOpenChange }: Props) {
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
   const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
   const [checkingSlug, setCheckingSlug] = useState(false);
+  const [websiteUrl, setWebsiteUrl] = useState("");
+  const [extracting, setExtracting] = useState(false);
 
   // Step 2
   const [primaryColor, setPrimaryColor] = useState("#0ea5e9");
@@ -58,6 +60,8 @@ export default function CreateTenantWizard({ open, onOpenChange }: Props) {
     setHeadTitle("");
     setLogoUrl("");
     setDefaultEntities("HQ");
+    setWebsiteUrl("");
+    setExtracting(false);
   };
 
   /** Check if slug is available */
@@ -93,8 +97,38 @@ export default function CreateTenantWizard({ open, onOpenChange }: Props) {
     setSlug(sanitized);
     setSlugManuallyEdited(true);
     setSlugAvailable(null);
-    // Debounce check
     checkSlugAvailability(sanitized);
+  };
+
+  /** Extract branding from website URL */
+  const handleExtractBranding = async () => {
+    if (!websiteUrl.trim()) return;
+    setExtracting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("extract-branding", {
+        body: { url: websiteUrl.trim() },
+      });
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "Extraction échouée");
+
+      const b = data.branding;
+      if (b.primaryColor) setPrimaryColor(b.primaryColor);
+      if (b.accentColor) setAccentColor(b.accentColor);
+      if (b.logo) setLogoUrl(b.logo);
+      if (b.title && !headTitle) setHeadTitle(b.title);
+
+      toast.success("Branding extrait automatiquement !", {
+        description: "Couleurs, logo et titre pré-remplis. Vous pouvez les ajuster à l'étape suivante.",
+      });
+    } catch (err: any) {
+      console.error("Branding extraction error:", err);
+      toast.error("Impossible d'extraire le branding", {
+        description: err.message || "Vérifiez l'URL et réessayez.",
+      });
+    } finally {
+      setExtracting(false);
+    }
   };
 
   const handleCreate = async () => {
@@ -220,6 +254,39 @@ export default function CreateTenantWizard({ open, onOpenChange }: Props) {
                   )}
                 </div>
               </div>
+
+              {/* Website URL for branding extraction */}
+              <div className="space-y-2">
+                <Label>Site web du client <span className="text-muted-foreground font-normal">(optionnel)</span></Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={websiteUrl}
+                    onChange={(e) => setWebsiteUrl(e.target.value)}
+                    placeholder="https://www.acme.com"
+                    maxLength={500}
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleExtractBranding}
+                    disabled={!websiteUrl.trim() || extracting}
+                    className="shrink-0 gap-1.5"
+                  >
+                    {extracting ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Sparkles className="w-3.5 h-3.5" />
+                    )}
+                    {extracting ? "Analyse..." : "Auto-remplir"}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Renseignez le site web pour extraire automatiquement les couleurs, logo et titre de la marque.
+                </p>
+              </div>
+
               {/* URL Preview */}
               {slug.length >= 2 && slugAvailable === true && (
                 <div className="rounded-lg border border-border bg-muted/30 p-3 flex items-center gap-2.5 animate-fade-in">
