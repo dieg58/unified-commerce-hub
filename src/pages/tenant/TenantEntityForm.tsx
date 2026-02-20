@@ -79,11 +79,14 @@ const Section = ({ icon: Icon, title, description, children }: { icon: any; titl
 );
 
 const TenantEntityForm = () => {
-  const { id } = useParams();
+  const params = useParams<{ id?: string; tenantId?: string }>();
+  const id = params.id;
   const isEditing = id && id !== "new";
   const navigate = useNavigate();
-  const { profile } = useAuth();
-  const tenantId = profile?.tenant_id;
+  const { profile, isSuperAdmin } = useAuth();
+  // Super admin passes tenantId via route; tenant admin uses profile
+  const tenantId = params.tenantId || profile?.tenant_id;
+  const backPath = params.tenantId ? `/tenants/${params.tenantId}` : "/tenant/entities";
   const qc = useQueryClient();
 
   const [form, setForm] = useState({ name: "", code: "", vat_rate: "21", vat: "", requires_approval: false, payment_on_order: false });
@@ -281,7 +284,7 @@ const TenantEntityForm = () => {
       qc.invalidateQueries({ queryKey: ["tenant-entities"] });
       qc.invalidateQueries({ queryKey: ["entity-budgets"] });
       qc.invalidateQueries({ queryKey: ["entity-addresses"] });
-      navigate("/tenant/entities");
+      navigate(backPath);
     },
     onError: (err: any) => toast.error(err.message),
   });
@@ -294,8 +297,8 @@ const TenantEntityForm = () => {
       />
       <div className="p-6 max-w-3xl mx-auto space-y-5 overflow-auto pb-12">
         {/* Back button */}
-        <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground -ml-2" onClick={() => navigate("/tenant/entities")}>
-          <ArrowLeft className="w-4 h-4" /> Retour aux entités
+        <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground -ml-2" onClick={() => navigate(backPath)}>
+          <ArrowLeft className="w-4 h-4" /> {params.tenantId ? "Retour à la boutique" : "Retour aux entités"}
         </Button>
 
         {/* ─── Identification ─────────────────────────────────────────── */}
@@ -514,7 +517,7 @@ const TenantEntityForm = () => {
 
         {/* ─── Actions ────────────────────────────────────────────────── */}
         <div className="flex gap-3 pt-1 sticky bottom-0 bg-background/80 backdrop-blur-sm py-4 -mx-6 px-6 border-t border-border">
-          <Button variant="outline" className="flex-1" onClick={() => navigate("/tenant/entities")}>
+          <Button variant="outline" className="flex-1" onClick={() => navigate(backPath)}>
             Annuler
           </Button>
           <Button className="flex-1" onClick={() => saveEntity.mutate()} disabled={saveEntity.isPending}>
