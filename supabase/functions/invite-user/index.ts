@@ -111,11 +111,44 @@ Deno.serve(async (req) => {
       .eq("tenant_id", tenant_id)
       .eq("email", email.toLowerCase());
 
-    // Send password reset email so user can set their password
-    if (!existingUser) {
-      await adminClient.auth.admin.generateLink({
-        type: "recovery",
-        email,
+    // Send invitation email via Resend
+    const resendKey = Deno.env.get("RESEND_API_KEY");
+    if (resendKey) {
+      let emailBody: string;
+      let subject: string;
+
+      if (!existingUser) {
+        // New user: generate a password reset link so they can set their password
+        const { data: linkData } = await adminClient.auth.admin.generateLink({
+          type: "recovery",
+          email,
+        });
+        const resetLink = linkData?.properties?.action_link || "";
+        subject = "Vous êtes invité(e) à rejoindre la plateforme";
+        emailBody = `<h2>Bienvenue ${full_name || ""} !</h2>
+          <p>Vous avez été invité(e) à rejoindre la plateforme en tant que <strong>${role}</strong>.</p>
+          <p>Cliquez sur le lien ci-dessous pour définir votre mot de passe et accéder à votre compte :</p>
+          <p><a href="${resetLink}" style="background:#292929;color:#fff;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;">Définir mon mot de passe</a></p>
+          <p>Si le bouton ne fonctionne pas, copiez ce lien : ${resetLink}</p>`;
+      } else {
+        subject = "Vous avez été ajouté(e) à une nouvelle boutique";
+        emailBody = `<h2>Bonjour ${full_name || ""} !</h2>
+          <p>Vous avez été ajouté(e) à une boutique en tant que <strong>${role}</strong>.</p>
+          <p>Connectez-vous à la plateforme pour y accéder.</p>`;
+      }
+
+      await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${resendKey}`,
+        },
+        body: JSON.stringify({
+          from: "Inkoo <onboarding@resend.dev>",
+          to: [email],
+          subject,
+          html: emailBody,
+        }),
       });
     }
 
