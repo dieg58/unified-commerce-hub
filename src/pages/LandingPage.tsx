@@ -1,70 +1,74 @@
 import { Link, Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
-import {
-  Store,
-  ShieldCheck,
-  Users,
-  BarChart3,
-  Package,
-  CreditCard,
-  ArrowRight,
-  CheckCircle2,
-  Loader2,
-} from "lucide-react";
-
-const features = [
-  {
-    icon: Store,
-    title: "Boutiques personnalisées",
-    desc: "Chaque entreprise dispose de sa propre boutique avec branding, catalogue et prix sur mesure.",
-  },
-  {
-    icon: Users,
-    title: "Gestion multi-tenant",
-    desc: "Gérez des dizaines de clients depuis un seul tableau de bord centralisé.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Contrôle des budgets",
-    desc: "Définissez des enveloppes budgétaires par entité, département ou période.",
-  },
-  {
-    icon: Package,
-    title: "Catalogue flexible",
-    desc: "Produits en stock ou sur-mesure, variantes, catégories — tout est configurable.",
-  },
-  {
-    icon: BarChart3,
-    title: "Statistiques en temps réel",
-    desc: "Suivez les commandes, le chiffre d'affaires et les tendances par boutique.",
-  },
-  {
-    icon: CreditCard,
-    title: "Facturation intégrée",
-    desc: "Profils de facturation, adresses multiples et suivi des commandes automatisé.",
-  },
-];
-
-const benefits = [
-  "Déploiement rapide en quelques minutes",
-  "Sous-domaine dédié par client",
-  "Rôles & permissions granulaires",
-  "Interface intuitive pour les employés",
-  "Support multi-devises",
-  "Tableau de bord Super Admin complet",
-];
+import { ArrowRight, Loader2, Package, Truck, Warehouse, Monitor, ChevronRight } from "lucide-react";
+import heroImg from "@/assets/hero-merch.jpg";
+import webshopImg from "@/assets/services-webshop.jpg";
+import storageImg from "@/assets/services-storage.jpg";
+import shippingImg from "@/assets/services-shipping.jpg";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
   visible: (i: number) => ({
     opacity: 1,
     y: 0,
-    transition: { delay: i * 0.1, duration: 0.5, ease: "easeOut" as const },
+    transition: { delay: i * 0.08, duration: 0.5, ease: "easeOut" as const },
   }),
 };
+
+const clients = [
+  "Spotify", "Deloitte", "Deliveroo", "Dior", "Accenture", "Oatly",
+  "WeTransfer", "Bain & Company", "Caudalie", "Highsnobiety",
+];
+
+const services = [
+  {
+    icon: Package,
+    title: "Merch sur mesure",
+    desc: "Nous sourceons et personnalisons les meilleurs produits pour votre marque. Textile, objets, goodies — tout est brandé à votre image.",
+    image: webshopImg,
+  },
+  {
+    icon: Monitor,
+    title: "Webshop dédié",
+    desc: "Un e-shop à vos couleurs où vos collaborateurs commandent en autonomie. Gestion des droits, budgets et catalogues intégrée.",
+    image: storageImg,
+  },
+  {
+    icon: Warehouse,
+    title: "Stockage & logistique",
+    desc: "Nous stockons votre merch dans nos entrepôts. Gestion des stocks en temps réel, réassort automatique, zéro contrainte pour vous.",
+    image: storageImg,
+  },
+  {
+    icon: Truck,
+    title: "Expédition mondiale",
+    desc: "Envoi individuel ou en masse, en France et à l'international. Suivi en temps réel et packaging soigné.",
+    image: shippingImg,
+  },
+];
+
+const testimonials = [
+  {
+    quote: "Inkoo a transformé notre gestion de dotation. Nos collaborateurs commandent en autonomie et nous avons divisé par 3 le temps de traitement.",
+    author: "Marie Lefèvre",
+    role: "Directrice RH",
+    company: "Groupe Véolia",
+  },
+  {
+    quote: "Le webshop est magnifique, parfaitement intégré à notre branding. La mise en place a été ultra rapide.",
+    author: "Thomas Durand",
+    role: "Directeur Marketing",
+    company: "Bouygues Telecom",
+  },
+  {
+    quote: "Enfin une solution complète : sourcing, stockage, expédition. On ne gère plus rien, Inkoo s'occupe de tout.",
+    author: "Sophie Martin",
+    role: "Responsable Achats",
+    company: "Accor Hotels",
+  },
+];
 
 const LandingPage = () => {
   const { session, loading, isSuperAdmin } = useAuth();
@@ -72,12 +76,11 @@ const LandingPage = () => {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <Loader2 className="w-8 h-8 animate-spin text-foreground" />
       </div>
     );
   }
 
-  // Redirect authenticated users to their dashboard
   if (session) {
     if (isSuperAdmin) return <Navigate to="/dashboard" replace />;
     return <Navigate to="/shop" replace />;
@@ -86,169 +89,195 @@ const LandingPage = () => {
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Nav */}
-      <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center">
-              <Store className="h-4 w-4 text-primary-foreground" />
-            </div>
-            <span className="text-lg font-bold tracking-tight">Inkoo</span>
-          </div>
+      <header className="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur-md">
+        <div className="max-w-7xl mx-auto flex h-16 items-center justify-between px-6">
+          <span className="text-xl font-serif tracking-tight">Inkoo</span>
+          <nav className="hidden md:flex items-center gap-8 text-sm">
+            <a href="#services" className="text-muted-foreground hover:text-foreground transition-colors">Services</a>
+            <a href="#how" className="text-muted-foreground hover:text-foreground transition-colors">Comment ça marche</a>
+            <a href="#testimonials" className="text-muted-foreground hover:text-foreground transition-colors">Témoignages</a>
+          </nav>
           <div className="flex items-center gap-3">
-            <Button variant="ghost" asChild>
+            <Button variant="ghost" size="sm" asChild>
               <Link to="/login">Se connecter</Link>
             </Button>
-            <Button asChild>
-              <Link to="/login">Commencer</Link>
+            <Button size="sm" asChild>
+              <Link to="/login">Demander une démo</Link>
             </Button>
           </div>
         </div>
       </header>
 
       {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 gradient-primary opacity-[0.04]" />
-        <div className="container mx-auto px-4 py-24 md:py-32 text-center relative">
+      <section className="relative">
+        <div className="max-w-7xl mx-auto px-6 py-20 md:py-32 grid md:grid-cols-2 gap-12 items-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <span className="inline-block rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-sm font-medium text-primary mb-6">
-              Plateforme B2B nouvelle génération
-            </span>
-            <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight leading-tight max-w-3xl mx-auto">
-              La boutique en ligne
+            <h1 className="text-4xl md:text-6xl lg:text-7xl font-serif leading-[1.1] tracking-tight">
+              Du beau merch,
               <br />
-              <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                pour vos collaborateurs
-              </span>
+              <em className="font-serif">pour votre marque.</em>
             </h1>
-            <p className="mt-6 text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-              Créez des boutiques personnalisées pour chaque entreprise cliente.
-              Gérez les catalogues, budgets et commandes depuis une seule plateforme.
+            <p className="mt-6 text-lg text-muted-foreground max-w-md leading-relaxed">
+              Nous créons, stockons et expédions le merchandising de votre entreprise. Vos collaborateurs commandent depuis un webshop dédié.
             </p>
-            <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Button size="lg" className="text-base px-8" asChild>
+            <div className="mt-10 flex flex-col sm:flex-row items-start gap-4">
+              <Button size="lg" className="text-base px-8 rounded-full" asChild>
                 <Link to="/login">
                   Accéder à la plateforme
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
-              <Button size="lg" variant="outline" className="text-base px-8" asChild>
-                <a href="#features">Découvrir les fonctionnalités</a>
+              <Button size="lg" variant="outline" className="text-base px-8 rounded-full" asChild>
+                <a href="#services">Découvrir nos services</a>
               </Button>
             </div>
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+            className="relative"
+          >
+            <img
+              src={heroImg}
+              alt="Collection de merchandising corporate premium"
+              className="w-full h-[400px] md:h-[520px] object-cover rounded-2xl"
+            />
           </motion.div>
         </div>
       </section>
 
-      {/* Features */}
-      <section id="features" className="py-20 md:py-28 bg-card/50">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold tracking-tight">
-              Tout ce qu'il faut pour le B2B
+      {/* Client logos ticker */}
+      <section className="border-y border-border py-6 overflow-hidden">
+        <div className="flex animate-marquee whitespace-nowrap">
+          {[...clients, ...clients].map((name, i) => (
+            <span
+              key={i}
+              className="mx-8 text-sm font-medium text-muted-foreground/60 uppercase tracking-widest"
+            >
+              {name}
+            </span>
+          ))}
+        </div>
+      </section>
+
+      {/* Services */}
+      <section id="services" className="py-24 md:py-32">
+        <div className="max-w-7xl mx-auto px-6">
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeUp}
+            custom={0}
+            className="max-w-2xl mb-16"
+          >
+            <h2 className="text-3xl md:text-5xl font-serif tracking-tight leading-tight">
+              Une solution complète pour votre merch d'entreprise.
             </h2>
-            <p className="mt-4 text-muted-foreground text-lg max-w-xl mx-auto">
-              Une suite complète pour gérer vos boutiques entreprise de A à Z.
+            <p className="mt-4 text-muted-foreground text-lg">
+              Du sourcing à l'expédition, nous gérons tout pour que vous n'ayez plus à y penser.
             </p>
-          </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {features.map((f, i) => (
+          </motion.div>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            {services.map((s, i) => (
               <motion.div
-                key={f.title}
+                key={s.title}
                 custom={i}
                 initial="hidden"
                 whileInView="visible"
                 viewport={{ once: true, margin: "-40px" }}
                 variants={fadeUp}
+                className="group relative overflow-hidden rounded-2xl bg-card border border-border hover:shadow-card-hover transition-all duration-300"
               >
-                <Card className="h-full border-border/60 hover:shadow-card-hover transition-shadow duration-300">
-                  <CardContent className="p-6">
-                    <div className="h-10 w-10 rounded-lg gradient-primary flex items-center justify-center mb-4">
-                      <f.icon className="h-5 w-5 text-primary-foreground" />
-                    </div>
-                    <h3 className="text-lg font-semibold mb-2">{f.title}</h3>
-                    <p className="text-muted-foreground text-sm leading-relaxed">
-                      {f.desc}
-                    </p>
-                  </CardContent>
-                </Card>
+                <div className="aspect-[16/10] overflow-hidden">
+                  <img
+                    src={s.image}
+                    alt={s.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                </div>
+                <div className="p-6 md:p-8">
+                  <div className="flex items-center gap-3 mb-3">
+                    <s.icon className="h-5 w-5 text-accent" />
+                    <h3 className="text-lg font-semibold">{s.title}</h3>
+                  </div>
+                  <p className="text-muted-foreground text-sm leading-relaxed">{s.desc}</p>
+                </div>
               </motion.div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Benefits */}
-      <section className="py-20 md:py-28">
-        <div className="container mx-auto px-4">
-          <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-12 items-center">
-            <div>
-              <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-6">
-                Pourquoi choisir Inkoo ?
-              </h2>
-              <p className="text-muted-foreground text-lg leading-relaxed">
-                Simplifiez la gestion de vos boutiques B2B avec une plateforme pensée
-                pour la scalabilité et la simplicité d'utilisation.
-              </p>
-            </div>
-            <div className="space-y-4">
-              {benefits.map((b, i) => (
-                <motion.div
-                  key={b}
-                  custom={i}
-                  initial="hidden"
-                  whileInView="visible"
-                  viewport={{ once: true }}
-                  variants={fadeUp}
-                  className="flex items-center gap-3"
-                >
-                  <CheckCircle2 className="h-5 w-5 text-accent shrink-0" />
-                  <span className="font-medium">{b}</span>
-                </motion.div>
-              ))}
-            </div>
+      {/* How it works */}
+      <section id="how" className="py-24 md:py-32 bg-primary text-primary-foreground">
+        <div className="max-w-7xl mx-auto px-6">
+          <motion.h2
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeUp}
+            custom={0}
+            className="text-3xl md:text-5xl font-serif tracking-tight mb-16"
+          >
+            Comment ça marche ?
+          </motion.h2>
+          <div className="grid md:grid-cols-3 gap-12">
+            {[
+              {
+                step: "01",
+                title: "On source & on crée",
+                desc: "Nous sélectionnons les meilleurs produits et les personnalisons avec votre branding. Vous validez, on produit.",
+              },
+              {
+                step: "02",
+                title: "On stocke & on gère",
+                desc: "Votre merch est stocké dans nos entrepôts. Votre webshop dédié permet à vos équipes de commander en toute autonomie.",
+              },
+              {
+                step: "03",
+                title: "On expédie partout",
+                desc: "Commande individuelle ou en masse, en France ou à l'international. Packaging soigné, suivi en temps réel.",
+              },
+            ].map((item, i) => (
+              <motion.div
+                key={item.step}
+                custom={i}
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true }}
+                variants={fadeUp}
+              >
+                <span className="text-5xl font-serif text-primary-foreground/20">{item.step}</span>
+                <h3 className="text-xl font-semibold mt-4 mb-3">{item.title}</h3>
+                <p className="text-primary-foreground/70 leading-relaxed">{item.desc}</p>
+              </motion.div>
+            ))}
           </div>
         </div>
       </section>
 
       {/* Testimonials */}
-      <section className="py-20 md:py-28 bg-card/50">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold tracking-tight">
-              Ils nous font confiance
-            </h2>
-            <p className="mt-4 text-muted-foreground text-lg max-w-xl mx-auto">
-              Des entreprises de toutes tailles utilisent Inkoo pour gérer leurs boutiques collaborateurs.
-            </p>
-          </div>
-          <div className="grid md:grid-cols-3 gap-6">
-            {[
-              {
-                quote: "Inkoo a transformé notre gestion de dotation textile. Nos 2 000 collaborateurs commandent en autonomie, et nous avons divisé par 3 le temps de traitement.",
-                author: "Marie Lefèvre",
-                role: "Directrice RH",
-                company: "Groupe Véolia",
-                initials: "VE",
-              },
-              {
-                quote: "Le système de budgets par entité est exactement ce qu'il nous fallait. Chaque département gère son enveloppe sans dépasser les limites.",
-                author: "Thomas Durand",
-                role: "DAF",
-                company: "Bouygues Telecom",
-                initials: "BT",
-              },
-              {
-                quote: "La mise en place a été ultra rapide. En une semaine, notre boutique était en ligne avec notre branding et notre catalogue complet.",
-                author: "Sophie Martin",
-                role: "Responsable achats",
-                company: "Accor Hotels",
-                initials: "AH",
-              },
-            ].map((t, i) => (
+      <section id="testimonials" className="py-24 md:py-32">
+        <div className="max-w-7xl mx-auto px-6">
+          <motion.h2
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeUp}
+            custom={0}
+            className="text-3xl md:text-5xl font-serif tracking-tight mb-16"
+          >
+            Ils nous font confiance
+          </motion.h2>
+          <div className="grid md:grid-cols-3 gap-8">
+            {testimonials.map((t, i) => (
               <motion.div
                 key={t.author}
                 custom={i}
@@ -256,32 +285,17 @@ const LandingPage = () => {
                 whileInView="visible"
                 viewport={{ once: true, margin: "-40px" }}
                 variants={fadeUp}
+                className="flex flex-col"
               >
-                <Card className="h-full border-border/60">
-                  <CardContent className="p-6 flex flex-col h-full">
-                    <div className="flex gap-1 mb-4 text-warning">
-                      {[...Array(5)].map((_, j) => (
-                        <svg key={j} className="h-4 w-4 fill-current" viewBox="0 0 20 20">
-                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                        </svg>
-                      ))}
-                    </div>
-                    <p className="text-sm text-muted-foreground leading-relaxed flex-1 mb-6">
-                      "{t.quote}"
-                    </p>
-                    <div className="flex items-center gap-3 pt-4 border-t border-border">
-                      <div className="h-10 w-10 rounded-full gradient-primary flex items-center justify-center text-xs font-bold text-primary-foreground shrink-0">
-                        {t.initials}
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold">{t.author}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {t.role} · {t.company}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                <p className="text-lg leading-relaxed flex-1 mb-8">
+                  "{t.quote}"
+                </p>
+                <div className="border-t border-border pt-4">
+                  <p className="font-semibold">{t.author}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {t.role} — {t.company}
+                  </p>
+                </div>
               </motion.div>
             ))}
           </div>
@@ -289,24 +303,26 @@ const LandingPage = () => {
       </section>
 
       {/* CTA */}
-      <section className="py-20 md:py-28">
-        <div className="container mx-auto px-4">
-          <div className="rounded-2xl gradient-primary p-12 md:p-16 text-center">
-            <h2 className="text-3xl md:text-4xl font-bold text-primary-foreground mb-4">
-              Prêt à démarrer ?
-            </h2>
-            <p className="text-primary-foreground/80 text-lg max-w-xl mx-auto mb-8">
-              Connectez-vous pour accéder à votre espace de gestion ou découvrir votre boutique.
-            </p>
+      <section className="py-24 md:py-32">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="rounded-2xl bg-primary text-primary-foreground p-12 md:p-20 flex flex-col md:flex-row items-center justify-between gap-8">
+            <div className="max-w-lg">
+              <h2 className="text-3xl md:text-4xl font-serif mb-4">
+                Prêt à simplifier votre merch ?
+              </h2>
+              <p className="text-primary-foreground/70 text-lg">
+                Connectez-vous pour accéder à votre espace ou demandez une démo personnalisée.
+              </p>
+            </div>
             <Button
               size="lg"
               variant="secondary"
-              className="text-base px-8"
+              className="text-base px-8 rounded-full shrink-0"
               asChild
             >
               <Link to="/login">
                 Se connecter
-                <ArrowRight className="ml-2 h-4 w-4" />
+                <ChevronRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
           </div>
@@ -314,9 +330,12 @@ const LandingPage = () => {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-border py-8">
-        <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          © {new Date().getFullYear()} Inkoo. Tous droits réservés.
+      <footer className="border-t border-border py-10">
+        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
+          <span className="text-lg font-serif">Inkoo</span>
+          <p className="text-sm text-muted-foreground">
+            © {new Date().getFullYear()} Inkoo. Tous droits réservés.
+          </p>
         </div>
       </footer>
     </div>
