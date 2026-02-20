@@ -271,6 +271,19 @@ function UsersTab({ tenantId, users }: { tenantId: string; users: any[] }) {
     },
   });
 
+  const { data: lastSignIns } = useQuery({
+    queryKey: ["last-signins", tenantId],
+    queryFn: async () => {
+      if (!users.length) return {};
+      const { data, error } = await supabase.functions.invoke("get-users-last-signin", {
+        body: { user_ids: users.map((u) => u.id) },
+      });
+      if (error) return {};
+      return (data as Record<string, string | null>) || {};
+    },
+    enabled: users.length > 0,
+  });
+
   const pendingInvitations = invitations?.filter((i) => i.status === "pending") || [];
 
   const sendInvite = useMutation({
@@ -338,6 +351,26 @@ function UsersTab({ tenantId, users }: { tenantId: string; users: any[] }) {
     onError: (err: any) => toast.error(err.message),
   });
 
+  const resendInvitation = useMutation({
+    mutationFn: async (inv: any) => {
+      const { data, error } = await supabase.functions.invoke("invite-user", {
+        body: {
+          email: inv.email,
+          full_name: inv.full_name,
+          role: inv.role,
+          tenant_id: tenantId,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => {
+      toast.success("Email d'invitation renvoyé");
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
   const changeRole = useMutation({
     mutationFn: async ({ userId, newRole }: { userId: string; newRole: string }) => {
       const { error: delErr } = await supabase.from("user_roles").delete().eq("user_id", userId);
@@ -392,6 +425,16 @@ function UsersTab({ tenantId, users }: { tenantId: string; users: any[] }) {
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className={roleColors[inv.role] || ""}>{roleLabels[inv.role] || inv.role}</Badge>
                   <span className="text-xs text-muted-foreground">{new Date(inv.created_at).toLocaleDateString("fr-FR")}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 gap-1 text-xs"
+                    disabled={resendInvitation.isPending}
+                    onClick={() => resendInvitation.mutate(inv)}
+                  >
+                    {resendInvitation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                    Renvoyer
+                  </Button>
                   <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => cancelInvitation.mutate(inv.id)}>
                     <X className="w-3.5 h-3.5" />
                   </Button>
@@ -440,6 +483,7 @@ function UsersTab({ tenantId, users }: { tenantId: string; users: any[] }) {
                 <TableHead className="text-xs">Email</TableHead>
                 <TableHead className="text-xs">Rôle</TableHead>
                 <TableHead className="text-xs">Inscrit le</TableHead>
+                <TableHead className="text-xs">Dernière connexion</TableHead>
                 <TableHead className="text-xs w-10"></TableHead>
               </TableRow>
             </TableHeader>
@@ -471,6 +515,11 @@ function UsersTab({ tenantId, users }: { tenantId: string; users: any[] }) {
                       </Select>
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">{new Date(user.created_at).toLocaleDateString("fr-FR")}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {lastSignIns?.[user.id]
+                        ? new Date(lastSignIns[user.id]!).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })
+                        : <span className="text-muted-foreground/50 italic">Jamais</span>}
+                    </TableCell>
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
