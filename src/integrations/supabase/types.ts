@@ -639,6 +639,8 @@ export type Database = {
           image_url: string | null
           min_bulk_qty: number
           name: string
+          no_billing_bulk: boolean
+          no_billing_staff: boolean
           sku: string
           stock_type: Database["public"]["Enums"]["stock_type"]
           tenant_id: string
@@ -653,6 +655,8 @@ export type Database = {
           image_url?: string | null
           min_bulk_qty?: number
           name: string
+          no_billing_bulk?: boolean
+          no_billing_staff?: boolean
           sku: string
           stock_type?: Database["public"]["Enums"]["stock_type"]
           tenant_id: string
@@ -667,6 +671,8 @@ export type Database = {
           image_url?: string | null
           min_bulk_qty?: number
           name?: string
+          no_billing_bulk?: boolean
+          no_billing_staff?: boolean
           sku?: string
           stock_type?: Database["public"]["Enums"]["stock_type"]
           tenant_id?: string
@@ -858,8 +864,6 @@ export type Database = {
           created_at: string
           id: string
           name: string
-          no_product_billing_bulk: boolean
-          no_product_billing_staff: boolean
           slug: string
           status: string
           updated_at: string
@@ -868,8 +872,6 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
-          no_product_billing_bulk?: boolean
-          no_product_billing_staff?: boolean
           slug: string
           status?: string
           updated_at?: string
@@ -878,8 +880,6 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
-          no_product_billing_bulk?: boolean
-          no_product_billing_staff?: boolean
           slug?: string
           status?: string
           updated_at?: string
