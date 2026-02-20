@@ -16,7 +16,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import {
   ArrowLeft, Loader2, Plus, Pencil, Save, X, MoreHorizontal, Trash2,
   Building2, ShoppingCart, Wallet, Package, Palette, Users, Store,
-  CheckCircle, XCircle, Eye, Mail, Send, Clock, UserPlus
+  CheckCircle, XCircle, Eye, Mail, Send, Clock, UserPlus, Tag
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -46,6 +46,20 @@ const TenantDetail = () => {
     queryKey: ["entities", id],
     queryFn: async () => {
       const { data, error } = await supabase.from("entities").select("*").eq("tenant_id", id!).order("name");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
+  const { data: categories } = useQuery({
+    queryKey: ["product-categories", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("product_categories")
+        .select("*")
+        .eq("tenant_id", id!)
+        .order("sort_order");
       if (error) throw error;
       return data;
     },
@@ -208,7 +222,7 @@ const TenantDetail = () => {
             <EntitiesTab tenantId={id!} entities={entities || []} />
           </TabsContent>
           <TabsContent value="products" className="mt-4">
-            <ProductsTab tenantId={id!} products={products || []} />
+            <ProductsTab tenantId={id!} products={products || []} categories={categories || []} />
           </TabsContent>
           <TabsContent value="orders" className="mt-4">
             <OrdersTab tenantId={id!} orders={orders || []} />
@@ -639,13 +653,15 @@ function EntitiesTab({ tenantId, entities }: { tenantId: string; entities: any[]
 }
 
 /* ─── Products Tab ─── */
-function ProductsTab({ tenantId, products }: { tenantId: string; products: any[] }) {
+function ProductsTab({ tenantId, products, categories }: { tenantId: string; products: any[]; categories: any[] }) {
   const qc = useQueryClient();
   const [showAdd, setShowAdd] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
+  const [showCatManager, setShowCatManager] = useState(false);
+  const [newCatName, setNewCatName] = useState("");
   const [name, setName] = useState("");
   const [sku, setSku] = useState("");
-  const [category, setCategory] = useState("general");
+  const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [bulkPrice, setBulkPrice] = useState("");
   const [staffPrice, setStaffPrice] = useState("");
@@ -664,7 +680,7 @@ function ProductsTab({ tenantId, products }: { tenantId: string; products: any[]
     const staff = prices?.find((pr: any) => pr.store_type === "staff");
     setName(p.name);
     setSku(p.sku);
-    setCategory(p.category || "general");
+    setCategory(p.category || "");
     setDescription(p.description || "");
     setBulkPrice(bulk ? String(bulk.price) : "");
     setStaffPrice(staff ? String(staff.price) : "");
@@ -687,7 +703,7 @@ function ProductsTab({ tenantId, products }: { tenantId: string; products: any[]
   const removeVariant = (i: number) => setVariants((prev) => prev.filter((_, idx) => idx !== i));
 
   const resetForm = () => {
-    setName(""); setSku(""); setCategory("general"); setDescription("");
+    setName(""); setSku(""); setCategory(""); setDescription("");
     setBulkPrice(""); setStaffPrice(""); setImageFile(null);
     setStockType("in_stock"); setVariants([]); setEditingProduct(null);
   };
@@ -842,7 +858,39 @@ function ProductsTab({ tenantId, products }: { tenantId: string; products: any[]
     onError: (err: any) => toast.error(err.message),
   });
 
-  // Group variant labels for display
+  // Category management mutations
+  const addCategory = useMutation({
+    mutationFn: async () => {
+      const slug = newCatName.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+      const { error } = await supabase.from("product_categories").insert({
+        tenant_id: tenantId,
+        name: newCatName.trim(),
+        slug,
+        sort_order: categories.length,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Catégorie ajoutée");
+      qc.invalidateQueries({ queryKey: ["product-categories", tenantId] });
+      setNewCatName("");
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const deleteCategory = useMutation({
+    mutationFn: async (catId: string) => {
+      const { error } = await supabase.from("product_categories").delete().eq("id", catId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Catégorie supprimée");
+      qc.invalidateQueries({ queryKey: ["product-categories", tenantId] });
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+
   const getVariantSummary = (pvariants: any[]) => {
     if (!pvariants?.length) return null;
     const groups: Record<string, string[]> = {};
@@ -860,7 +908,16 @@ function ProductsTab({ tenantId, products }: { tenantId: string; products: any[]
       <div className="p-5 border-b border-border">
         <SectionHeader
           title={`Catalogue produits (${products.length})`}
-          action={<Button size="sm" className="gap-1.5" onClick={() => setShowAdd(true)}><Plus className="w-4 h-4" /> Ajouter</Button>}
+          action={
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setShowCatManager(true)}>
+                <Tag className="w-4 h-4" /> Catégories ({categories.length})
+              </Button>
+              <Button size="sm" className="gap-1.5" onClick={() => setShowAdd(true)}>
+                <Plus className="w-4 h-4" /> Ajouter
+              </Button>
+            </div>
+          }
         />
       </div>
       {!products.length ? (
@@ -915,7 +972,7 @@ function ProductsTab({ tenantId, products }: { tenantId: string; products: any[]
                       {p.stock_type === "made_to_order" ? "Sur commande" : "En stock"}
                     </Badge>
                   </TableCell>
-                  <TableCell><Badge variant="outline" className="text-xs capitalize">{p.category || "general"}</Badge></TableCell>
+                  <TableCell><Badge variant="outline" className="text-xs capitalize">{categories.find(c => c.slug === p.category)?.name || p.category || "—"}</Badge></TableCell>
                   <TableCell>{bulk ? formatCurrency(Number(bulk.price)) : "—"}</TableCell>
                   <TableCell>{staff ? formatCurrency(Number(staff.price)) : "—"}</TableCell>
                   <TableCell>
@@ -966,7 +1023,17 @@ function ProductsTab({ tenantId, products }: { tenantId: string; products: any[]
                 </div>
                 <div className="space-y-2">
                   <Label>Catégorie</Label>
-                  <Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="vêtements" maxLength={50} />
+                  <Select value={category} onValueChange={setCategory}>
+                    <SelectTrigger><SelectValue placeholder="Sélectionner…" /></SelectTrigger>
+                    <SelectContent>
+                      {categories.map((c) => (
+                        <SelectItem key={c.id} value={c.slug}>{c.name}</SelectItem>
+                      ))}
+                      {categories.length === 0 && (
+                        <div className="px-3 py-2 text-xs text-muted-foreground">Aucune catégorie. Gérez-les via le bouton "Catégories".</div>
+                      )}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label>Disponibilité</Label>
@@ -1134,7 +1201,17 @@ function ProductsTab({ tenantId, products }: { tenantId: string; products: any[]
                 </div>
                 <div className="space-y-2">
                   <Label>Catégorie</Label>
-                  <Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="general" maxLength={50} />
+                  <Select value={category} onValueChange={setCategory}>
+                    <SelectTrigger><SelectValue placeholder="Sélectionner…" /></SelectTrigger>
+                    <SelectContent>
+                      {categories.map((c) => (
+                        <SelectItem key={c.id} value={c.slug}>{c.name}</SelectItem>
+                      ))}
+                      {categories.length === 0 && (
+                        <div className="px-3 py-2 text-xs text-muted-foreground">Aucune catégorie.</div>
+                      )}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               <div className="space-y-2">
@@ -1235,6 +1312,50 @@ function ProductsTab({ tenantId, products }: { tenantId: string; products: any[]
               {(updateProduct.isPending || uploading) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               Enregistrer
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Category Manager Dialog */}
+      <Dialog open={showCatManager} onOpenChange={setShowCatManager}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><Tag className="w-5 h-5" /> Gérer les catégories</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="flex gap-2">
+              <Input
+                value={newCatName}
+                onChange={(e) => setNewCatName(e.target.value)}
+                placeholder="Nouvelle catégorie…"
+                maxLength={50}
+                onKeyDown={(e) => { if (e.key === "Enter" && newCatName.trim()) addCategory.mutate(); }}
+              />
+              <Button onClick={() => addCategory.mutate()} disabled={!newCatName.trim() || addCategory.isPending} size="sm" className="gap-1.5 shrink-0">
+                {addCategory.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                Ajouter
+              </Button>
+            </div>
+            {categories.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">Aucune catégorie. Ajoutez-en une ci-dessus.</p>
+            ) : (
+              <div className="space-y-1 max-h-[300px] overflow-auto">
+                {categories.map((c) => (
+                  <div key={c.id} className="flex items-center justify-between px-3 py-2 rounded-md bg-secondary/50 hover:bg-secondary transition-colors">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{c.name}</p>
+                      <p className="text-[10px] text-muted-foreground font-mono">{c.slug}</p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                      onClick={() => deleteCategory.mutate(c.id)}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
