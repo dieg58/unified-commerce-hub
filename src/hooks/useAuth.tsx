@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode, useRef } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode, useRef, useCallback } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
@@ -34,18 +34,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     isDeptManager: false,
   });
 
-  const isMounted = useRef(true);
+  const initialLoadDone = useRef(false);
 
-  const fetchUserData = async (userId: string) => {
-    const [profileRes, rolesRes] = await Promise.all([
-      supabase.from("profiles").select("*").eq("id", userId).single(),
-      supabase.from("user_roles").select("role").eq("user_id", userId),
-    ]);
+  const fetchUserData = useCallback(async (userId: string) => {
+    try {
+      const [profileRes, rolesRes] = await Promise.all([
+        supabase.from("profiles").select("*").eq("id", userId).single(),
+        supabase.from("user_roles").select("role").eq("user_id", userId),
+      ]);
 
-    const profile = profileRes.data;
-    const roles = (rolesRes.data?.map((r) => r.role) || []) as AppRole[];
+      const profile = profileRes.data;
+      const roles = (rolesRes.data?.map((r) => r.role) || []) as AppRole[];
 
-    if (isMounted.current) {
       setState((prev) => ({
         ...prev,
         profile,
@@ -54,48 +54,64 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         isShopManager: roles.includes("shop_manager"),
         isDeptManager: roles.includes("dept_manager"),
       }));
+    } catch (err) {
+      console.error("Error fetching user data:", err);
     }
+  }, []);
 
-    return roles;
-  };
+  const clearUserData = useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      profile: null,
+      roles: [],
+      isSuperAdmin: false,
+      isShopManager: false,
+      isDeptManager: false,
+      loading: false,
+    }));
+  }, []);
 
   useEffect(() => {
-    isMounted.current = true;
+    let isMounted = true;
 
-    // Listener for ONGOING auth changes (does NOT control loading)
+    // 1) Set up listener for ONGOING auth changes ONLY (after initial load)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        if (!isMounted.current) return;
+        if (!isMounted) return;
+
+        // Always update session/user
         setState((prev) => ({ ...prev, session, user: session?.user ?? null }));
 
+        // Only fetch roles on SUBSEQUENT changes (not initial load)
+        if (!initialLoadDone.current) return;
+
         if (session?.user) {
-          setTimeout(() => fetchUserData(session.user.id), 0);
+          // Use setTimeout to avoid Supabase deadlock
+          setTimeout(() => {
+            if (isMounted) fetchUserData(session.user.id);
+          }, 0);
         } else {
-          setState((prev) => ({
-            ...prev,
-            profile: null,
-            roles: [],
-            isSuperAdmin: false,
-            isShopManager: false,
-            isDeptManager: false,
-          }));
+          clearUserData();
         }
       }
     );
 
-    // INITIAL load: fetch session + roles BEFORE setting loading=false
+    // 2) INITIAL load: get session, fetch roles, THEN set loading=false
     const initializeAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (!isMounted.current) return;
+        if (!isMounted) return;
 
         setState((prev) => ({ ...prev, session, user: session?.user ?? null }));
 
         if (session?.user) {
           await fetchUserData(session.user.id);
         }
+      } catch (err) {
+        console.error("Error initializing auth:", err);
       } finally {
-        if (isMounted.current) {
+        if (isMounted) {
+          initialLoadDone.current = true;
           setState((prev) => ({ ...prev, loading: false }));
         }
       }
@@ -104,10 +120,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     initializeAuth();
 
     return () => {
-      isMounted.current = false;
+      isMounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [fetchUserData, clearUserData]);
 
   const signOut = async () => {
     await supabase.auth.signOut();
