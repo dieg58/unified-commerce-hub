@@ -20,14 +20,14 @@ const shopManagerNav = [
   { to: "/tenant/stats", icon: BarChart3, label: "Statistiques" },
   { to: "/tenant/users", icon: Users, label: "Utilisateurs" },
   { to: "/tenant/settings", icon: Settings, label: "Paramètres" },
-  { to: "/store", icon: Store, label: "Boutique" },
+  { to: "/shop", icon: Store, label: "Boutique" },
 ];
 
 const deptManagerNav = [
   { to: "/tenant", icon: LayoutDashboard, label: "Tableau de bord" },
   { to: "/tenant/orders", icon: ShoppingCart, label: "Commandes" },
   { to: "/tenant/stats", icon: BarChart3, label: "Statistiques" },
-  { to: "/store", icon: Store, label: "Boutique" },
+  { to: "/shop", icon: Store, label: "Boutique" },
 ];
 
 const TenantAdminSidebar = () => {

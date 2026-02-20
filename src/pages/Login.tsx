@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Package } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useSubdomain } from "@/components/SubdomainRouter";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -15,6 +16,7 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { isSubdomain } = useSubdomain();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +39,7 @@ const Login = () => {
       if (error) {
         toast({ title: "Error", description: error.message, variant: "destructive" });
       } else {
-        navigate("/");
+        navigate(isSubdomain ? "/shop" : "/");
       }
     }
     setLoading(false);
