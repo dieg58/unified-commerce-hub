@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
@@ -9,6 +9,7 @@ import webshopImg from "@/assets/services-webshop.jpg";
 import storageImg from "@/assets/services-storage.jpg";
 import shippingImg from "@/assets/services-shipping.jpg";
 import DemoRequestDialog from "@/components/DemoRequestDialog";
+import LoginDialog from "@/components/LoginDialog";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -75,6 +76,7 @@ const testimonials = [
 const LandingPage = () => {
   const { session, loading, isSuperAdmin } = useAuth();
   const [demoOpen, setDemoOpen] = useState(false);
+  const [loginOpen, setLoginOpen] = useState(false);
 
   if (loading) {
     return (
@@ -101,8 +103,8 @@ const LandingPage = () => {
             <a href="#testimonials" className="text-muted-foreground hover:text-foreground transition-colors">Témoignages</a>
           </nav>
           <div className="flex items-center gap-3">
-            <Button variant="outline" size="sm" className="rounded-full px-6" asChild>
-              <Link to="/login">Se connecter</Link>
+            <Button variant="outline" size="sm" className="rounded-full px-6" onClick={() => setLoginOpen(true)}>
+              Se connecter
             </Button>
             <Button size="sm" className="rounded-full px-6" onClick={() => setDemoOpen(true)}>
               Demander une démo
@@ -128,11 +130,9 @@ const LandingPage = () => {
               Nous créons, stockons et expédions le merchandising de votre entreprise. Vos collaborateurs commandent depuis un webshop dédié.
             </p>
             <div className="mt-10 flex flex-col sm:flex-row items-start gap-4">
-              <Button size="lg" className="text-base px-8 rounded-full" asChild>
-                <Link to="/login">
+              <Button size="lg" className="text-base px-8 rounded-full" onClick={() => setLoginOpen(true)}>
                   Accéder à la plateforme
                   <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
               </Button>
               <Button size="lg" variant="outline" className="text-base px-8 rounded-full" asChild>
                 <a href="#services">Découvrir nos services</a>
@@ -321,12 +321,10 @@ const LandingPage = () => {
               size="lg"
               variant="secondary"
               className="text-base px-8 rounded-full shrink-0"
-              asChild
+              onClick={() => setLoginOpen(true)}
             >
-              <Link to="/login">
                 Se connecter
                 <ChevronRight className="ml-2 h-4 w-4" />
-              </Link>
             </Button>
           </div>
         </div>
@@ -343,6 +341,7 @@ const LandingPage = () => {
       </footer>
 
       <DemoRequestDialog open={demoOpen} onOpenChange={setDemoOpen} />
+      <LoginDialog open={loginOpen} onOpenChange={setLoginOpen} />
     </div>
   );
 };
