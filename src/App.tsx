@@ -24,6 +24,7 @@ import MyProfile from "./pages/shop/MyProfile";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import LandingPage from "./pages/LandingPage";
+import ResetPassword from "./pages/ResetPassword";
 import SubdomainRouter, { useSubdomain } from "./components/SubdomainRouter";
 
 const queryClient = new QueryClient();
@@ -37,6 +38,7 @@ const SubdomainAwareRoutes = () => {
     return (
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route element={<RequireTenantUser><StorefrontLayout /></RequireTenantUser>}>
           <Route path="/" element={<Storefront />} />
           <Route path="/shop" element={<Storefront />} />
@@ -54,6 +56,7 @@ const SubdomainAwareRoutes = () => {
       {/* Public landing page */}
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
 
       {/* Super Admin routes */}
       <Route element={<RequireSuperAdmin><AppLayout /></RequireSuperAdmin>}>
