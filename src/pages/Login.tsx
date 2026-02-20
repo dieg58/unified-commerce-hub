@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useSubdomain } from "@/components/SubdomainRouter";
 
 const Login = () => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -17,7 +18,7 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { isSubdomain } = useSubdomain();
+  const { isSubdomain, tenantSlug } = useSubdomain();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,12 +42,17 @@ const Login = () => {
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { full_name: fullName } },
+        options: { data: { full_name: fullName, ...(isSubdomain && tenantSlug ? { tenant_slug: tenantSlug } : {}) } },
       });
       if (error) {
         toast({ title: "Erreur", description: error.message, variant: "destructive" });
       } else {
-        toast({ title: "Compte créé", description: "Vérifiez votre email pour confirmer votre compte." });
+        toast({
+          title: "Compte créé",
+          description: isSubdomain
+            ? "Vérifiez votre email. Votre accès sera activé après approbation par le responsable."
+            : "Vérifiez votre email pour confirmer votre compte.",
+        });
         setIsSignUp(false);
       }
     } else {
