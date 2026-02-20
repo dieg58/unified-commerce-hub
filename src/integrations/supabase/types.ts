@@ -164,6 +164,42 @@ export type Database = {
           },
         ]
       }
+      catalog_products: {
+        Row: {
+          active: boolean
+          base_price: number
+          category: string
+          created_at: string
+          description: string | null
+          id: string
+          image_url: string | null
+          name: string
+          sku: string
+        }
+        Insert: {
+          active?: boolean
+          base_price?: number
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          name: string
+          sku: string
+        }
+        Update: {
+          active?: boolean
+          base_price?: number
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          name?: string
+          sku?: string
+        }
+        Relationships: []
+      }
       demo_requests: {
         Row: {
           company: string
@@ -193,6 +229,62 @@ export type Database = {
           phone?: string | null
         }
         Relationships: []
+      }
+      discount_codes: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          description: string | null
+          discount_type: string
+          discount_value: number
+          expires_at: string | null
+          id: string
+          max_uses: number | null
+          min_order_amount: number | null
+          store_scope: string
+          tenant_id: string
+          used_count: number
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          description?: string | null
+          discount_type?: string
+          discount_value?: number
+          expires_at?: string | null
+          id?: string
+          max_uses?: number | null
+          min_order_amount?: number | null
+          store_scope?: string
+          tenant_id: string
+          used_count?: number
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          description?: string | null
+          discount_type?: string
+          discount_value?: number
+          expires_at?: string | null
+          id?: string
+          max_uses?: number | null
+          min_order_amount?: number | null
+          store_scope?: string
+          tenant_id?: string
+          used_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discount_codes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       entities: {
         Row: {
@@ -635,6 +727,45 @@ export type Database = {
           },
         ]
       }
+      tenant_catalog_selections: {
+        Row: {
+          catalog_product_id: string
+          enabled: boolean
+          id: string
+          selected_at: string
+          tenant_id: string
+        }
+        Insert: {
+          catalog_product_id: string
+          enabled?: boolean
+          id?: string
+          selected_at?: string
+          tenant_id: string
+        }
+        Update: {
+          catalog_product_id?: string
+          enabled?: boolean
+          id?: string
+          selected_at?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_catalog_selections_catalog_product_id_fkey"
+            columns: ["catalog_product_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_catalog_selections_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenants: {
         Row: {
           created_at: string
@@ -661,6 +792,61 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      user_budgets: {
+        Row: {
+          amount: number
+          entity_id: string
+          id: string
+          period: string
+          spent: number
+          tenant_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          entity_id: string
+          id?: string
+          period?: string
+          spent?: number
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          entity_id?: string
+          id?: string
+          period?: string
+          spent?: number
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_budgets_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_budgets_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_budgets_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
