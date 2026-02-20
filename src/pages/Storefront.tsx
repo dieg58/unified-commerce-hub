@@ -90,6 +90,11 @@ const Storefront = () => {
   const headTitle = branding?.head_title || tenantName;
   const logoUrl = branding?.logo_url;
 
+  // No product billing: products are free, only shipping is charged
+  const noProductBilling = storeType === "bulk"
+    ? !!tenant?.no_product_billing_bulk
+    : !!tenant?.no_product_billing_staff;
+
   // Categories from products
   const categories = useMemo(() => {
     if (!products) return ["Tous"];
@@ -117,7 +122,8 @@ const Storefront = () => {
 
   const selectedBudget = budgets?.find((b) => b.entity_id === entityId && b.store_type === storeType);
   const budgetRemaining = selectedBudget ? Number(selectedBudget.amount) - Number(selectedBudget.spent) : null;
-  const isBudgetExceeded = storeType === "staff" && budgetRemaining !== null && total > budgetRemaining;
+  const effectiveTotal = noProductBilling ? 0 : total;
+  const isBudgetExceeded = storeType === "staff" && budgetRemaining !== null && effectiveTotal > budgetRemaining;
   const selectedEntity = entities?.find((e) => e.id === entityId);
   const requiresApproval = storeType === "bulk" && selectedEntity?.requires_approval;
 
@@ -130,13 +136,13 @@ const Storefront = () => {
         .from("orders")
         .insert({
           tenant_id: tenantId, entity_id: entityId, created_by: profile.id,
-          store_type: storeType, total, status: requiresApproval ? "pending_approval" : "pending",
+          store_type: storeType, total: effectiveTotal, status: requiresApproval ? "pending_approval" : "pending",
         })
         .select().single();
       if (oErr) throw oErr;
       const orderItems = items.map((item) => ({
         order_id: order.id, tenant_id: tenantId, product_id: item.productId,
-        qty: item.qty, unit_price: item.price,
+        qty: item.qty, unit_price: noProductBilling ? 0 : item.price,
       }));
       const { error: iErr } = await supabase.from("order_items").insert(orderItems);
       if (iErr) throw iErr;
@@ -208,8 +214,8 @@ const Storefront = () => {
                 <SheetHeader><SheetTitle>Panier ({count})</SheetTitle></SheetHeader>
                 <CartPanel
                   items={items} updateQty={updateQty} removeItem={removeItem}
-                  total={total} onCheckout={() => setCheckoutOpen(true)}
-                  primaryColor={primaryColor}
+                  total={effectiveTotal} onCheckout={() => setCheckoutOpen(true)}
+                  primaryColor={primaryColor} noProductBilling={noProductBilling}
                 />
               </SheetContent>
             </Sheet>
@@ -355,7 +361,14 @@ const Storefront = () => {
                       <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{product.description}</p>
                     )}
                     <div className="mt-auto flex items-center justify-between pt-2">
-                      <p className="text-lg font-bold" style={{ color: primaryColor }}>{formatCurrency(price)}</p>
+                      <p className="text-lg font-bold" style={{ color: primaryColor }}>
+                        {noProductBilling ? (
+                          <span className="flex items-center gap-1.5">
+                            <span className="line-through text-sm text-muted-foreground font-normal">{formatCurrency(price)}</span>
+                            <span>Offert</span>
+                          </span>
+                        ) : formatCurrency(price)}
+                      </p>
                       {inCart ? (
                         <div className="flex items-center gap-1">
                           <button
@@ -413,7 +426,7 @@ const Storefront = () => {
                   {isBudgetExceeded ? <AlertTriangle className="w-4 h-4 text-destructive" /> : <CheckCircle className="w-4 h-4 text-success" />}
                   <span className="text-sm font-medium">Budget restant : {formatCurrency(budgetRemaining)}</span>
                 </div>
-                {isBudgetExceeded && <p className="text-xs text-destructive mt-1">Le total ({formatCurrency(total)}) dépasse le budget.</p>}
+                {isBudgetExceeded && <p className="text-xs text-destructive mt-1">Le total ({formatCurrency(effectiveTotal)}) dépasse le budget.</p>}
               </div>
             )}
             {requiresApproval && (
@@ -424,15 +437,21 @@ const Storefront = () => {
             )}
             <div className="rounded-lg border border-border p-3 space-y-2">
               <p className="text-sm font-medium">Résumé</p>
+              {noProductBilling && (
+                <div className="flex items-center gap-1.5 text-xs text-primary font-medium">
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  Produits offerts — seule la livraison sera facturée
+                </div>
+              )}
               {items.map((item) => (
                 <div key={item.productId} className="flex justify-between text-xs text-muted-foreground">
                   <span>{item.name} × {item.qty}</span>
-                  <span>{formatCurrency(item.price * item.qty)}</span>
+                  <span>{noProductBilling ? <span className="line-through">{formatCurrency(item.price * item.qty)}</span> : formatCurrency(item.price * item.qty)}</span>
                 </div>
               ))}
               <div className="border-t border-border pt-2 flex justify-between text-sm font-bold">
-                <span>Total</span>
-                <span>{formatCurrency(total)}</span>
+                <span>Total produits</span>
+                <span>{noProductBilling ? "Offert" : formatCurrency(effectiveTotal)}</span>
               </div>
             </div>
           </div>
@@ -456,15 +475,21 @@ const Storefront = () => {
 
 /* ─── Cart Panel Component ─── */
 function CartPanel({
-  items, updateQty, removeItem, total, onCheckout, primaryColor,
+  items, updateQty, removeItem, total, onCheckout, primaryColor, noProductBilling = false,
 }: {
   items: any[]; updateQty: (id: string, qty: number) => void;
   removeItem: (id: string) => void; total: number;
-  onCheckout: () => void; primaryColor: string;
+  onCheckout: () => void; primaryColor: string; noProductBilling?: boolean;
 }) {
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-auto py-4 space-y-3">
+        {noProductBilling && items.length > 0 && (
+          <div className="flex items-center gap-1.5 text-xs text-primary font-medium p-2 rounded-md bg-primary/5 border border-primary/20">
+            <CheckCircle className="w-3.5 h-3.5" />
+            Produits offerts — seule la livraison sera facturée
+          </div>
+        )}
         {items.length === 0 ? (
           <div className="text-center py-12">
             <ShoppingCart className="w-12 h-12 text-muted-foreground/20 mx-auto mb-3" />
@@ -478,7 +503,13 @@ function CartPanel({
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
-                <p className="text-xs text-muted-foreground">{formatCurrency(item.price)} × {item.qty}</p>
+                <p className="text-xs text-muted-foreground">
+                  {noProductBilling ? (
+                    <><span className="line-through">{formatCurrency(item.price)}</span> <span className="text-primary font-medium">Offert</span> × {item.qty}</>
+                  ) : (
+                    <>{formatCurrency(item.price)} × {item.qty}</>
+                  )}
+                </p>
               </div>
               <div className="flex items-center gap-1">
                 <button onClick={() => updateQty(item.productId, item.qty - 1)} className="w-7 h-7 rounded border border-border flex items-center justify-center hover:bg-muted">
@@ -499,8 +530,8 @@ function CartPanel({
       {items.length > 0 && (
         <div className="border-t border-border pt-4 pb-6 space-y-3">
           <div className="flex justify-between">
-            <span className="text-sm text-muted-foreground">Total</span>
-            <span className="text-xl font-bold text-foreground">{formatCurrency(total)}</span>
+            <span className="text-sm text-muted-foreground">Total produits</span>
+            <span className="text-xl font-bold text-foreground">{noProductBilling ? "Offert" : formatCurrency(total)}</span>
           </div>
           <Button className="w-full text-white" style={{ backgroundColor: primaryColor }} onClick={onCheckout}>
             Passer commande
