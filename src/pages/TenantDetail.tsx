@@ -526,6 +526,9 @@ function UsersTab({ tenantId, users }: { tenantId: string; users: any[] }) {
                           <Button variant="ghost" size="sm" className="h-8 w-8 p-0"><MoreHorizontal className="w-4 h-4" /></Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => resendInvitation.mutate({ email: user.email, full_name: user.full_name, role: currentRole })}>
+                            <Send className="w-4 h-4 mr-2" /> Renvoyer l'invitation
+                          </DropdownMenuItem>
                           <DropdownMenuItem className="text-destructive" onClick={() => removeFromBoutique.mutate(user.id)}>
                             <Trash2 className="w-4 h-4 mr-2" /> Retirer de la boutique
                           </DropdownMenuItem>
