@@ -770,27 +770,39 @@ export type Database = {
       tenant_branding: {
         Row: {
           accent_color: string
+          background_color: string
+          button_text_color: string
           favicon_url: string | null
           head_title: string | null
           logo_url: string | null
           primary_color: string
+          secondary_color: string
           tenant_id: string
+          text_color: string
         }
         Insert: {
           accent_color?: string
+          background_color?: string
+          button_text_color?: string
           favicon_url?: string | null
           head_title?: string | null
           logo_url?: string | null
           primary_color?: string
+          secondary_color?: string
           tenant_id: string
+          text_color?: string
         }
         Update: {
           accent_color?: string
+          background_color?: string
+          button_text_color?: string
           favicon_url?: string | null
           head_title?: string | null
           logo_url?: string | null
           primary_color?: string
+          secondary_color?: string
           tenant_id?: string
+          text_color?: string
         }
         Relationships: [
           {
