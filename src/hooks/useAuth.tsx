@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode, useRef } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
@@ -34,6 +34,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     isDeptManager: false,
   });
 
+  const isMounted = useRef(true);
+
   const fetchUserData = async (userId: string) => {
     const [profileRes, rolesRes] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", userId).single(),
@@ -43,48 +45,68 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const profile = profileRes.data;
     const roles = (rolesRes.data?.map((r) => r.role) || []) as AppRole[];
 
-    setState((prev) => ({
-      ...prev,
-      profile,
-      roles,
-      isSuperAdmin: roles.includes("super_admin"),
-      isShopManager: roles.includes("shop_manager"),
-      isDeptManager: roles.includes("dept_manager"),
-      loading: false,
-    }));
+    if (isMounted.current) {
+      setState((prev) => ({
+        ...prev,
+        profile,
+        roles,
+        isSuperAdmin: roles.includes("super_admin"),
+        isShopManager: roles.includes("shop_manager"),
+        isDeptManager: roles.includes("dept_manager"),
+      }));
+    }
+
+    return roles;
   };
 
   useEffect(() => {
+    isMounted.current = true;
+
+    // Listener for ONGOING auth changes (does NOT control loading)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
+        if (!isMounted.current) return;
         setState((prev) => ({ ...prev, session, user: session?.user ?? null }));
+
         if (session?.user) {
-          // Defer to avoid deadlock with Supabase auth
           setTimeout(() => fetchUserData(session.user.id), 0);
         } else {
           setState((prev) => ({
             ...prev,
             profile: null,
             roles: [],
-          isSuperAdmin: false,
-          isShopManager: false,
-          isDeptManager: false,
-            loading: false,
+            isSuperAdmin: false,
+            isShopManager: false,
+            isDeptManager: false,
           }));
         }
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setState((prev) => ({ ...prev, session, user: session?.user ?? null }));
-      if (session?.user) {
-        fetchUserData(session.user.id);
-      } else {
-        setState((prev) => ({ ...prev, loading: false }));
-      }
-    });
+    // INITIAL load: fetch session + roles BEFORE setting loading=false
+    const initializeAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!isMounted.current) return;
 
-    return () => subscription.unsubscribe();
+        setState((prev) => ({ ...prev, session, user: session?.user ?? null }));
+
+        if (session?.user) {
+          await fetchUserData(session.user.id);
+        }
+      } finally {
+        if (isMounted.current) {
+          setState((prev) => ({ ...prev, loading: false }));
+        }
+      }
+    };
+
+    initializeAuth();
+
+    return () => {
+      isMounted.current = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signOut = async () => {
