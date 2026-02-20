@@ -10,6 +10,7 @@ interface AuthState {
   user: User | null;
   profile: Database["public"]["Tables"]["profiles"]["Row"] | null;
   roles: AppRole[];
+  rolesLoaded: boolean;
   loading: boolean;
   isSuperAdmin: boolean;
   isShopManager: boolean;
@@ -28,6 +29,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     user: null,
     profile: null,
     roles: [],
+    rolesLoaded: false,
     loading: true,
     isSuperAdmin: false,
     isShopManager: false,
@@ -50,6 +52,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         ...prev,
         profile,
         roles,
+        rolesLoaded: true,
         isSuperAdmin: roles.includes("super_admin"),
         isShopManager: roles.includes("shop_manager"),
         isDeptManager: roles.includes("dept_manager"),
@@ -64,6 +67,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       ...prev,
       profile: null,
       roles: [],
+      rolesLoaded: true,
       isSuperAdmin: false,
       isShopManager: false,
       isDeptManager: false,
