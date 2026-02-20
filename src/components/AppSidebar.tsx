@@ -2,9 +2,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
   Building2,
-  Users,
   ShoppingCart,
-  Wallet,
   Package,
   Settings,
   ChevronLeft,
@@ -18,10 +16,6 @@ import { useAuth } from "@/hooks/useAuth";
 const superAdminNav = [
   { to: "/", icon: LayoutDashboard, label: "Tableau de bord" },
   { to: "/tenants", icon: Building2, label: "Boutiques" },
-  { to: "/users", icon: Users, label: "Utilisateurs" },
-  { to: "/orders", icon: ShoppingCart, label: "Commandes" },
-  { to: "/budgets", icon: Wallet, label: "Budgets" },
-  { to: "/catalog", icon: Package, label: "Catalogue" },
   { to: "/settings", icon: Settings, label: "Paramètres" },
 ];
 
