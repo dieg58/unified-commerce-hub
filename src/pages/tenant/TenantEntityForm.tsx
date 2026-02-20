@@ -10,8 +10,9 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Loader2, Building2, FileText, MapPin, Settings2, Truck } from "lucide-react";
+import { ArrowLeft, Loader2, Building2, FileText, MapPin, Settings2, Truck, Wallet } from "lucide-react";
 import { toast } from "sonner";
+import { formatCurrency } from "@/lib/mock-data";
 
 const countries = [
   { value: "Belgique", rate: 21 },
@@ -89,6 +90,8 @@ const TenantEntityForm = () => {
   const [billingAddr, setBillingAddr] = useState({ ...emptyAddress });
   const [sameAddress, setSameAddress] = useState(true);
   const [shippingAddr, setShippingAddr] = useState({ ...emptyAddress });
+  const [budgetBulk, setBudgetBulk] = useState({ amount: "0", period: "monthly" as string });
+  const [budgetStaff, setBudgetStaff] = useState({ amount: "0", period: "monthly" as string });
 
   const { data: entity } = useQuery({
     queryKey: ["tenant-entity", id],
@@ -104,6 +107,16 @@ const TenantEntityForm = () => {
     queryKey: ["entity-addresses", id],
     queryFn: async () => {
       const { data, error } = await supabase.from("addresses").select("*").eq("entity_id", id!);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!isEditing,
+  });
+
+  const { data: entityBudgets } = useQuery({
+    queryKey: ["entity-budgets", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("budgets").select("*").eq("entity_id", id!);
       if (error) throw error;
       return data;
     },
@@ -139,6 +152,15 @@ const TenantEntityForm = () => {
       }
     }
   }, [entityAddresses]);
+
+  useEffect(() => {
+    if (entityBudgets) {
+      const bulk = entityBudgets.find(b => b.store_type === "bulk");
+      const staff = entityBudgets.find(b => b.store_type === "staff");
+      if (bulk) setBudgetBulk({ amount: String(bulk.amount), period: bulk.period });
+      if (staff) setBudgetStaff({ amount: String(staff.amount), period: staff.period });
+    }
+  }, [entityBudgets]);
 
   const saveEntity = useMutation({
     mutationFn: async () => {
@@ -192,10 +214,33 @@ const TenantEntityForm = () => {
       };
       const { error: sErr } = await supabase.from("addresses").insert(shippingPayload);
       if (sErr) throw sErr;
+
+      // ── Save budgets (upsert per store_type) ──
+      for (const { storeType, budget } of [
+        { storeType: "bulk" as const, budget: budgetBulk },
+        { storeType: "staff" as const, budget: budgetStaff },
+      ]) {
+        const amount = parseFloat(budget.amount) || 0;
+        const existing = entityBudgets?.find(b => b.store_type === storeType);
+        if (existing) {
+          const { error } = await supabase.from("budgets").update({ amount, period: budget.period as any }).eq("id", existing.id);
+          if (error) throw error;
+        } else if (amount > 0) {
+          const { error } = await supabase.from("budgets").insert({
+            tenant_id: tenantId!,
+            entity_id: entityId,
+            store_type: storeType,
+            amount,
+            period: budget.period as any,
+          });
+          if (error) throw error;
+        }
+      }
     },
     onSuccess: () => {
       toast.success(isEditing ? "Entité modifiée" : "Entité créée");
       qc.invalidateQueries({ queryKey: ["tenant-entities"] });
+      qc.invalidateQueries({ queryKey: ["entity-budgets"] });
       qc.invalidateQueries({ queryKey: ["entity-addresses"] });
       navigate("/tenant/entities");
     },
@@ -315,6 +360,40 @@ const TenantEntityForm = () => {
                 </div>
               )}
             </div>
+          </div>
+        </Section>
+
+        {/* ─── Budgets ────────────────────────────────────────────────── */}
+        <Section icon={Wallet} title="Budgets" description="Définir les plafonds de dépenses par type de boutique">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {[
+              { label: "Achats groupés (Bulk)", storeType: "bulk" as const, state: budgetBulk, setter: setBudgetBulk },
+              { label: "Staff", storeType: "staff" as const, state: budgetStaff, setter: setBudgetStaff },
+            ].map(({ label, storeType, state, setter }) => (
+              <div key={storeType} className="space-y-3">
+                <span className="text-xs font-semibold text-foreground uppercase tracking-wide">{label}</span>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Montant du budget (€)</Label>
+                  <Input type="number" value={state.amount} onChange={e => setter(b => ({ ...b, amount: e.target.value }))} placeholder="0" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Période</Label>
+                  <Select value={state.period} onValueChange={v => setter(b => ({ ...b, period: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="monthly">Mensuel</SelectItem>
+                      <SelectItem value="quarterly">Trimestriel</SelectItem>
+                      <SelectItem value="yearly">Annuel</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {entityBudgets?.find(b => b.store_type === storeType) && (
+                  <p className="text-xs text-muted-foreground">
+                    Dépensé : {formatCurrency(Number(entityBudgets.find(b => b.store_type === storeType)!.spent))}
+                  </p>
+                )}
+              </div>
+            ))}
           </div>
         </Section>
 
