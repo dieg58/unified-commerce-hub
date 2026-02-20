@@ -295,6 +295,7 @@ export type Database = {
           payment_on_order: boolean
           requires_approval: boolean
           tenant_id: string
+          vat: string | null
           vat_rate: number
         }
         Insert: {
@@ -305,6 +306,7 @@ export type Database = {
           payment_on_order?: boolean
           requires_approval?: boolean
           tenant_id: string
+          vat?: string | null
           vat_rate?: number
         }
         Update: {
@@ -315,6 +317,7 @@ export type Database = {
           payment_on_order?: boolean
           requires_approval?: boolean
           tenant_id?: string
+          vat?: string | null
           vat_rate?: number
         }
         Relationships: [

@@ -1,0 +1,1 @@
+ALTER TABLE public.entities ADD COLUMN vat text DEFAULT NULL;
