@@ -396,6 +396,60 @@ export type Database = {
           },
         ]
       }
+      product_variants: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          price_adjustment: number
+          product_id: string
+          sku_suffix: string | null
+          sort_order: number
+          tenant_id: string
+          variant_label: string
+          variant_value: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          price_adjustment?: number
+          product_id: string
+          sku_suffix?: string | null
+          sort_order?: number
+          tenant_id: string
+          variant_label: string
+          variant_value: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          price_adjustment?: number
+          product_id?: string
+          sku_suffix?: string | null
+          sort_order?: number
+          tenant_id?: string
+          variant_label?: string
+          variant_value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_variants_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_variants_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           active: boolean
@@ -405,6 +459,7 @@ export type Database = {
           image_url: string | null
           name: string
           sku: string
+          stock_type: Database["public"]["Enums"]["stock_type"]
           tenant_id: string
         }
         Insert: {
@@ -415,6 +470,7 @@ export type Database = {
           image_url?: string | null
           name: string
           sku: string
+          stock_type?: Database["public"]["Enums"]["stock_type"]
           tenant_id: string
         }
         Update: {
@@ -425,6 +481,7 @@ export type Database = {
           image_url?: string | null
           name?: string
           sku?: string
+          stock_type?: Database["public"]["Enums"]["stock_type"]
           tenant_id?: string
         }
         Relationships: [
@@ -578,6 +635,7 @@ export type Database = {
       address_type: "shipping" | "billing"
       app_role: "super_admin" | "shop_manager" | "dept_manager" | "employee"
       budget_period: "monthly" | "quarterly" | "yearly"
+      stock_type: "in_stock" | "made_to_order"
       store_type: "bulk" | "staff"
     }
     CompositeTypes: {
@@ -709,6 +767,7 @@ export const Constants = {
       address_type: ["shipping", "billing"],
       app_role: ["super_admin", "shop_manager", "dept_manager", "employee"],
       budget_period: ["monthly", "quarterly", "yearly"],
+      stock_type: ["in_stock", "made_to_order"],
       store_type: ["bulk", "staff"],
     },
   },
