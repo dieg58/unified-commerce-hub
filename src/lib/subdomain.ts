@@ -11,8 +11,8 @@
 export function getTenantSlugFromSubdomain(): string | null {
   const hostname = window.location.hostname;
 
-  // Skip lovable preview domains
-  if (hostname.endsWith(".lovable.app")) return null;
+  // Skip lovable preview/project domains
+  if (hostname.endsWith(".lovable.app") || hostname.endsWith(".lovableproject.com")) return null;
 
   // Skip localhost without subdomain
   if (hostname === "localhost" || hostname === "127.0.0.1") return null;
