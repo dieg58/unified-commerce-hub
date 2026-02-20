@@ -90,8 +90,7 @@ const TenantEntityForm = () => {
   const [billingAddr, setBillingAddr] = useState({ ...emptyAddress });
   const [sameAddress, setSameAddress] = useState(true);
   const [shippingAddr, setShippingAddr] = useState({ ...emptyAddress });
-  const [budgetBulk, setBudgetBulk] = useState({ amount: "0", period: "monthly" as string });
-  const [budgetStaff, setBudgetStaff] = useState({ amount: "0", period: "monthly" as string });
+  const [budget, setBudget] = useState({ amount: "0", period: "monthly" as string });
 
   const { data: entity } = useQuery({
     queryKey: ["tenant-entity", id],
@@ -155,10 +154,8 @@ const TenantEntityForm = () => {
 
   useEffect(() => {
     if (entityBudgets) {
-      const bulk = entityBudgets.find(b => b.store_type === "bulk");
-      const staff = entityBudgets.find(b => b.store_type === "staff");
-      if (bulk) setBudgetBulk({ amount: String(bulk.amount), period: bulk.period });
-      if (staff) setBudgetStaff({ amount: String(staff.amount), period: staff.period });
+      const first = entityBudgets[0];
+      if (first) setBudget({ amount: String(first.amount), period: first.period });
     }
   }, [entityBudgets]);
 
@@ -215,26 +212,21 @@ const TenantEntityForm = () => {
       const { error: sErr } = await supabase.from("addresses").insert(shippingPayload);
       if (sErr) throw sErr;
 
-      // ── Save budgets (upsert per store_type) ──
-      for (const { storeType, budget } of [
-        { storeType: "bulk" as const, budget: budgetBulk },
-        { storeType: "staff" as const, budget: budgetStaff },
-      ]) {
-        const amount = parseFloat(budget.amount) || 0;
-        const existing = entityBudgets?.find(b => b.store_type === storeType);
-        if (existing) {
-          const { error } = await supabase.from("budgets").update({ amount, period: budget.period as any }).eq("id", existing.id);
-          if (error) throw error;
-        } else if (amount > 0) {
-          const { error } = await supabase.from("budgets").insert({
-            tenant_id: tenantId!,
-            entity_id: entityId,
-            store_type: storeType,
-            amount,
-            period: budget.period as any,
-          });
-          if (error) throw error;
-        }
+      // ── Save single entity budget (upsert) ──
+      const amount = parseFloat(budget.amount) || 0;
+      const existing = entityBudgets?.[0];
+      if (existing) {
+        const { error } = await supabase.from("budgets").update({ amount, period: budget.period as any }).eq("id", existing.id);
+        if (error) throw error;
+      } else if (amount > 0) {
+        const { error } = await supabase.from("budgets").insert({
+          tenant_id: tenantId!,
+          entity_id: entityId,
+          store_type: "bulk" as const,
+          amount,
+          period: budget.period as any,
+        });
+        if (error) throw error;
       }
     },
     onSuccess: () => {
@@ -364,36 +356,35 @@ const TenantEntityForm = () => {
         </Section>
 
         {/* ─── Budgets ────────────────────────────────────────────────── */}
-        <Section icon={Wallet} title="Budgets" description="Définir les plafonds de dépenses par type de boutique">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {[
-              { label: "Achats groupés (Bulk)", storeType: "bulk" as const, state: budgetBulk, setter: setBudgetBulk },
-              { label: "Staff", storeType: "staff" as const, state: budgetStaff, setter: setBudgetStaff },
-            ].map(({ label, storeType, state, setter }) => (
-              <div key={storeType} className="space-y-3">
-                <span className="text-xs font-semibold text-foreground uppercase tracking-wide">{label}</span>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Montant du budget (€)</Label>
-                  <Input type="number" value={state.amount} onChange={e => setter(b => ({ ...b, amount: e.target.value }))} placeholder="0" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Période</Label>
-                  <Select value={state.period} onValueChange={v => setter(b => ({ ...b, period: v }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="monthly">Mensuel</SelectItem>
-                      <SelectItem value="quarterly">Trimestriel</SelectItem>
-                      <SelectItem value="yearly">Annuel</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {entityBudgets?.find(b => b.store_type === storeType) && (
-                  <p className="text-xs text-muted-foreground">
-                    Dépensé : {formatCurrency(Number(entityBudgets.find(b => b.store_type === storeType)!.spent))}
-                  </p>
-                )}
+        <Section icon={Wallet} title="Budget de l'entité" description="Si le budget est dépassé, les commandes nécessiteront une approbation automatique">
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Montant du budget (€)</Label>
+                <Input type="number" value={budget.amount} onChange={e => setBudget(b => ({ ...b, amount: e.target.value }))} placeholder="0" />
               </div>
-            ))}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Période</Label>
+                <Select value={budget.period} onValueChange={v => setBudget(b => ({ ...b, period: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="monthly">Mensuel</SelectItem>
+                    <SelectItem value="quarterly">Trimestriel</SelectItem>
+                    <SelectItem value="yearly">Annuel</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {entityBudgets?.[0] && (
+              <p className="text-xs text-muted-foreground">
+                Dépensé : {formatCurrency(Number(entityBudgets[0].spent))} / {formatCurrency(Number(entityBudgets[0].amount))}
+              </p>
+            )}
+            <div className="rounded-md bg-amber-500/10 border border-amber-500/20 px-3 py-2.5">
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                ⚠️ Lorsque le budget est dépassé, toutes les commandes de cette entité seront automatiquement soumises à approbation.
+              </p>
+            </div>
           </div>
         </Section>
 
