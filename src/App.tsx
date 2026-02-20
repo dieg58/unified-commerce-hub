@@ -23,6 +23,7 @@ import MyOrders from "./pages/shop/MyOrders";
 import MyProfile from "./pages/shop/MyProfile";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
+import LandingPage from "./pages/LandingPage";
 import SubdomainRouter, { useSubdomain } from "./components/SubdomainRouter";
 
 const queryClient = new QueryClient();
@@ -50,11 +51,13 @@ const SubdomainAwareRoutes = () => {
   // Normal mode: full application
   return (
     <Routes>
+      {/* Public landing page */}
+      <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<Login />} />
 
       {/* Super Admin routes */}
       <Route element={<RequireSuperAdmin><AppLayout /></RequireSuperAdmin>}>
-        <Route path="/" element={<Dashboard />} />
+        <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/tenants" element={<Tenants />} />
         <Route path="/tenants/:id" element={<TenantDetail />} />
         <Route path="/store/:tenantId" element={<Storefront />} />

@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 
 const superAdminNav = [
-  { to: "/", icon: LayoutDashboard, label: "Tableau de bord" },
+  { to: "/dashboard", icon: LayoutDashboard, label: "Tableau de bord" },
   { to: "/tenants", icon: Building2, label: "Boutiques" },
   { to: "/settings", icon: Settings, label: "Paramètres" },
 ];
@@ -52,7 +52,7 @@ const AppSidebar = () => {
       <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto">
         {navItems.map((item) => {
           const isActive = location.pathname === item.to ||
-            (item.to !== "/" && item.to !== "/tenant" && location.pathname.startsWith(item.to));
+            (item.to !== "/dashboard" && item.to !== "/tenant" && location.pathname.startsWith(item.to));
           return (
             <NavLink
               key={item.to}

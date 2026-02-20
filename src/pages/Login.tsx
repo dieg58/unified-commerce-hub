@@ -39,7 +39,7 @@ const Login = () => {
       if (error) {
         toast({ title: "Error", description: error.message, variant: "destructive" });
       } else {
-        navigate(isSubdomain ? "/shop" : "/");
+        navigate(isSubdomain ? "/shop" : "/dashboard");
       }
     }
     setLoading(false);
