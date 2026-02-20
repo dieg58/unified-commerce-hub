@@ -26,7 +26,7 @@ const shopManagerNav = [
   { to: "/tenant/entities", icon: Building2, label: "Entités" },
   { to: "/tenant/users", icon: Users, label: "Utilisateurs" },
   { to: "/tenant/budgets", icon: Wallet, label: "Budgets" },
-  { to: "/tenant/addresses", icon: MapPin, label: "Adresses" },
+  
   { to: "/tenant/discounts", icon: Tag, label: "Codes promo" },
   { to: "/tenant/stats", icon: BarChart3, label: "Statistiques" },
   { to: "/tenant/settings", icon: Settings, label: "Paramètres" },

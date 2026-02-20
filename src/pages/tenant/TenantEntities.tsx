@@ -22,7 +22,7 @@ const TenantEntities = () => {
   const qc = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
-  const [form, setForm] = useState({ name: "", code: "", vat_rate: "20", requires_approval: false, payment_on_order: false });
+  const [form, setForm] = useState({ name: "", code: "", vat_rate: "20", vat: "", requires_approval: false, payment_on_order: false });
   const [billingAddr, setBillingAddr] = useState({ ...emptyAddress });
   const [sameAddress, setSameAddress] = useState(true);
   const [shippingAddr, setShippingAddr] = useState({ ...emptyAddress });
@@ -75,6 +75,7 @@ const TenantEntities = () => {
         name: form.name,
         code: form.code.toUpperCase(),
         vat_rate: parseFloat(form.vat_rate) || 20,
+        vat: form.vat || null,
         requires_approval: form.requires_approval,
         payment_on_order: form.payment_on_order,
       };
@@ -132,7 +133,7 @@ const TenantEntities = () => {
 
   const openAdd = () => {
     setEditing(null);
-    setForm({ name: "", code: "", vat_rate: "20", requires_approval: false, payment_on_order: false });
+    setForm({ name: "", code: "", vat_rate: "20", vat: "", requires_approval: false, payment_on_order: false });
     setBillingAddr({ ...emptyAddress });
     setSameAddress(true);
     setShippingAddr({ ...emptyAddress });
@@ -145,6 +146,7 @@ const TenantEntities = () => {
       name: entity.name,
       code: entity.code,
       vat_rate: String(entity.vat_rate),
+      vat: (entity as any).vat || "",
       requires_approval: entity.requires_approval,
       payment_on_order: entity.payment_on_order,
     });
@@ -175,8 +177,9 @@ const TenantEntities = () => {
                 <TableRow>
                   <TableHead className="text-xs">Nom</TableHead>
                   <TableHead className="text-xs">Code</TableHead>
-                  <TableHead className="text-xs">TVA</TableHead>
-                  <TableHead className="text-xs">Approbation</TableHead>
+                      <TableHead className="text-xs">Taux TVA</TableHead>
+                      <TableHead className="text-xs">N° TVA</TableHead>
+                      <TableHead className="text-xs">Approbation</TableHead>
                   <TableHead className="text-xs">Paiement à la commande</TableHead>
                   <TableHead className="text-xs w-10"></TableHead>
                 </TableRow>
@@ -187,6 +190,7 @@ const TenantEntities = () => {
                     <TableCell className="font-medium">{entity.name}</TableCell>
                     <TableCell className="font-mono text-xs">{entity.code}</TableCell>
                     <TableCell>{entity.vat_rate}%</TableCell>
+                    <TableCell className="font-mono text-xs">{(entity as any).vat || "—"}</TableCell>
                     <TableCell>
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${entity.requires_approval ? "bg-warning/10 text-warning" : "bg-muted text-muted-foreground"}`}>
                         {entity.requires_approval ? "Oui" : "Non"}
@@ -229,9 +233,15 @@ const TenantEntities = () => {
                       <Input value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} placeholder="HQ-PAR" className="uppercase" />
                     </div>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Taux de TVA (%)</Label>
-                    <Input type="number" value={form.vat_rate} onChange={e => setForm(f => ({ ...f, vat_rate: e.target.value }))} />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Taux de TVA (%)</Label>
+                      <Input type="number" value={form.vat_rate} onChange={e => setForm(f => ({ ...f, vat_rate: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">N° de TVA</Label>
+                      <Input value={form.vat} onChange={e => setForm(f => ({ ...f, vat: e.target.value }))} placeholder="BE0123456789" />
+                    </div>
                   </div>
                   <div className="flex items-center justify-between">
                     <Label className="text-xs">Exiger l'approbation des commandes</Label>
