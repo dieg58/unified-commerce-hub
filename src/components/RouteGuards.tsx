@@ -22,7 +22,7 @@ export const RequireTenantUser = ({ children }: { children: ReactNode }) => {
   const { session, loading, isSuperAdmin } = useAuth();
   if (loading) return <LoadingScreen />;
   if (!session) return <Navigate to="/login" replace />;
-  if (isSuperAdmin) return <Navigate to="/" replace />;
+  if (isSuperAdmin) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 };
 
@@ -30,7 +30,7 @@ export const RequireShopManager = ({ children }: { children: ReactNode }) => {
   const { session, loading, isSuperAdmin, isShopManager } = useAuth();
   if (loading) return <LoadingScreen />;
   if (!session) return <Navigate to="/login" replace />;
-  if (isSuperAdmin) return <Navigate to="/" replace />;
+  if (isSuperAdmin) return <Navigate to="/dashboard" replace />;
   if (!isShopManager) return <Navigate to="/shop" replace />;
   return <>{children}</>;
 };
@@ -40,7 +40,7 @@ export const RequireEmployee = ({ children }: { children: ReactNode }) => {
   const { session, loading, isSuperAdmin } = useAuth();
   if (loading) return <LoadingScreen />;
   if (!session) return <Navigate to="/login" replace />;
-  if (isSuperAdmin) return <Navigate to="/" replace />;
+  if (isSuperAdmin) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 };
 
