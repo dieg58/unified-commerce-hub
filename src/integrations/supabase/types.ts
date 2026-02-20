@@ -846,6 +846,8 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          no_product_billing_bulk: boolean
+          no_product_billing_staff: boolean
           slug: string
           status: string
           updated_at: string
@@ -854,6 +856,8 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
+          no_product_billing_bulk?: boolean
+          no_product_billing_staff?: boolean
           slug: string
           status?: string
           updated_at?: string
@@ -862,6 +866,8 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          no_product_billing_bulk?: boolean
+          no_product_billing_staff?: boolean
           slug?: string
           status?: string
           updated_at?: string
