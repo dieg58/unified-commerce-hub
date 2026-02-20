@@ -1,0 +1,1 @@
+ALTER TABLE public.addresses ADD COLUMN contact_email text NOT NULL DEFAULT '';
