@@ -200,24 +200,30 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          payment_on_order: boolean
           requires_approval: boolean
           tenant_id: string
+          vat_rate: number
         }
         Insert: {
           code: string
           created_at?: string
           id?: string
           name: string
+          payment_on_order?: boolean
           requires_approval?: boolean
           tenant_id: string
+          vat_rate?: number
         }
         Update: {
           code?: string
           created_at?: string
           id?: string
           name?: string
+          payment_on_order?: boolean
           requires_approval?: boolean
           tenant_id?: string
+          vat_rate?: number
         }
         Relationships: [
           {
