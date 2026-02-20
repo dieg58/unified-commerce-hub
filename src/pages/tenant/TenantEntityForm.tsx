@@ -9,38 +9,55 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Loader2, Building2, FileText, MapPin, Settings2, Truck } from "lucide-react";
 import { toast } from "sonner";
 
-const vatRatesByCountry: Record<string, number> = {
-  "Belgique": 21, "Belgium": 21, "BE": 21,
-  "France": 20, "FR": 20,
-  "Allemagne": 19, "Germany": 19, "DE": 19,
-  "Pays-Bas": 21, "Netherlands": 21, "NL": 21,
-  "Luxembourg": 17, "LU": 17,
-  "Espagne": 21, "Spain": 21, "ES": 21,
-  "Italie": 22, "Italy": 22, "IT": 22,
-  "Portugal": 23, "PT": 23,
-  "Autriche": 20, "Austria": 20, "AT": 20,
-  "Irlande": 23, "Ireland": 23, "IE": 23,
-  "Suisse": 8.1, "Switzerland": 8.1, "CH": 8.1,
-  "Royaume-Uni": 20, "United Kingdom": 20, "UK": 20, "GB": 20,
-  "Pologne": 23, "Poland": 23, "PL": 23,
-  "Suède": 25, "Sweden": 25, "SE": 25,
-  "Danemark": 25, "Denmark": 25, "DK": 25,
-  "Finlande": 25.5, "Finland": 25.5, "FI": 25.5,
-  "Grèce": 24, "Greece": 24, "GR": 24,
-  "Roumanie": 19, "Romania": 19, "RO": 19,
-  "République tchèque": 21, "Czech Republic": 21, "CZ": 21,
-  "Hongrie": 27, "Hungary": 27, "HU": 27,
-};
+const countries = [
+  { value: "Belgique", rate: 21 },
+  { value: "France", rate: 20 },
+  { value: "Allemagne", rate: 19 },
+  { value: "Pays-Bas", rate: 21 },
+  { value: "Luxembourg", rate: 17 },
+  { value: "Espagne", rate: 21 },
+  { value: "Italie", rate: 22 },
+  { value: "Portugal", rate: 23 },
+  { value: "Autriche", rate: 20 },
+  { value: "Irlande", rate: 23 },
+  { value: "Suisse", rate: 8.1 },
+  { value: "Royaume-Uni", rate: 20 },
+  { value: "Pologne", rate: 23 },
+  { value: "Suède", rate: 25 },
+  { value: "Danemark", rate: 25 },
+  { value: "Finlande", rate: 25.5 },
+  { value: "Grèce", rate: 24 },
+  { value: "Roumanie", rate: 19 },
+  { value: "République tchèque", rate: 21 },
+  { value: "Hongrie", rate: 27 },
+];
 
 const getVatRate = (country: string): string => {
-  const rate = vatRatesByCountry[country];
-  return rate !== undefined ? String(rate) : "20";
+  const found = countries.find(c => c.value === country);
+  return found ? String(found.rate) : "20";
 };
 
 const emptyAddress = { label: "", address_line1: "", city: "", country: "Belgique" };
+
+/* ─── Country select component ────────────────────────────────────────── */
+const CountrySelect = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
+  <Select value={value} onValueChange={onChange}>
+    <SelectTrigger>
+      <SelectValue placeholder="Sélectionner un pays" />
+    </SelectTrigger>
+    <SelectContent className="bg-popover z-50">
+      {countries.map(c => (
+        <SelectItem key={c.value} value={c.value}>
+          {c.value} ({c.rate}%)
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+);
 
 /* ─── Section card wrapper ────────────────────────────────────────────── */
 const Section = ({ icon: Icon, title, description, children }: { icon: any; title: string; description?: string; children: React.ReactNode }) => (
@@ -255,11 +272,10 @@ const TenantEntityForm = () => {
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">Pays</Label>
-                  <Input value={billingAddr.country} onChange={e => {
-                    const country = e.target.value;
+                  <CountrySelect value={billingAddr.country} onChange={(country) => {
                     setBillingAddr(a => ({ ...a, country }));
                     setForm(f => ({ ...f, vat_rate: getVatRate(country) }));
-                  }} placeholder="Belgique" />
+                  }} />
                 </div>
               </div>
             </div>
@@ -293,7 +309,7 @@ const TenantEntityForm = () => {
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs">Pays</Label>
-                      <Input value={shippingAddr.country} onChange={e => setShippingAddr(a => ({ ...a, country: e.target.value }))} placeholder="Belgique" />
+                      <CountrySelect value={shippingAddr.country} onChange={(country) => setShippingAddr(a => ({ ...a, country }))} />
                     </div>
                   </div>
                 </div>
