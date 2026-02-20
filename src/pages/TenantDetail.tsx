@@ -57,7 +57,7 @@ const TenantDetail = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("*, product_prices(*)")
+        .select("*, product_prices(*), product_variants(*)")
         .eq("tenant_id", id!)
         .order("name");
       if (error) throw error;
@@ -648,12 +648,23 @@ function ProductsTab({ tenantId, products }: { tenantId: string; products: any[]
   const [description, setDescription] = useState("");
   const [bulkPrice, setBulkPrice] = useState("");
   const [staffPrice, setStaffPrice] = useState("");
+  const [stockType, setStockType] = useState<string>("in_stock");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+
+  // Variants
+  type VariantRow = { label: string; value: string; skuSuffix: string; priceAdj: string };
+  const [variants, setVariants] = useState<VariantRow[]>([]);
+  const addVariantRow = () => setVariants((v) => [...v, { label: "", value: "", skuSuffix: "", priceAdj: "0" }]);
+  const updateVariant = (i: number, field: keyof VariantRow, val: string) => {
+    setVariants((prev) => prev.map((v, idx) => idx === i ? { ...v, [field]: val } : v));
+  };
+  const removeVariant = (i: number) => setVariants((prev) => prev.filter((_, idx) => idx !== i));
 
   const resetForm = () => {
     setName(""); setSku(""); setCategory("general"); setDescription("");
     setBulkPrice(""); setStaffPrice(""); setImageFile(null);
+    setStockType("in_stock"); setVariants([]);
   };
 
   const uploadImage = async (productId: string, file: File) => {
@@ -670,7 +681,14 @@ function ProductsTab({ tenantId, products }: { tenantId: string; products: any[]
       setUploading(true);
       const { data: product, error } = await supabase
         .from("products")
-        .insert({ tenant_id: tenantId, name: name.trim(), sku: sku.trim().toUpperCase(), category: category.trim().toLowerCase(), description: description.trim() || null })
+        .insert({
+          tenant_id: tenantId,
+          name: name.trim(),
+          sku: sku.trim().toUpperCase(),
+          category: category.trim().toLowerCase(),
+          description: description.trim() || null,
+          stock_type: stockType as any,
+        })
         .select()
         .single();
       if (error) throw error;
@@ -686,6 +704,23 @@ function ProductsTab({ tenantId, products }: { tenantId: string; products: any[]
       if (prices.length) {
         const { error: pErr } = await supabase.from("product_prices").insert(prices);
         if (pErr) throw pErr;
+      }
+
+      // Insert variants
+      const validVariants = variants.filter((v) => v.label.trim() && v.value.trim());
+      if (validVariants.length) {
+        const { error: vErr } = await supabase.from("product_variants").insert(
+          validVariants.map((v, i) => ({
+            product_id: product.id,
+            tenant_id: tenantId,
+            variant_label: v.label.trim(),
+            variant_value: v.value.trim(),
+            sku_suffix: v.skuSuffix.trim() || null,
+            price_adjustment: parseFloat(v.priceAdj) || 0,
+            sort_order: i,
+          }))
+        );
+        if (vErr) throw vErr;
       }
     },
     onSuccess: () => {
@@ -709,6 +744,7 @@ function ProductsTab({ tenantId, products }: { tenantId: string; products: any[]
 
   const deleteProduct = useMutation({
     mutationFn: async (productId: string) => {
+      await supabase.from("product_variants").delete().eq("product_id", productId);
       await supabase.from("product_prices").delete().eq("product_id", productId);
       const { error } = await supabase.from("products").delete().eq("id", productId);
       if (error) throw error;
@@ -720,6 +756,19 @@ function ProductsTab({ tenantId, products }: { tenantId: string; products: any[]
     onError: (err: any) => toast.error(err.message),
   });
 
+  // Group variant labels for display
+  const getVariantSummary = (pvariants: any[]) => {
+    if (!pvariants?.length) return null;
+    const groups: Record<string, string[]> = {};
+    pvariants.forEach((v: any) => {
+      if (!groups[v.variant_label]) groups[v.variant_label] = [];
+      groups[v.variant_label].push(v.variant_value);
+    });
+    return Object.entries(groups).map(([label, values]) => `${label}: ${values.join(", ")}`).join(" · ");
+  };
+
+  const variantPresets = ["Couleur", "Taille", "Matière", "Longueur", "Capacité"];
+
   return (
     <div className="bg-card rounded-lg border border-border shadow-card">
       <div className="p-5 border-b border-border">
@@ -729,7 +778,13 @@ function ProductsTab({ tenantId, products }: { tenantId: string; products: any[]
         />
       </div>
       {!products.length ? (
-        <p className="p-8 text-center text-sm text-muted-foreground">Aucun produit</p>
+        <div className="p-8 text-center">
+          <Package className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
+          <p className="text-sm text-muted-foreground mb-3">Aucun produit dans le catalogue</p>
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setShowAdd(true)}>
+            <Plus className="w-4 h-4" /> Ajouter un produit
+          </Button>
+        </div>
       ) : (
         <Table>
           <TableHeader>
@@ -737,6 +792,7 @@ function ProductsTab({ tenantId, products }: { tenantId: string; products: any[]
               <TableHead className="text-xs">Image</TableHead>
               <TableHead className="text-xs">Produit</TableHead>
               <TableHead className="text-xs">SKU</TableHead>
+              <TableHead className="text-xs">Type</TableHead>
               <TableHead className="text-xs">Catégorie</TableHead>
               <TableHead className="text-xs">Prix Bulk</TableHead>
               <TableHead className="text-xs">Prix Staff</TableHead>
@@ -747,8 +803,10 @@ function ProductsTab({ tenantId, products }: { tenantId: string; products: any[]
           <TableBody>
             {products.map((p) => {
               const prices = p.product_prices as any[];
+              const pvariants = p.product_variants as any[];
               const bulk = prices?.find((pr: any) => pr.store_type === "bulk");
               const staff = prices?.find((pr: any) => pr.store_type === "staff");
+              const variantSummary = getVariantSummary(pvariants);
               return (
                 <TableRow key={p.id} className="text-sm">
                   <TableCell>
@@ -763,8 +821,14 @@ function ProductsTab({ tenantId, products }: { tenantId: string; products: any[]
                   <TableCell>
                     <p className="font-medium">{p.name}</p>
                     {p.description && <p className="text-xs text-muted-foreground truncate max-w-[200px]">{p.description}</p>}
+                    {variantSummary && <p className="text-[10px] text-primary mt-0.5">{variantSummary}</p>}
                   </TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">{p.sku}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className={`text-[10px] ${p.stock_type === "made_to_order" ? "bg-warning/10 text-warning border-warning/20" : "bg-success/10 text-success border-success/20"}`}>
+                      {p.stock_type === "made_to_order" ? "Sur commande" : "En stock"}
+                    </Badge>
+                  </TableCell>
                   <TableCell><Badge variant="outline" className="text-xs capitalize">{p.category || "general"}</Badge></TableCell>
                   <TableCell>{bulk ? formatCurrency(Number(bulk.price)) : "—"}</TableCell>
                   <TableCell>{staff ? formatCurrency(Number(staff.price)) : "—"}</TableCell>
@@ -795,28 +859,46 @@ function ProductsTab({ tenantId, products }: { tenantId: string; products: any[]
         </Table>
       )}
 
+      {/* Add Product Dialog */}
       <Dialog open={showAdd} onOpenChange={(v) => { setShowAdd(v); if (!v) resetForm(); }}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader><DialogTitle>Nouveau produit</DialogTitle></DialogHeader>
-          <div className="space-y-4 max-h-[60vh] overflow-auto">
-            <div className="space-y-2">
-              <Label>Nom *</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="T-Shirt Premium" maxLength={200} />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><Package className="w-5 h-5" /> Nouveau produit</DialogTitle></DialogHeader>
+          <div className="space-y-5 max-h-[65vh] overflow-auto pr-1">
+            {/* Basic info */}
+            <div className="space-y-4">
               <div className="space-y-2">
-                <Label>SKU *</Label>
-                <Input value={sku} onChange={(e) => setSku(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))} placeholder="TSHIRT-01" maxLength={50} />
+                <Label>Nom du produit *</Label>
+                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="T-Shirt Premium" maxLength={200} />
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-2">
+                  <Label>SKU *</Label>
+                  <Input value={sku} onChange={(e) => setSku(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))} placeholder="TSHIRT-01" maxLength={50} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Catégorie</Label>
+                  <Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="vêtements" maxLength={50} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Disponibilité</Label>
+                  <Select value={stockType} onValueChange={setStockType}>
+                    <SelectTrigger className="h-10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="in_stock">En stock</SelectItem>
+                      <SelectItem value="made_to_order">Sur commande</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <div className="space-y-2">
-                <Label>Catégorie</Label>
-                <Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="vêtements" maxLength={50} />
+                <Label>Description</Label>
+                <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description courte du produit" maxLength={500} />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>Description</Label>
-              <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description courte du produit" maxLength={500} />
-            </div>
+
+            {/* Image */}
             <div className="space-y-2">
               <Label>Image produit</Label>
               <Input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} className="text-sm" />
@@ -826,22 +908,121 @@ function ProductsTab({ tenantId, products }: { tenantId: string; products: any[]
                 </div>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Prix Bulk (€)</Label>
-                <Input type="number" value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} placeholder="0.00" min="0" step="0.01" />
-              </div>
-              <div className="space-y-2">
-                <Label>Prix Staff (€)</Label>
-                <Input type="number" value={staffPrice} onChange={(e) => setStaffPrice(e.target.value)} placeholder="0.00" min="0" step="0.01" />
+
+            {/* Prices */}
+            <div>
+              <Label className="text-sm font-semibold">Tarification</Label>
+              <div className="grid grid-cols-2 gap-3 mt-2">
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Prix Bulk (€)</Label>
+                  <Input type="number" value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} placeholder="0.00" min="0" step="0.01" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Prix Staff (€)</Label>
+                  <Input type="number" value={staffPrice} onChange={(e) => setStaffPrice(e.target.value)} placeholder="0.00" min="0" step="0.01" />
+                </div>
               </div>
             </div>
+
+            {/* Variants */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <Label className="text-sm font-semibold">Variantes</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">Couleurs, tailles, matières…</p>
+                </div>
+                <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={addVariantRow}>
+                  <Plus className="w-3.5 h-3.5" /> Ajouter
+                </Button>
+              </div>
+
+              {variants.length > 0 && (
+                <div className="space-y-2">
+                  {/* Preset buttons */}
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {variantPresets.map((preset) => (
+                      <Button
+                        key={preset}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-6 text-[10px] px-2"
+                        onClick={() => {
+                          const emptyIdx = variants.findIndex((v) => !v.label.trim());
+                          if (emptyIdx >= 0) {
+                            updateVariant(emptyIdx, "label", preset);
+                          } else {
+                            setVariants((prev) => [...prev, { label: preset, value: "", skuSuffix: "", priceAdj: "0" }]);
+                          }
+                        }}
+                      >
+                        {preset}
+                      </Button>
+                    ))}
+                  </div>
+
+                  {variants.map((v, i) => (
+                    <div key={i} className="grid grid-cols-[1fr_1fr_auto_auto_auto] gap-2 items-end rounded-md border border-border p-2.5 bg-muted/30">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-muted-foreground">Type</Label>
+                        <Input
+                          value={v.label}
+                          onChange={(e) => updateVariant(i, "label", e.target.value)}
+                          placeholder="Couleur"
+                          className="h-8 text-xs"
+                          maxLength={50}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-muted-foreground">Valeur</Label>
+                        <Input
+                          value={v.value}
+                          onChange={(e) => updateVariant(i, "value", e.target.value)}
+                          placeholder="Rouge"
+                          className="h-8 text-xs"
+                          maxLength={100}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-muted-foreground">Suffixe SKU</Label>
+                        <Input
+                          value={v.skuSuffix}
+                          onChange={(e) => updateVariant(i, "skuSuffix", e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))}
+                          placeholder="-RED"
+                          className="h-8 text-xs w-20"
+                          maxLength={10}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-muted-foreground">Ajust. €</Label>
+                        <Input
+                          type="number"
+                          value={v.priceAdj}
+                          onChange={(e) => updateVariant(i, "priceAdj", e.target.value)}
+                          className="h-8 text-xs w-20"
+                          step="0.01"
+                        />
+                      </div>
+                      <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive self-end" onClick={() => removeVariant(i)}>
+                        <X className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {variants.length === 0 && (
+                <div className="rounded-md border border-dashed border-border p-4 text-center">
+                  <p className="text-xs text-muted-foreground">Aucune variante. Cliquez "Ajouter" pour définir des couleurs, tailles, etc.</p>
+                </div>
+              )}
+            </div>
           </div>
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="flex justify-end gap-2 pt-2 border-t border-border mt-2">
             <Button variant="outline" onClick={() => { setShowAdd(false); resetForm(); }}>Annuler</Button>
-            <Button onClick={() => addProduct.mutate()} disabled={!name.trim() || !sku.trim() || addProduct.isPending || uploading}>
-              {(addProduct.isPending || uploading) ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
-              Créer
+            <Button onClick={() => addProduct.mutate()} disabled={!name.trim() || !sku.trim() || addProduct.isPending || uploading} className="gap-1.5">
+              {(addProduct.isPending || uploading) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              Créer le produit
             </Button>
           </div>
         </DialogContent>
@@ -849,8 +1030,6 @@ function ProductsTab({ tenantId, products }: { tenantId: string; products: any[]
     </div>
   );
 }
-
-/* ─── Orders Tab ─── */
 function OrdersTab({ tenantId, orders }: { tenantId: string; orders: any[] }) {
   const qc = useQueryClient();
   const [viewOrder, setViewOrder] = useState<any>(null);
