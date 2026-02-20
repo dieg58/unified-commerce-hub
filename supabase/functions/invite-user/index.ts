@@ -71,6 +71,9 @@ Deno.serve(async (req) => {
 
     if (existingUser) {
       userId = existingUser.id;
+      // Generate a new temporary password and update the user
+      tempPassword = crypto.randomUUID().slice(0, 8) + "Xk1!";
+      await adminClient.auth.admin.updateUserById(userId, { password: tempPassword });
       // Update profile to assign to tenant
       await adminClient
         .from("profiles")
@@ -156,8 +159,21 @@ Deno.serve(async (req) => {
           <p style="margin:0 0 24px;color:#555;font-size:15px;line-height:1.6;">
             Vous avez été ajouté(e) à une nouvelle boutique en tant que <strong>${roleLabel}</strong>.
           </p>
+          <div style="background:#f8f9fa;border-radius:10px;padding:20px 24px;margin-bottom:24px;">
+            <p style="margin:0 0 6px;font-size:13px;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Vos identifiants de connexion</p>
+            <table style="width:100%;border-collapse:collapse;">
+              <tr>
+                <td style="padding:8px 0;color:#555;font-size:14px;width:100px;">Email</td>
+                <td style="padding:8px 0;font-weight:600;color:#1a1a1a;font-size:14px;">${email}</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0;color:#555;font-size:14px;">Mot de passe</td>
+                <td style="padding:8px 0;font-weight:600;color:#1a1a1a;font-size:14px;font-family:monospace;letter-spacing:1px;">${tempPassword}</td>
+              </tr>
+            </table>
+          </div>
           <p style="margin:0 0 24px;color:#555;font-size:14px;line-height:1.5;">
-            Connectez-vous avec vos identifiants habituels pour y accéder.
+            Nous vous recommandons de <strong>modifier votre mot de passe</strong> après votre connexion.
           </p>`;
       }
 
