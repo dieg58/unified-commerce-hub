@@ -42,7 +42,7 @@ const getVatRate = (country: string): string => {
   return found ? String(found.rate) : "20";
 };
 
-const emptyAddress = { label: "", address_line1: "", city: "", postal_code: "", country: "Belgique", phone: "", contact_name: "" };
+const emptyAddress = { label: "", address_line1: "", city: "", postal_code: "", country: "Belgique", phone: "", contact_name: "", contact_email: "" };
 
 /* ─── Country select component ────────────────────────────────────────── */
 const CountrySelect = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
@@ -179,11 +179,11 @@ const TenantEntityForm = () => {
       const billing = entityAddresses.find(a => a.type === "billing");
       const shipping = entityAddresses.find(a => a.type === "shipping");
       if (billing) {
-        setBillingAddr({ label: billing.label, address_line1: billing.address_line1, city: billing.city, postal_code: (billing as any).postal_code || "", country: billing.country, phone: (billing as any).phone || "", contact_name: (billing as any).contact_name || "" });
+        setBillingAddr({ label: billing.label, address_line1: billing.address_line1, city: billing.city, postal_code: (billing as any).postal_code || "", country: billing.country, phone: (billing as any).phone || "", contact_name: (billing as any).contact_name || "", contact_email: (billing as any).contact_email || "" });
       }
       if (shipping && billing && (shipping.address_line1 !== billing.address_line1 || shipping.city !== billing.city || shipping.country !== billing.country)) {
         setSameAddress(false);
-        setShippingAddr({ label: shipping.label, address_line1: shipping.address_line1, city: shipping.city, postal_code: (shipping as any).postal_code || "", country: shipping.country, phone: (shipping as any).phone || "", contact_name: (shipping as any).contact_name || "" });
+        setShippingAddr({ label: shipping.label, address_line1: shipping.address_line1, city: shipping.city, postal_code: (shipping as any).postal_code || "", country: shipping.country, phone: (shipping as any).phone || "", contact_name: (shipping as any).contact_name || "", contact_email: (billing as any).contact_email || "" });
       } else {
         setSameAddress(true);
         setShippingAddr({ ...emptyAddress });
@@ -237,6 +237,7 @@ const TenantEntityForm = () => {
         country: billingAddr.country || "Belgique",
         phone: billingAddr.phone,
         contact_name: billingAddr.contact_name,
+        contact_email: billingAddr.contact_email,
       };
       const { error: bErr } = await supabase.from("addresses").insert(billingPayload as any);
       if (bErr) throw bErr;
@@ -253,6 +254,7 @@ const TenantEntityForm = () => {
         country: shipData.country || "Belgique",
         phone: shipData.phone,
         contact_name: shipData.contact_name,
+        contact_email: shipData.contact_email,
       };
       const { error: sErr } = await supabase.from("addresses").insert(shippingPayload as any);
       if (sErr) throw sErr;
@@ -368,9 +370,15 @@ const TenantEntityForm = () => {
                 <Label className="text-xs">Personne de contact</Label>
                 <Input value={billingAddr.contact_name} onChange={e => setBillingAddr(a => ({ ...a, contact_name: e.target.value }))} placeholder="Jean Dupont" />
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Téléphone</Label>
-                <Input value={billingAddr.phone} onChange={e => setBillingAddr(a => ({ ...a, phone: e.target.value }))} placeholder="+32 2 123 45 67" />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Téléphone</Label>
+                  <Input value={billingAddr.phone} onChange={e => setBillingAddr(a => ({ ...a, phone: e.target.value }))} placeholder="+32 2 123 45 67" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Email de contact</Label>
+                  <Input type="email" value={billingAddr.contact_email} onChange={e => setBillingAddr(a => ({ ...a, contact_email: e.target.value }))} placeholder="contact@entreprise.com" />
+                </div>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Adresse</Label>
@@ -417,9 +425,15 @@ const TenantEntityForm = () => {
                     <Label className="text-xs">Personne de contact</Label>
                     <Input value={shippingAddr.contact_name} onChange={e => setShippingAddr(a => ({ ...a, contact_name: e.target.value }))} placeholder="Jean Dupont" />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Téléphone</Label>
-                    <Input value={shippingAddr.phone} onChange={e => setShippingAddr(a => ({ ...a, phone: e.target.value }))} placeholder="+32 2 123 45 67" />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Téléphone</Label>
+                      <Input value={shippingAddr.phone} onChange={e => setShippingAddr(a => ({ ...a, phone: e.target.value }))} placeholder="+32 2 123 45 67" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Email de contact</Label>
+                      <Input type="email" value={shippingAddr.contact_email} onChange={e => setShippingAddr(a => ({ ...a, contact_email: e.target.value }))} placeholder="contact@entreprise.com" />
+                    </div>
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Adresse</Label>

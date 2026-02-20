@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           address_line1: string
           city: string
+          contact_email: string
           contact_name: string
           country: string
           entity_id: string
@@ -32,6 +33,7 @@ export type Database = {
         Insert: {
           address_line1: string
           city: string
+          contact_email?: string
           contact_name?: string
           country: string
           entity_id: string
@@ -46,6 +48,7 @@ export type Database = {
         Update: {
           address_line1?: string
           city?: string
+          contact_email?: string
           contact_name?: string
           country?: string
           entity_id?: string
