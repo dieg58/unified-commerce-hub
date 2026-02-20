@@ -266,20 +266,10 @@ const TenantEntityForm = () => {
         </Section>
 
         {/* ─── Fiscalité ──────────────────────────────────────────────── */}
-        <Section icon={FileText} title="Fiscalité" description="Taux de TVA calculé automatiquement selon le pays">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium">N° de TVA</Label>
-              <Input value={form.vat} onChange={e => setForm(f => ({ ...f, vat: e.target.value }))} placeholder="BE0123456789" className="font-mono" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Taux de TVA</Label>
-              <div className="relative">
-                <Input type="number" value={form.vat_rate} readOnly className="bg-muted/50 cursor-not-allowed pr-8" />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
-              </div>
-              <p className="text-[10px] text-muted-foreground">Déterminé par le pays de facturation</p>
-            </div>
+        <Section icon={FileText} title="Fiscalité" description="Le taux de TVA est déterminé automatiquement par le pays de facturation">
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">N° de TVA</Label>
+            <Input value={form.vat} onChange={e => setForm(f => ({ ...f, vat: e.target.value }))} placeholder="BE0123456789" className="font-mono max-w-sm" />
           </div>
         </Section>
 
