@@ -579,10 +579,12 @@ export type Database = {
           active: boolean
           created_at: string
           id: string
+          location: string | null
           price_adjustment: number
           product_id: string
           sku_suffix: string | null
           sort_order: number
+          stock_qty: number
           tenant_id: string
           variant_label: string
           variant_value: string
@@ -591,10 +593,12 @@ export type Database = {
           active?: boolean
           created_at?: string
           id?: string
+          location?: string | null
           price_adjustment?: number
           product_id: string
           sku_suffix?: string | null
           sort_order?: number
+          stock_qty?: number
           tenant_id: string
           variant_label: string
           variant_value: string
@@ -603,10 +607,12 @@ export type Database = {
           active?: boolean
           created_at?: string
           id?: string
+          location?: string | null
           price_adjustment?: number
           product_id?: string
           sku_suffix?: string | null
           sort_order?: number
+          stock_qty?: number
           tenant_id?: string
           variant_label?: string
           variant_value?: string
@@ -637,11 +643,13 @@ export type Database = {
           description: string | null
           id: string
           image_url: string | null
+          location: string | null
           min_bulk_qty: number
           name: string
           no_billing_bulk: boolean
           no_billing_staff: boolean
           sku: string
+          stock_qty: number
           stock_type: Database["public"]["Enums"]["stock_type"]
           tenant_id: string
         }
@@ -653,11 +661,13 @@ export type Database = {
           description?: string | null
           id?: string
           image_url?: string | null
+          location?: string | null
           min_bulk_qty?: number
           name: string
           no_billing_bulk?: boolean
           no_billing_staff?: boolean
           sku: string
+          stock_qty?: number
           stock_type?: Database["public"]["Enums"]["stock_type"]
           tenant_id: string
         }
@@ -669,11 +679,13 @@ export type Database = {
           description?: string | null
           id?: string
           image_url?: string | null
+          location?: string | null
           min_bulk_qty?: number
           name?: string
           no_billing_bulk?: boolean
           no_billing_staff?: boolean
           sku?: string
+          stock_qty?: number
           stock_type?: Database["public"]["Enums"]["stock_type"]
           tenant_id?: string
         }
