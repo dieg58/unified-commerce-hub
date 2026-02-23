@@ -6,13 +6,8 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubdomain } from "@/components/SubdomainRouter";
 import { useTenantBySlug } from "@/hooks/useTenantBySlug";
-
-const navItems = [
-  { to: "/shop", icon: Store, label: "Boutique" },
-  { to: "/shop/wishlist", icon: Heart, label: "Mes favoris" },
-  { to: "/shop/orders", icon: ShoppingCart, label: "Mes commandes" },
-  { to: "/shop/profile", icon: User, label: "Mon profil" },
-];
+import { useTranslation } from "react-i18next";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 
 const StorefrontLayout = () => {
   const [collapsed, setCollapsed] = useState(false);
@@ -20,12 +15,18 @@ const StorefrontLayout = () => {
   const { signOut, profile, isShopManager, isDeptManager, isSuperAdmin } = useAuth();
   const { tenantSlug } = useSubdomain();
   const { data: subdomainTenant } = useTenantBySlug(tenantSlug);
+  const { t } = useTranslation();
 
-  // Use branding from subdomain tenant if available
+  const navItems = [
+    { to: "/shop", icon: Store, label: t("nav.shop") },
+    { to: "/shop/wishlist", icon: Heart, label: t("nav.myFavorites") },
+    { to: "/shop/orders", icon: ShoppingCart, label: t("nav.myOrders") },
+    { to: "/shop/profile", icon: User, label: t("nav.myProfile") },
+  ];
+
   const branding = subdomainTenant?.tenant_branding as any;
   const storeName = branding?.head_title || subdomainTenant?.name || "Ma Boutique";
 
-  // Employees (not manager/admin) see no sidebar
   const showSidebar = isShopManager || isDeptManager || isSuperAdmin;
 
   if (!showSidebar) {
@@ -84,6 +85,11 @@ const StorefrontLayout = () => {
         </nav>
 
         <div className="border-t border-sidebar-border p-2 space-y-1">
+          {!collapsed && (
+            <div className="px-3 py-1">
+              <LanguageSwitcher variant="ghost" />
+            </div>
+          )}
           {!collapsed && profile && (
             <div className="px-3 py-2">
               <p className="text-xs text-sidebar-accent-foreground font-medium truncate">
@@ -97,7 +103,7 @@ const StorefrontLayout = () => {
             className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors w-full"
           >
             <LogOut className="w-4 h-4 shrink-0" />
-            {!collapsed && <span>Déconnexion</span>}
+            {!collapsed && <span>{t("common.logout")}</span>}
           </button>
           <button
             onClick={() => setCollapsed(!collapsed)}
