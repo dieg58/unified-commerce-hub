@@ -5,100 +5,153 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Odoo REST API helper
-async function odooRpc(url: string, db: string, login: string, apiKey: string, model: string, method: string, args: any[], kwargs: Record<string, any> = {}) {
-  const endpoint = `${url}/api/v1/${model}/${method}`;
-  const res = await fetch(endpoint, {
+// ── XML-RPC helpers ──
+
+function xmlRpcCall(methodName: string, params: string[]): string {
+  return `<?xml version="1.0"?>
+<methodCall>
+  <methodName>${methodName}</methodName>
+  <params>${params.join("")}</params>
+</methodCall>`;
+}
+
+function param(inner: string): string {
+  return `<param><value>${inner}</value></param>`;
+}
+function str(v: string): string { return `<string>${escapeXml(v)}</string>`; }
+function int(v: number): string { return `<int>${v}</int>`; }
+function bool(v: boolean): string { return `<boolean>${v ? 1 : 0}</boolean>`; }
+
+function escapeXml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function array(items: string[]): string {
+  return `<array><data>${items.map(v => `<value>${v}</value>`).join("")}</data></array>`;
+}
+
+function struct(fields: Record<string, string>): string {
+  const members = Object.entries(fields)
+    .map(([k, v]) => `<member><name>${k}</name><value>${v}</value></member>`)
+    .join("");
+  return `<struct>${members}</struct>`;
+}
+
+async function xmlRpcPost(url: string, body: string): Promise<string> {
+  const res = await fetch(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${apiKey}`,
-      "X-Odoo-Db": db,
-      "X-Odoo-Login": login,
-    },
-    body: JSON.stringify({ args, kwargs }),
+    headers: { "Content-Type": "text/xml" },
+    body,
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Odoo API error [${res.status}]: ${text}`);
+    throw new Error(`XML-RPC HTTP ${res.status}: ${text.substring(0, 300)}`);
   }
-  return res.json();
+  return res.text();
 }
 
-// Search or create partner
-async function ensurePartner(url: string, db: string, login: string, apiKey: string, profile: any) {
-  // Search existing
-  const searchRes = await fetch(`${url}/api/v1/res.partner?filters=[["email","=","${profile.email}"]]&limit=1`, {
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "X-Odoo-Db": db,
-      "X-Odoo-Login": login,
-    },
-  });
-  if (!searchRes.ok) {
-    const text = await searchRes.text();
-    console.error("Odoo partner search failed:", searchRes.status, text.substring(0, 500));
-    throw new Error(`Odoo partner search failed [${searchRes.status}]. Check ODOO_URL (${url}), ODOO_LOGIN, and ODOO_API_KEY.`);
-  }
-  const searchData = await searchRes.json();
+// Extract first <int> or <i4> value from XML-RPC response
+function extractInt(xml: string): number | null {
+  const m = xml.match(/<(?:int|i4)>(\d+)<\/(?:int|i4)>/);
+  return m ? parseInt(m[1], 10) : null;
+}
 
-  if (searchData?.data?.length > 0) {
-    return searchData.data[0].id;
+// Extract all <int>/<i4> values
+function extractInts(xml: string): number[] {
+  const matches = [...xml.matchAll(/<(?:int|i4)>(\d+)<\/(?:int|i4)>/g)];
+  return matches.map(m => parseInt(m[1], 10));
+}
+
+// Extract boolean
+function extractBool(xml: string): boolean {
+  const m = xml.match(/<boolean>([01])<\/boolean>/);
+  return m ? m[1] === "1" : false;
+}
+
+// Check for fault
+function checkFault(xml: string): void {
+  if (xml.includes("<fault>")) {
+    const faultString = xml.match(/<name>faultString<\/name>\s*<value>\s*<string>([\s\S]*?)<\/string>/);
+    throw new Error(`Odoo XML-RPC fault: ${faultString?.[1] || "Unknown fault"}`);
   }
+}
+
+// ── Odoo XML-RPC operations ──
+
+async function authenticate(url: string, db: string, login: string, apiKey: string): Promise<number> {
+  const body = xmlRpcCall("authenticate", [
+    param(str(db)),
+    param(str(login)),
+    param(str(apiKey)),
+    param(struct({})),
+  ]);
+  const xml = await xmlRpcPost(`${url}/xmlrpc/2/common`, body);
+  checkFault(xml);
+  const uid = extractInt(xml);
+  if (!uid) throw new Error("Odoo authentication failed. Check ODOO_URL, ODOO_DB, ODOO_LOGIN, ODOO_API_KEY.");
+  return uid;
+}
+
+async function execute(url: string, db: string, uid: number, apiKey: string, model: string, method: string, args: string[], kwargs: string = struct({})): Promise<string> {
+  const body = xmlRpcCall("execute_kw", [
+    param(str(db)),
+    param(int(uid)),
+    param(str(apiKey)),
+    param(str(model)),
+    param(str(method)),
+    param(array(args)),
+    param(kwargs),
+  ]);
+  const xml = await xmlRpcPost(`${url}/xmlrpc/2/object`, body);
+  checkFault(xml);
+  return xml;
+}
+
+// ── Business logic ──
+
+async function ensurePartner(url: string, db: string, uid: number, apiKey: string, profile: any): Promise<number> {
+  // Search by email
+  const domain = array([array([str("email"), str("="), str(profile.email)])]);
+  const searchXml = await execute(url, db, uid, apiKey, "res.partner", "search", [domain],
+    struct({ limit: int(1) }));
+  
+  const ids = extractInts(searchXml);
+  if (ids.length > 0) return ids[0];
 
   // Create partner
-  const createRes = await fetch(`${url}/api/v1/res.partner`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${apiKey}`,
-      "X-Odoo-Db": db,
-      "X-Odoo-Login": login,
-    },
-    body: JSON.stringify({
-      name: profile.full_name || profile.email,
-      email: profile.email,
-      customer_rank: 1,
-    }),
+  const vals = struct({
+    name: str(profile.full_name || profile.email),
+    email: str(profile.email),
+    customer_rank: int(1),
   });
-  if (!createRes.ok) {
-    const text = await createRes.text();
-    throw new Error(`Failed to create partner [${createRes.status}]: ${text}`);
-  }
-  const createData = await createRes.json();
-  return createData?.data?.id || createData?.id;
+  const createXml = await execute(url, db, uid, apiKey, "res.partner", "create", [vals]);
+  const newId = extractInt(createXml);
+  if (!newId) throw new Error("Failed to create Odoo partner");
+  return newId;
 }
 
-// Create sale order
-async function createSaleOrder(url: string, db: string, login: string, apiKey: string, partnerId: number, order: any, items: any[]) {
-  const orderLines = items.map((item: any) => ({
-    product_id: false, // Will use description instead
-    name: item.products?.name || "Product",
-    product_uom_qty: item.qty,
-    price_unit: Number(item.unit_price),
-  }));
-
-  const createRes = await fetch(`${url}/api/v1/sale.order`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${apiKey}`,
-      "X-Odoo-Db": db,
-      "X-Odoo-Login": login,
-    },
-    body: JSON.stringify({
-      partner_id: partnerId,
-      client_order_ref: order.id.slice(0, 8).toUpperCase(),
-      origin: `INKOO-${order.id.slice(0, 8).toUpperCase()}`,
-      order_line: orderLines.map((line: any) => [0, 0, line]),
-    }),
+async function createSaleOrder(url: string, db: string, uid: number, apiKey: string, partnerId: number, order: any, items: any[]): Promise<number> {
+  const orderLines = items.map((item: any) => {
+    const lineVals = struct({
+      name: str(item.products?.name || "Product"),
+      product_uom_qty: int(item.qty),
+      price_unit: `<double>${Number(item.unit_price)}</double>`,
+    });
+    // (0, 0, vals) tuple for one2many
+    return array([int(0), int(0), lineVals]);
   });
-  if (!createRes.ok) {
-    const text = await createRes.text();
-    throw new Error(`Failed to create sale order [${createRes.status}]: ${text}`);
-  }
-  const createData = await createRes.json();
-  return createData?.data?.id || createData?.id;
+
+  const vals = struct({
+    partner_id: int(partnerId),
+    client_order_ref: str(`INKOO-${order.id.slice(0, 8).toUpperCase()}`),
+    origin: str(`INKOO-${order.id.slice(0, 8).toUpperCase()}`),
+    order_line: array(orderLines),
+  });
+
+  const createXml = await execute(url, db, uid, apiKey, "sale.order", "create", [vals]);
+  const newId = extractInt(createXml);
+  if (!newId) throw new Error("Failed to create Odoo sale order");
+  return newId;
 }
 
 Deno.serve(async (req) => {
@@ -123,6 +176,10 @@ Deno.serve(async (req) => {
     const { order_id } = await req.json();
     if (!order_id) throw new Error("order_id is required");
 
+    // Authenticate with Odoo
+    const uid = await authenticate(ODOO_URL, ODOO_DB, ODOO_LOGIN, ODOO_API_KEY);
+    console.log("Odoo authenticated, uid:", uid);
+
     // Fetch order with profile and items
     const { data: order, error: orderErr } = await supabase
       .from("orders")
@@ -137,8 +194,7 @@ Deno.serve(async (req) => {
     // 1. Ensure partner exists in Odoo
     let partnerId = profile?.odoo_partner_id;
     if (!partnerId) {
-      partnerId = await ensurePartner(ODOO_URL, ODOO_DB, ODOO_LOGIN, ODOO_API_KEY, profile);
-      // Save partner ID
+      partnerId = await ensurePartner(ODOO_URL, ODOO_DB, uid, ODOO_API_KEY, profile);
       await supabase.from("profiles").update({ odoo_partner_id: partnerId }).eq("id", profile.id);
     }
 
@@ -155,9 +211,8 @@ Deno.serve(async (req) => {
     // 2. Create sale order in Odoo
     let odooOrderId: number;
     try {
-      odooOrderId = await createSaleOrder(ODOO_URL, ODOO_DB, ODOO_LOGIN, ODOO_API_KEY, partnerId, order, items);
+      odooOrderId = await createSaleOrder(ODOO_URL, ODOO_DB, uid, ODOO_API_KEY, partnerId, order, items);
     } catch (e) {
-      // Log failure
       await supabase.from("odoo_sync_log").insert({
         ...logEntry,
         status: "error",
@@ -181,8 +236,8 @@ Deno.serve(async (req) => {
       response_payload: { odoo_order_id: odooOrderId },
     });
 
-    return new Response(JSON.stringify({ 
-      success: true, 
+    return new Response(JSON.stringify({
+      success: true,
       odoo_order_id: odooOrderId,
       odoo_partner_id: partnerId,
     }), {
