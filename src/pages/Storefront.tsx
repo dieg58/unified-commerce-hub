@@ -15,13 +15,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   ShoppingCart, Plus, Minus, Trash2, Loader2, Package, CheckCircle,
-  AlertTriangle, Search, Store, Users, Sparkles
+  AlertTriangle, Search, Store, Users, Sparkles, Heart
 } from "lucide-react";
+import { useWishlist } from "@/hooks/useWishlist";
 import { toast } from "sonner";
 
 const Storefront = () => {
   const { profile } = useAuth();
   const { items, addItem, removeItem, updateQty, clear, total, count } = useCart();
+  const { isFavorite, toggleFavorite } = useWishlist();
   const [storeType, setStoreType] = useState<"staff" | "bulk">("bulk");
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("Tous");
@@ -383,12 +385,19 @@ const Storefront = () => {
                         {product.category || "general"}
                       </Badge>
                     </div>
-                    {storeType === "bulk" && (
+                    {storeType === "bulk" ? (
                       <div className="absolute top-3 right-3">
                         <Badge className="text-[10px] text-white border-0 gap-1" style={{ backgroundColor: primaryColor }}>
                           <Package className="w-2.5 h-2.5" /> Min. 10 pcs
                         </Badge>
                       </div>
+                    ) : (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleFavorite(product.id); }}
+                        className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-sm hover:scale-110 transition-transform"
+                      >
+                        <Heart className={`w-4 h-4 ${isFavorite(product.id) ? "text-red-500 fill-red-500" : "text-muted-foreground"}`} />
+                      </button>
                     )}
                   </div>
                   {/* Content */}
