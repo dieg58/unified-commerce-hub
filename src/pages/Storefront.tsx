@@ -396,10 +396,10 @@ const Storefront = () => {
                         {product.category || "general"}
                       </Badge>
                     </div>
-                    {storeType === "bulk" ? (
+                    {storeType === "bulk" && product.min_bulk_qty > 1 ? (
                       <div className="absolute top-3 right-3">
                         <Badge className="text-[10px] text-white border-0 gap-1" style={{ backgroundColor: primaryColor }}>
-                          <Package className="w-2.5 h-2.5" /> Min. 10 pcs
+                          <Package className="w-2.5 h-2.5" /> Min. {product.min_bulk_qty} pcs
                         </Badge>
                       </div>
                     ) : (
@@ -452,7 +452,11 @@ const Storefront = () => {
                       ) : inCart ? (
                         <div className="flex items-center gap-1">
                           <button
-                            onClick={() => updateQty(product.id, inCart.qty - 1)}
+                            onClick={() => {
+                              const minQty = storeType === "bulk" ? product.min_bulk_qty : 1;
+                              const newQty = inCart.qty - 1;
+                              updateQty(product.id, newQty < minQty ? 0 : newQty);
+                            }}
                             className="w-8 h-8 rounded-lg border border-border flex items-center justify-center hover:bg-muted transition-colors"
                           >
                             <Minus className="w-3 h-3" />
@@ -470,7 +474,7 @@ const Storefront = () => {
                           size="sm"
                           className="gap-1.5 text-white rounded-lg"
                           style={{ backgroundColor: primaryColor }}
-                          onClick={() => addItem({ productId: product.id, name: product.name, sku: product.sku, price, storeType })}
+                          onClick={() => addItem({ productId: product.id, name: product.name, sku: product.sku, price, storeType }, storeType === "bulk" ? Math.max(1, product.min_bulk_qty) : 1)}
                         >
                           <Plus className="w-3.5 h-3.5" /> Ajouter
                         </Button>
@@ -564,6 +568,7 @@ const Storefront = () => {
           variants={((variantMatrixProduct as any).product_variants as any[]) || []}
           basePrice={getPrice(variantMatrixProduct)}
           primaryColor={primaryColor}
+          storeType={storeType}
           onConfirm={(selections) => {
             for (const sel of selections) {
               addItem({

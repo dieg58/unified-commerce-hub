@@ -22,15 +22,17 @@ interface VariantMatrixDialogProps {
     name: string;
     sku: string;
     image_url: string | null;
+    min_bulk_qty?: number;
   };
   variants: Variant[];
   basePrice: number;
   primaryColor: string;
+  storeType?: "bulk" | "staff";
   onConfirm: (selections: { variantId: string; variantValue: string; qty: number }[]) => void;
 }
 
 export default function VariantMatrixDialog({
-  open, onOpenChange, product, variants, basePrice, primaryColor, onConfirm,
+  open, onOpenChange, product, variants, basePrice, primaryColor, storeType, onConfirm,
 }: VariantMatrixDialogProps) {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
 
@@ -194,23 +196,36 @@ export default function VariantMatrixDialog({
         )}
 
         {/* ─── Footer summary ─── */}
-        <div className="flex items-center justify-between pt-4 border-t border-border">
-          <div className="text-sm text-muted-foreground">
-            <span className="font-semibold text-foreground">{totalQty}</span> article{totalQty > 1 ? "s" : ""}
-            {totalQty > 0 && (
-              <span className="ml-2">·  <span className="font-semibold text-foreground">{formatCurrency(totalPrice)}</span></span>
-            )}
-          </div>
-          <Button
-            onClick={handleConfirm}
-            disabled={totalQty === 0}
-            className="text-white gap-1.5"
-            style={{ backgroundColor: primaryColor }}
-          >
-            <ShoppingCart className="w-4 h-4" />
-            Ajouter au panier
-          </Button>
-        </div>
+        {(() => {
+          const minQty = storeType === "bulk" ? (product.min_bulk_qty || 1) : 1;
+          const belowMin = totalQty > 0 && totalQty < minQty;
+          return (
+            <div className="pt-4 border-t border-border space-y-2">
+              {storeType === "bulk" && minQty > 1 && (
+                <p className={`text-xs ${belowMin ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+                  Minimum de commande : {minQty} pièces
+                </p>
+              )}
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-muted-foreground">
+                  <span className="font-semibold text-foreground">{totalQty}</span> article{totalQty > 1 ? "s" : ""}
+                  {totalQty > 0 && (
+                    <span className="ml-2">·  <span className="font-semibold text-foreground">{formatCurrency(totalPrice)}</span></span>
+                  )}
+                </div>
+                <Button
+                  onClick={handleConfirm}
+                  disabled={totalQty === 0 || belowMin}
+                  className="text-white gap-1.5"
+                  style={{ backgroundColor: primaryColor }}
+                >
+                  <ShoppingCart className="w-4 h-4" />
+                  Ajouter au panier
+                </Button>
+              </div>
+            </div>
+          );
+        })()}
       </DialogContent>
     </Dialog>
   );
