@@ -717,6 +717,7 @@ export type Database = {
       }
       orders: {
         Row: {
+          billing_address_id: string | null
           created_at: string
           created_by: string
           entity_id: string
@@ -724,6 +725,7 @@ export type Database = {
           odoo_order_id: number | null
           odoo_order_status: string | null
           odoo_synced_at: string | null
+          shipping_address_id: string | null
           shipping_entity_id: string | null
           status: string
           store_type: Database["public"]["Enums"]["store_type"]
@@ -731,6 +733,7 @@ export type Database = {
           total: number
         }
         Insert: {
+          billing_address_id?: string | null
           created_at?: string
           created_by: string
           entity_id: string
@@ -738,6 +741,7 @@ export type Database = {
           odoo_order_id?: number | null
           odoo_order_status?: string | null
           odoo_synced_at?: string | null
+          shipping_address_id?: string | null
           shipping_entity_id?: string | null
           status?: string
           store_type: Database["public"]["Enums"]["store_type"]
@@ -745,6 +749,7 @@ export type Database = {
           total?: number
         }
         Update: {
+          billing_address_id?: string | null
           created_at?: string
           created_by?: string
           entity_id?: string
@@ -752,6 +757,7 @@ export type Database = {
           odoo_order_id?: number | null
           odoo_order_status?: string | null
           odoo_synced_at?: string | null
+          shipping_address_id?: string | null
           shipping_entity_id?: string | null
           status?: string
           store_type?: Database["public"]["Enums"]["store_type"]
@@ -759,6 +765,13 @@ export type Database = {
           total?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "orders_billing_address_id_fkey"
+            columns: ["billing_address_id"]
+            isOneToOne: false
+            referencedRelation: "addresses"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "orders_created_by_profiles_fkey"
             columns: ["created_by"]
@@ -771,6 +784,13 @@ export type Database = {
             columns: ["entity_id"]
             isOneToOne: false
             referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_shipping_address_id_fkey"
+            columns: ["shipping_address_id"]
+            isOneToOne: false
+            referencedRelation: "addresses"
             referencedColumns: ["id"]
           },
           {
