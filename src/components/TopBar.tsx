@@ -1,7 +1,14 @@
-import { Bell, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import NotificationBell from "@/components/NotificationBell";
+import { useAuth } from "@/hooks/useAuth";
 
 const TopBar = ({ title, subtitle }: { title: string; subtitle?: string }) => {
+  const { profile } = useAuth();
+  const initials = profile?.full_name
+    ? profile.full_name.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2)
+    : "??";
+
   return (
     <header className="h-16 border-b border-border bg-card flex items-center justify-between px-6 sticky top-0 z-10">
       <div>
@@ -16,12 +23,9 @@ const TopBar = ({ title, subtitle }: { title: string; subtitle?: string }) => {
             className="pl-9 w-64 h-9 bg-secondary border-border text-sm"
           />
         </div>
-        <button className="relative w-9 h-9 rounded-md flex items-center justify-center hover:bg-secondary transition-colors">
-          <Bell className="w-4 h-4 text-muted-foreground" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-destructive" />
-        </button>
+        <NotificationBell />
         <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-xs font-semibold text-primary-foreground">
-          SA
+          {initials}
         </div>
       </div>
     </header>
