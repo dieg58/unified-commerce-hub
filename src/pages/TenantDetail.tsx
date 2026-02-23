@@ -16,7 +16,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import {
   ArrowLeft, Loader2, Plus, Pencil, Save, X, MoreHorizontal, Trash2,
   Building2, ShoppingCart, Wallet, Package, Palette, Users, Store,
-  CheckCircle, XCircle, Eye, Mail, Send, Clock, UserPlus, Tag, Sparkles, MapPin, Boxes
+  CheckCircle, XCircle, Eye, Mail, Send, Clock, UserPlus, Tag, Sparkles, MapPin, Boxes, AlertTriangle
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -324,6 +324,7 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
   const [productLocation, setProductLocation] = useState("");
   const [noBillingBulk, setNoBillingBulk] = useState(false);
   const [noBillingStaff, setNoBillingStaff] = useState(false);
+  const [lowStockThreshold, setLowStockThreshold] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -372,6 +373,7 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
     setProductLocation(p.location || "");
     setNoBillingBulk(!!p.no_billing_bulk);
     setNoBillingStaff(!!p.no_billing_staff);
+    setLowStockThreshold(String(p.low_stock_threshold || 0));
     setImageFile(null);
     setVariants(
       (pvariants || []).map((v: any) => ({
@@ -395,7 +397,7 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
     setName(""); setSku(""); setSkuManual(false); setCategory(""); setDescription("");
     setBulkPrice(""); setStaffPrice(""); setImageFile(null);
     setStockType("in_stock"); setStockQty(""); setProductLocation("");
-    setNoBillingBulk(false); setNoBillingStaff(false);
+    setNoBillingBulk(false); setNoBillingStaff(false); setLowStockThreshold("");
     setVariants([]); setEditingProduct(null);
   };
 
@@ -424,6 +426,7 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
           location: productLocation.trim() || null,
           no_billing_bulk: noBillingBulk,
           no_billing_staff: noBillingStaff,
+          low_stock_threshold: parseInt(lowStockThreshold) || 0,
         })
         .select()
         .single();
@@ -484,6 +487,7 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
         location: productLocation.trim() || null,
         no_billing_bulk: noBillingBulk,
         no_billing_staff: noBillingStaff,
+        low_stock_threshold: parseInt(lowStockThreshold) || 0,
       }).eq("id", editingProduct.id);
       if (error) throw error;
 
@@ -667,24 +671,36 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
                   </TableCell>
                   <TableCell><Badge variant="outline" className="text-xs capitalize">{categories.find(c => c.slug === p.category)?.name || p.category || "—"}</Badge></TableCell>
                   <TableCell>
-                    <div className="text-xs">
-                      {pvariants?.length ? (
-                        <div className="space-y-0.5">
-                          {pvariants.map((v: any) => (
-                            <div key={v.id} className="flex items-center gap-1">
-                              <span className="text-muted-foreground">{v.variant_value}:</span>
-                              <span className="font-medium">{v.stock_qty}</span>
-                              {v.location && <span className="text-muted-foreground text-[10px]">({v.location})</span>}
+                    {(() => {
+                      const threshold = p.low_stock_threshold || 0;
+                      const isLow = (qty: number) => threshold > 0 && qty <= threshold;
+                      return (
+                        <div className="text-xs">
+                          {pvariants?.length ? (
+                            <div className="space-y-0.5">
+                              {pvariants.map((v: any) => {
+                                const low = isLow(v.stock_qty);
+                                return (
+                                  <div key={v.id} className="flex items-center gap-1">
+                                    <span className="text-muted-foreground">{v.variant_value}:</span>
+                                    <span className={`font-medium ${low ? "text-destructive" : ""}`}>{v.stock_qty}</span>
+                                    {low && <AlertTriangle className="w-3 h-3 text-destructive" />}
+                                    {v.location && <span className="text-muted-foreground text-[10px]">({v.location})</span>}
+                                  </div>
+                                );
+                              })}
                             </div>
-                          ))}
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <span className={`font-medium ${isLow(p.stock_qty) ? "text-destructive" : ""}`}>{p.stock_qty}</span>
+                              {isLow(p.stock_qty) && <AlertTriangle className="w-3 h-3 text-destructive" />}
+                              {p.location && <span className="text-muted-foreground text-[10px]">({p.location})</span>}
+                            </div>
+                          )}
+                          {threshold > 0 && <p className="text-[10px] text-muted-foreground mt-0.5">Seuil: {threshold}</p>}
                         </div>
-                      ) : (
-                        <div className="flex items-center gap-1">
-                          <span className="font-medium">{p.stock_qty}</span>
-                          {p.location && <span className="text-muted-foreground text-[10px]">({p.location})</span>}
-                        </div>
-                      )}
-                    </div>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell>{bulk ? formatCurrency(Number(bulk.price)) : "—"}</TableCell>
                   <TableCell>{staff ? formatCurrency(Number(staff.price)) : "—"}</TableCell>
@@ -807,7 +823,7 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
             <div>
               <Label className="text-sm font-semibold flex items-center gap-1.5"><Boxes className="w-4 h-4" /> Stock produit</Label>
               <p className="text-xs text-muted-foreground mt-0.5 mb-2">Si des variantes sont définies, le stock sera géré par variante.</p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">Quantité en stock</Label>
                   <Input type="number" value={stockQty} onChange={(e) => setStockQty(e.target.value)} placeholder="0" min="0" />
@@ -815,6 +831,10 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">Emplacement</Label>
                   <Input value={productLocation} onChange={(e) => setProductLocation(e.target.value)} placeholder="Ex: Étagère A3, Entrepôt Nord…" maxLength={100} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Seuil alerte stock</Label>
+                  <Input type="number" value={lowStockThreshold} onChange={(e) => setLowStockThreshold(e.target.value)} placeholder="0 = pas d'alerte" min="0" />
                 </div>
               </div>
             </div>
@@ -993,7 +1013,7 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
             <div>
               <Label className="text-sm font-semibold flex items-center gap-1.5"><Boxes className="w-4 h-4" /> Stock produit</Label>
               <p className="text-xs text-muted-foreground mt-0.5 mb-2">Si des variantes sont définies, le stock sera géré par variante.</p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">Quantité en stock</Label>
                   <Input type="number" value={stockQty} onChange={(e) => setStockQty(e.target.value)} placeholder="0" min="0" />
@@ -1001,6 +1021,10 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">Emplacement</Label>
                   <Input value={productLocation} onChange={(e) => setProductLocation(e.target.value)} placeholder="Ex: Étagère A3" maxLength={100} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Seuil alerte stock</Label>
+                  <Input type="number" value={lowStockThreshold} onChange={(e) => setLowStockThreshold(e.target.value)} placeholder="0 = pas d'alerte" min="0" />
                 </div>
               </div>
             </div>
