@@ -5,19 +5,147 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-async function odooGet(url: string, db: string, login: string, apiKey: string, endpoint: string) {
-  const res = await fetch(`${url}${endpoint}`, {
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "X-Odoo-Db": db,
-      "X-Odoo-Login": login,
-    },
+// ── XML-RPC helpers ──
+
+function xmlRpcCall(methodName: string, params: string[]): string {
+  return `<?xml version="1.0"?>
+<methodCall>
+  <methodName>${methodName}</methodName>
+  <params>${params.join("")}</params>
+</methodCall>`;
+}
+
+function param(inner: string): string {
+  return `<param><value>${inner}</value></param>`;
+}
+function str(v: string): string { return `<string>${escapeXml(v)}</string>`; }
+function int(v: number): string { return `<int>${v}</int>`; }
+
+function escapeXml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function array(items: string[]): string {
+  return `<array><data>${items.map(v => `<value>${v}</value>`).join("")}</data></array>`;
+}
+
+function struct(fields: Record<string, string>): string {
+  const members = Object.entries(fields)
+    .map(([k, v]) => `<member><name>${k}</name><value>${v}</value></member>`)
+    .join("");
+  return `<struct>${members}</struct>`;
+}
+
+async function xmlRpcPost(url: string, body: string): Promise<string> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "text/xml" },
+    body,
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Odoo GET ${endpoint} [${res.status}]: ${text}`);
+    throw new Error(`XML-RPC HTTP ${res.status}: ${text.substring(0, 300)}`);
   }
-  return res.json();
+  return res.text();
+}
+
+function extractInt(xml: string): number | null {
+  const m = xml.match(/<(?:int|i4)>(\d+)<\/(?:int|i4)>/);
+  return m ? parseInt(m[1], 10) : null;
+}
+
+function extractInts(xml: string): number[] {
+  return [...xml.matchAll(/<(?:int|i4)>(\d+)<\/(?:int|i4)>/g)].map(m => parseInt(m[1], 10));
+}
+
+function extractString(xml: string, fieldName: string): string | null {
+  // Look for <name>fieldName</name><value><string>...</string></value>
+  const re = new RegExp(`<name>${fieldName}</name>\\s*<value>\\s*<string>([\\s\\S]*?)</string>`, "m");
+  const m = xml.match(re);
+  return m ? m[1] : null;
+}
+
+function extractDouble(xml: string, fieldName: string): number {
+  const re = new RegExp(`<name>${fieldName}</name>\\s*<value>\\s*<double>([\\d.]+)</double>`, "m");
+  const m = xml.match(re);
+  return m ? parseFloat(m[1]) : 0;
+}
+
+function extractFieldInts(xml: string, fieldName: string): number[] {
+  // Extract array of ints inside a specific field
+  const re = new RegExp(`<name>${fieldName}</name>\\s*<value>\\s*<array>\\s*<data>([\\s\\S]*?)</data>\\s*</array>`, "m");
+  const m = xml.match(re);
+  if (!m) return [];
+  return [...m[1].matchAll(/<(?:int|i4)>(\d+)<\/(?:int|i4)>/g)].map(x => parseInt(x[1], 10));
+}
+
+function checkFault(xml: string): void {
+  if (xml.includes("<fault>")) {
+    const faultString = xml.match(/<name>faultString<\/name>\s*<value>\s*<string>([\s\S]*?)<\/string>/);
+    throw new Error(`Odoo XML-RPC fault: ${faultString?.[1] || "Unknown fault"}`);
+  }
+}
+
+// ── Odoo operations ──
+
+async function authenticate(url: string, db: string, login: string, apiKey: string): Promise<number> {
+  const body = xmlRpcCall("authenticate", [
+    param(str(db)),
+    param(str(login)),
+    param(str(apiKey)),
+    param(struct({})),
+  ]);
+  const xml = await xmlRpcPost(`${url}/xmlrpc/2/common`, body);
+  checkFault(xml);
+  const uid = extractInt(xml);
+  if (!uid) throw new Error("Odoo authentication failed");
+  return uid;
+}
+
+async function execute(url: string, db: string, uid: number, apiKey: string, model: string, method: string, args: string[], kwargs: string = struct({})): Promise<string> {
+  const body = xmlRpcCall("execute_kw", [
+    param(str(db)),
+    param(int(uid)),
+    param(str(apiKey)),
+    param(str(model)),
+    param(str(method)),
+    param(array(args)),
+    param(kwargs),
+  ]);
+  const xml = await xmlRpcPost(`${url}/xmlrpc/2/object`, body);
+  checkFault(xml);
+  return xml;
+}
+
+// ── Parse a single struct from read response ──
+// This is a simplified parser that extracts key fields we need
+function parseOrderRead(xml: string): { state: string | null; invoice_ids: number[] } {
+  return {
+    state: extractString(xml, "state"),
+    invoice_ids: extractFieldInts(xml, "invoice_ids"),
+  };
+}
+
+function parseInvoiceRead(xml: string): {
+  name: string | null;
+  invoice_date: string | null;
+  invoice_date_due: string | null;
+  amount_untaxed: number;
+  amount_tax: number;
+  amount_total: number;
+  payment_state: string | null;
+  move_type: string | null;
+} {
+  return {
+    name: extractString(xml, "name"),
+    invoice_date: extractString(xml, "invoice_date"),
+    invoice_date_due: extractString(xml, "invoice_date_due"),
+    amount_untaxed: extractDouble(xml, "amount_untaxed"),
+    amount_tax: extractDouble(xml, "amount_tax"),
+    amount_total: extractDouble(xml, "amount_total"),
+    payment_state: extractString(xml, "payment_state"),
+    move_type: extractString(xml, "move_type"),
+  };
 }
 
 Deno.serve(async (req) => {
@@ -39,23 +167,21 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    // Optional: scope to a single order (manual refresh) or poll all synced orders
-    let body: any = {};
-    try {
-      body = await req.json();
-    } catch { /* empty body = cron call, poll all */ }
+    // Authenticate with Odoo
+    const uid = await authenticate(ODOO_URL, ODOO_DB, ODOO_LOGIN, ODOO_API_KEY);
 
+    // Optional: scope to a single order or poll all synced orders
+    let body: any = {};
+    try { body = await req.json(); } catch { /* cron call */ }
     const singleOrderId = body?.order_id;
 
-    // 1. Get orders that have been synced to Odoo
+    // Get orders synced with Odoo
     let query = supabase
       .from("orders")
       .select("id, tenant_id, odoo_order_id, odoo_order_status")
       .not("odoo_order_id", "is", null);
 
-    if (singleOrderId) {
-      query = query.eq("id", singleOrderId);
-    }
+    if (singleOrderId) query = query.eq("id", singleOrderId);
 
     const { data: orders, error: ordersErr } = await query;
     if (ordersErr) throw ordersErr;
@@ -71,12 +197,13 @@ Deno.serve(async (req) => {
 
     for (const order of orders) {
       try {
-        // 2. Fetch order status from Odoo
-        const orderData = await odooGet(ODOO_URL, ODOO_DB, ODOO_LOGIN, ODOO_API_KEY,
-          `/api/v1/sale.order/${order.odoo_order_id}?fields=state,invoice_ids`);
+        // Read order from Odoo
+        const fields = struct({ fields: array([str("state"), str("invoice_ids")]) });
+        const readXml = await execute(ODOO_URL, ODOO_DB, uid, ODOO_API_KEY,
+          "sale.order", "read", [array([int(order.odoo_order_id!)])], fields);
 
-        const odooOrder = orderData?.data || orderData;
-        const newStatus = odooOrder?.state;
+        const odooOrder = parseOrderRead(readXml);
+        const newStatus = odooOrder.state;
 
         if (newStatus && newStatus !== order.odoo_order_status) {
           await supabase.from("orders").update({
@@ -97,20 +224,23 @@ Deno.serve(async (req) => {
           });
         }
 
-        // 3. Fetch invoices linked to this Odoo order
-        const invoiceIds = odooOrder?.invoice_ids || [];
-        for (const invId of invoiceIds) {
+        // Fetch invoices
+        for (const invId of odooOrder.invoice_ids) {
           try {
-            const invData = await odooGet(ODOO_URL, ODOO_DB, ODOO_LOGIN, ODOO_API_KEY,
-              `/api/v1/account.move/${invId}?fields=name,invoice_date,invoice_date_due,amount_untaxed,amount_tax,amount_total,payment_state,move_type`);
+            const invFields = struct({ fields: array([
+              str("name"), str("invoice_date"), str("invoice_date_due"),
+              str("amount_untaxed"), str("amount_tax"), str("amount_total"),
+              str("payment_state"), str("move_type"),
+            ]) });
+            const invXml = await execute(ODOO_URL, ODOO_DB, uid, ODOO_API_KEY,
+              "account.move", "read", [array([int(invId)])], invFields);
 
-            const inv = invData?.data || invData;
-            if (inv?.move_type !== "out_invoice") continue;
+            const inv = parseInvoiceRead(invXml);
+            if (inv.move_type !== "out_invoice") continue;
 
-            // Upsert invoice
             const { data: existing } = await supabase
               .from("invoices")
-              .select("id, payment_status")
+              .select("id")
               .eq("odoo_invoice_id", invId)
               .single();
 
@@ -118,9 +248,9 @@ Deno.serve(async (req) => {
               invoice_number: inv.name || `INV-${invId}`,
               invoice_date: inv.invoice_date || new Date().toISOString().split("T")[0],
               due_date: inv.invoice_date_due || null,
-              amount_untaxed: inv.amount_untaxed || 0,
-              amount_tax: inv.amount_tax || 0,
-              amount_total: inv.amount_total || 0,
+              amount_untaxed: inv.amount_untaxed,
+              amount_tax: inv.amount_tax,
+              amount_total: inv.amount_total,
               payment_status: inv.payment_state || "not_paid",
             };
 
