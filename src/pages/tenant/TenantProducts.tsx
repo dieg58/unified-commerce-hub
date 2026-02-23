@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Loader2, Package, Search } from "lucide-react";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/mock-data";
+import ExportMenu from "@/components/ExportMenu";
+import type { ExportColumn } from "@/lib/export-utils";
 
 const TenantProducts = () => {
   const { profile, isSuperAdmin } = useAuth();
@@ -55,14 +57,30 @@ const TenantProducts = () => {
       <TopBar title="Produits" subtitle="Gérer la visibilité et les paramètres des produits" />
       <div className="p-6 space-y-6 overflow-auto">
         <div className="bg-card rounded-lg border border-border shadow-card animate-fade-in">
-          <div className="p-5 border-b border-border flex items-center justify-between">
+          <div className="p-5 border-b border-border flex items-center justify-between flex-wrap gap-2">
             <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
               <Package className="w-4 h-4 text-primary" />
               Produits ({products?.length || 0}) — Bulk: {bulkCount} · Staff: {staffCount}
             </h3>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-              <Input placeholder="Rechercher…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-8 w-52 text-sm" />
+            <div className="flex items-center gap-2">
+              <ExportMenu
+                title="Produits"
+                filename="produits"
+                columns={[
+                  { header: "Nom", accessor: "name" },
+                  { header: "SKU", accessor: "sku" },
+                  { header: "Catégorie", accessor: "category" },
+                  { header: "Stock", accessor: "stock_qty" },
+                  { header: "Seuil alerte", accessor: "low_stock_threshold" },
+                  { header: "Bulk actif", accessor: (r: any) => r.active_bulk ? "Oui" : "Non" },
+                  { header: "Staff actif", accessor: (r: any) => r.active_staff ? "Oui" : "Non" },
+                ]}
+                data={filtered || []}
+              />
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                <Input placeholder="Rechercher…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-8 w-52 text-sm" />
+              </div>
             </div>
           </div>
           {isLoading ? (
