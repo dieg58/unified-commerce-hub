@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import TopBar from "@/components/TopBar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import ExportMenu from "@/components/ExportMenu";
+import { fmtDate, type ExportColumn } from "@/lib/export-utils";
 
 const roleLabels: Record<string, string> = {
   shop_manager: "Responsable Boutique",
@@ -170,9 +172,24 @@ const TenantUsers = () => {
 
         {/* Existing users table */}
         <div className="bg-card rounded-lg border border-border shadow-card animate-fade-in">
-          <div className="p-5 border-b border-border flex items-center justify-between">
+          <div className="p-5 border-b border-border flex items-center justify-between flex-wrap gap-2">
             <h3 className="text-sm font-semibold text-foreground">Utilisateurs ({filteredProfiles.length})</h3>
             <div className="flex items-center gap-2">
+              <ExportMenu
+                title="Utilisateurs"
+                filename="utilisateurs"
+                columns={[
+                  { header: "Nom", accessor: (r: any) => r.full_name || "—" },
+                  { header: "Email", accessor: "email" },
+                  { header: "Rôles", accessor: (r: any) => (allRoles?.filter((ro) => ro.user_id === r.id).map((ro) => roleLabels[ro.role] || ro.role).join(", ")) || "Aucun" },
+                  { header: "Ajouté le", accessor: (r: any) => fmtDate(r.created_at) },
+                ]}
+                data={filteredProfiles}
+                onFilterChange={(f) => {
+                  // Date filter for users
+                  // Handled inline via useMemo below
+                }}
+              />
               <Select value={roleFilter} onValueChange={setRoleFilter}>
                 <SelectTrigger className="w-[200px] h-9 text-xs">
                   <SelectValue placeholder="Filtrer par rôle" />

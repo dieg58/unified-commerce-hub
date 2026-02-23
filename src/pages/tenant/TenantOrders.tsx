@@ -1,3 +1,4 @@
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import TopBar from "@/components/TopBar";
 import { StatusBadge } from "@/components/DashboardWidgets";
@@ -11,12 +12,26 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { formatCurrency } from "@/lib/mock-data";
 import { toast } from "sonner";
+import ExportMenu from "@/components/ExportMenu";
+import { fmtDate, type ExportColumn } from "@/lib/export-utils";
+
+const orderExportColumns: ExportColumn[] = [
+  { header: "ID", accessor: (r: any) => r.id.slice(0, 8) },
+  { header: "Utilisateur", accessor: (r: any) => (r.profiles as any)?.full_name || (r.profiles as any)?.email || "—" },
+  { header: "Département", accessor: (r: any) => (r.entities as any)?.name || "—" },
+  { header: "Type", accessor: (r: any) => r.store_type === "bulk" ? "Interne" : "Employé" },
+  { header: "Articles", accessor: (r: any) => (r.order_items as any[])?.reduce((s: number, it: any) => s + it.qty, 0) || 0 },
+  { header: "Total", accessor: (r: any) => formatCurrency(Number(r.total)) },
+  { header: "Statut", accessor: "status" },
+  { header: "Date", accessor: (r: any) => fmtDate(r.created_at) },
+];
 
 const TenantOrders = () => {
   const navigate = useNavigate();
   const { profile, isShopManager } = useAuth();
   const qc = useQueryClient();
   const tenantId = profile?.tenant_id;
+  const [exportFilters, setExportFilters] = useState<{ from?: Date; to?: Date; storeType?: string }>({});
 
   const { data: orders, isLoading } = useQuery({
     queryKey: ["tenant-orders", tenantId],
@@ -44,9 +59,21 @@ const TenantOrders = () => {
     onError: (err: any) => toast.error(err.message),
   });
 
-  const bulkOrders = orders?.filter((o) => o.store_type === "bulk") || [];
-  const staffOrders = orders?.filter((o) => o.store_type === "staff") || [];
-  const pendingApproval = orders?.filter((o) => o.status === "pending_approval" || o.status === "pending") || [];
+  const filteredOrders = useMemo(() => {
+    let list = orders || [];
+    if (exportFilters.from) list = list.filter((o) => new Date(o.created_at) >= exportFilters.from!);
+    if (exportFilters.to) {
+      const end = new Date(exportFilters.to);
+      end.setHours(23, 59, 59);
+      list = list.filter((o) => new Date(o.created_at) <= end);
+    }
+    if (exportFilters.storeType && exportFilters.storeType !== "all") list = list.filter((o) => o.store_type === exportFilters.storeType);
+    return list;
+  }, [orders, exportFilters]);
+
+  const bulkOrders = filteredOrders.filter((o) => o.store_type === "bulk");
+  const staffOrders = filteredOrders.filter((o) => o.store_type === "staff");
+  const pendingApproval = filteredOrders.filter((o) => o.status === "pending_approval" || o.status === "pending");
 
   const OrderTable = ({ items }: { items: typeof orders }) => {
     if (!items?.length) return <p className="p-8 text-center text-sm text-muted-foreground">Aucune commande</p>;
@@ -126,15 +153,23 @@ const TenantOrders = () => {
             <div className="flex items-center justify-center p-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
           ) : (
             <Tabs defaultValue="all" className="w-full">
-              <div className="p-5 border-b border-border">
+              <div className="p-5 border-b border-border flex items-center justify-between flex-wrap gap-2">
                 <TabsList className="bg-secondary">
-                  <TabsTrigger value="all" className="text-xs">Toutes ({orders?.length || 0})</TabsTrigger>
+                  <TabsTrigger value="all" className="text-xs">Toutes ({filteredOrders.length})</TabsTrigger>
                   <TabsTrigger value="pending" className="text-xs">En attente ({pendingApproval.length})</TabsTrigger>
                   <TabsTrigger value="bulk" className="text-xs">Interne ({bulkOrders.length})</TabsTrigger>
                   <TabsTrigger value="staff" className="text-xs">Employé ({staffOrders.length})</TabsTrigger>
                 </TabsList>
+                <ExportMenu
+                  title="Commandes"
+                  filename="commandes"
+                  columns={orderExportColumns}
+                  data={filteredOrders}
+                  showStoreFilter
+                  onFilterChange={setExportFilters}
+                />
               </div>
-              <TabsContent value="all" className="m-0"><OrderTable items={orders} /></TabsContent>
+              <TabsContent value="all" className="m-0"><OrderTable items={filteredOrders} /></TabsContent>
               <TabsContent value="pending" className="m-0"><OrderTable items={pendingApproval} /></TabsContent>
               <TabsContent value="bulk" className="m-0"><OrderTable items={bulkOrders} /></TabsContent>
               <TabsContent value="staff" className="m-0"><OrderTable items={staffOrders} /></TabsContent>

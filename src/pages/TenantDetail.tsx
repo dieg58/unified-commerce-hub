@@ -23,6 +23,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/mock-data";
 import { toast } from "sonner";
+import ExportMenu from "@/components/ExportMenu";
+import { fmtDate } from "@/lib/export-utils";
 
 const TenantDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -1690,8 +1692,22 @@ function StockHistoryDialog({ product, tenantId, onClose }: { product: any; tena
         </DialogHeader>
 
         <div className="space-y-4 max-h-[65vh] overflow-auto">
-          {/* Add movement button */}
-          <div className="flex justify-end">
+          {/* Actions */}
+          <div className="flex justify-between items-center">
+            <ExportMenu
+              title={`Mouvements stock — ${product.name}`}
+              filename={`mouvements-stock-${product.sku}`}
+              columns={[
+                { header: "Date", accessor: (r: any) => fmtDate(r.created_at) },
+                { header: "Type", accessor: (r: any) => r.movement_type === "entry" ? "Entrée" : r.movement_type === "exit" ? "Sortie" : "Ajustement" },
+                { header: "Quantité", accessor: "quantity" },
+                { header: "Avant", accessor: "previous_qty" },
+                { header: "Après", accessor: "new_qty" },
+                { header: "Raison", accessor: (r: any) => r.reason || "—" },
+                { header: "Par", accessor: (r: any) => (r.profiles as any)?.full_name || "—" },
+              ]}
+              data={movements || []}
+            />
             <Button size="sm" className="gap-1.5" onClick={() => setShowAddMovement(!showAddMovement)}>
               <Plus className="w-4 h-4" /> Nouveau mouvement
             </Button>
