@@ -815,24 +815,36 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
               </div>
               </div>
 
-            {/* Stock (product-level, shown when no variants) */}
+            {/* Stock (product-level) */}
             <div>
               <Label className="text-sm font-semibold flex items-center gap-1.5"><Boxes className="w-4 h-4" /> Stock produit</Label>
-              <p className="text-xs text-muted-foreground mt-0.5 mb-2">Si des variantes sont définies, le stock sera géré par variante.</p>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Quantité en stock</Label>
-                  <Input type="number" value={stockQty} onChange={(e) => setStockQty(e.target.value)} placeholder="0" min="0" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Emplacement</Label>
-                  <Input value={productLocation} onChange={(e) => setProductLocation(e.target.value)} placeholder="Ex: Étagère A3, Entrepôt Nord…" maxLength={100} />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Seuil alerte stock</Label>
-                  <Input type="number" value={lowStockThreshold} onChange={(e) => setLowStockThreshold(e.target.value)} placeholder="0 = pas d'alerte" min="0" />
-                </div>
-              </div>
+              {variantCombinations.length > 0 ? (
+                <>
+                  <p className="text-xs text-muted-foreground mt-0.5 mb-2">Le stock et l'emplacement sont gérés par variante. Seul le seuil d'alerte s'applique à l'ensemble du produit.</p>
+                  <div className="max-w-xs space-y-2">
+                    <Label className="text-xs text-muted-foreground flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Seuil alerte stock</Label>
+                    <Input type="number" value={lowStockThreshold} onChange={(e) => setLowStockThreshold(e.target.value)} placeholder="0 = pas d'alerte" min="0" />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs text-muted-foreground mt-0.5 mb-2">Si des variantes sont définies, le stock sera géré par variante.</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Quantité en stock</Label>
+                      <Input type="number" value={stockQty} onChange={(e) => setStockQty(e.target.value)} placeholder="0" min="0" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Emplacement</Label>
+                      <Input value={productLocation} onChange={(e) => setProductLocation(e.target.value)} placeholder="Ex: Étagère A3, Entrepôt Nord…" maxLength={100} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Seuil alerte stock</Label>
+                      <Input type="number" value={lowStockThreshold} onChange={(e) => setLowStockThreshold(e.target.value)} placeholder="0 = pas d'alerte" min="0" />
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Variants */}
