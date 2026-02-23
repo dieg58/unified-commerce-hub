@@ -93,6 +93,21 @@ const Storefront = () => {
     enabled: !!tenantId,
   });
 
+  // Fetch shipping config
+  const { data: shippingConfig } = useQuery({
+    queryKey: ["store-shipping", tenantId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tenant_shipping")
+        .select("*")
+        .eq("tenant_id", tenantId!)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!tenantId,
+  });
+
   // Fetch addresses for selected entities
   const { data: billingAddresses } = useQuery({
     queryKey: ["store-addresses-billing", billingEntityId],
@@ -178,7 +193,23 @@ const Storefront = () => {
   const freeProductIds = new Set(products?.filter((p) => isProductFree(p)).map((p) => p.id) || []);
   const effectiveTotal = items.reduce((s, i) => s + (freeProductIds.has(i.productId) ? 0 : i.price * i.qty), 0);
   const hasAnyFreeItems = items.some((i) => freeProductIds.has(i.productId));
-  const isBudgetExceeded = storeType === "staff" && budgetRemaining !== null && effectiveTotal > budgetRemaining;
+
+  // Calculate shipping fee
+  const shippingFee = useMemo(() => {
+    if (!shippingConfig || shippingConfig.mode === "none") return 0;
+    if (shippingConfig.mode === "fixed") return Number(shippingConfig.fixed_amount) || 0;
+    if (shippingConfig.mode === "threshold") {
+      const threshold = Number(shippingConfig.threshold_amount) || 0;
+      return effectiveTotal >= threshold ? 0 : (Number(shippingConfig.threshold_fee) || 0);
+    }
+    if (shippingConfig.mode === "per_store_type") {
+      return storeType === "bulk" ? (Number(shippingConfig.bulk_fee) || 0) : (Number(shippingConfig.staff_fee) || 0);
+    }
+    return 0;
+  }, [shippingConfig, effectiveTotal, storeType]);
+
+  const orderTotal = effectiveTotal + shippingFee;
+  const isBudgetExceeded = storeType === "staff" && budgetRemaining !== null && orderTotal > budgetRemaining;
   const selectedEntity = entities?.find((e) => e.id === billingEntityId);
   const requiresApproval = selectedEntity?.requires_approval || isBudgetExceeded;
   const needsApproval = requiresApproval;
@@ -191,7 +222,7 @@ const Storefront = () => {
         .from("orders")
         .insert({
           tenant_id: tenantId, entity_id: billingEntityId, shipping_entity_id: shippingEntityId, created_by: profile.id,
-          store_type: storeType, total: effectiveTotal, status: needsApproval ? "pending_approval" : "pending",
+          store_type: storeType, total: orderTotal, status: needsApproval ? "pending_approval" : "pending",
           billing_address_id: billingAddressId || null, shipping_address_id: shippingAddressId || null,
         })
         .select().single();
@@ -598,7 +629,7 @@ const Storefront = () => {
                   {isBudgetExceeded ? <AlertTriangle className="w-4 h-4 text-warning" /> : <CheckCircle className="w-4 h-4 text-success" />}
                   <span className="text-sm font-medium">Budget restant : {formatCurrency(budgetRemaining)}</span>
                 </div>
-                {isBudgetExceeded && <p className="text-xs text-warning mt-1">Le total ({formatCurrency(effectiveTotal)}) dépasse le budget. La commande nécessitera une approbation.</p>}
+                {isBudgetExceeded && <p className="text-xs text-warning mt-1">Le total ({formatCurrency(orderTotal)}) dépasse le budget. La commande nécessitera une approbation.</p>}
               </div>
             )}
             {needsApproval && (
@@ -626,9 +657,21 @@ const Storefront = () => {
                   </div>
                 );
               })}
+              {shippingFee > 0 && (
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1"><Truck className="w-3 h-3" /> Frais de port</span>
+                  <span>{formatCurrency(shippingFee)}</span>
+                </div>
+              )}
+              {shippingFee === 0 && shippingConfig && shippingConfig.mode !== "none" && (
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1"><Truck className="w-3 h-3" /> Frais de port</span>
+                  <span className="text-primary font-medium">Offert</span>
+                </div>
+              )}
               <div className="border-t border-border pt-2 flex justify-between text-sm font-bold">
                 <span>Total</span>
-                <span>{formatCurrency(effectiveTotal)}</span>
+                <span>{formatCurrency(orderTotal)}</span>
               </div>
             </div>
           </div>

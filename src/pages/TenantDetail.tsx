@@ -17,7 +17,7 @@ import {
   ArrowLeft, Loader2, Plus, Pencil, Save, X, MoreHorizontal, Trash2,
   Building2, ShoppingCart, Wallet, Package, Palette, Users, Store,
   CheckCircle, XCircle, Eye, Mail, Send, Clock, UserPlus, Tag, Sparkles, MapPin, Boxes, AlertTriangle,
-  ArrowUpCircle, ArrowDownCircle, RefreshCw, History
+  ArrowUpCircle, ArrowDownCircle, RefreshCw, History, Truck
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -217,6 +217,7 @@ const TenantDetail = () => {
             <TabsTrigger value="orders" className="text-xs gap-1"><ShoppingCart className="w-3.5 h-3.5" /> Commandes</TabsTrigger>
             <TabsTrigger value="budgets" className="text-xs gap-1"><Wallet className="w-3.5 h-3.5" /> Budgets</TabsTrigger>
             <TabsTrigger value="branding" className="text-xs gap-1"><Palette className="w-3.5 h-3.5" /> Branding</TabsTrigger>
+            <TabsTrigger value="shipping" className="text-xs gap-1"><Truck className="w-3.5 h-3.5" /> Livraison</TabsTrigger>
           </TabsList>
 
           <TabsContent value="users" className="mt-4">
@@ -241,6 +242,10 @@ const TenantDetail = () => {
 
           <TabsContent value="branding" className="mt-4">
             <BrandingTab tenant={tenant} branding={branding} />
+          </TabsContent>
+
+          <TabsContent value="shipping" className="mt-4">
+            <ShippingTab tenantId={id!} />
           </TabsContent>
         </Tabs>
       </div>
@@ -1713,6 +1718,152 @@ function StockHistoryDialog({ product, tenantId, onClose }: { product: any; tena
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/* ─── Shipping Tab ─── */
+function ShippingTab({ tenantId }: { tenantId: string }) {
+  const qc = useQueryClient();
+  const { data: config, isLoading } = useQuery({
+    queryKey: ["tenant-shipping", tenantId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tenant_shipping")
+        .select("*")
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const [mode, setMode] = useState("none");
+  const [fixedAmount, setFixedAmount] = useState("0");
+  const [thresholdAmount, setThresholdAmount] = useState("0");
+  const [thresholdFee, setThresholdFee] = useState("0");
+  const [bulkFee, setBulkFee] = useState("0");
+  const [staffFee, setStaffFee] = useState("0");
+  const [initialized, setInitialized] = useState(false);
+
+  // Sync state when data loads
+  if (config && !initialized) {
+    setMode(config.mode);
+    setFixedAmount(String(config.fixed_amount));
+    setThresholdAmount(String(config.threshold_amount));
+    setThresholdFee(String(config.threshold_fee));
+    setBulkFee(String(config.bulk_fee));
+    setStaffFee(String(config.staff_fee));
+    setInitialized(true);
+  }
+  if (!config && !isLoading && !initialized) {
+    setInitialized(true);
+  }
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const payload = {
+        tenant_id: tenantId,
+        mode,
+        fixed_amount: parseFloat(fixedAmount) || 0,
+        threshold_amount: parseFloat(thresholdAmount) || 0,
+        threshold_fee: parseFloat(thresholdFee) || 0,
+        bulk_fee: parseFloat(bulkFee) || 0,
+        staff_fee: parseFloat(staffFee) || 0,
+      };
+      const { error } = await supabase
+        .from("tenant_shipping")
+        .upsert(payload, { onConflict: "tenant_id" });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tenant-shipping", tenantId] });
+      toast.success("Configuration livraison sauvegardée");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  if (isLoading) return <div className="flex items-center justify-center p-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
+
+  const modeOptions = [
+    { value: "none", label: "Livraison gratuite", desc: "Aucun frais de port appliqué" },
+    { value: "fixed", label: "Montant fixe", desc: "Un montant unique par commande" },
+    { value: "threshold", label: "Gratuit au-dessus d'un seuil", desc: "Frais appliqués si le total est inférieur au seuil" },
+    { value: "per_store_type", label: "Par type de boutique", desc: "Frais différents pour Bulk et Staff" },
+  ];
+
+  return (
+    <div className="bg-card rounded-lg border border-border shadow-card p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <SectionHeader title="Frais de port" />
+        <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="gap-1.5">
+          {saveMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+          Sauvegarder
+        </Button>
+      </div>
+
+      {/* Mode selector */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {modeOptions.map((opt) => (
+          <button
+            key={opt.value}
+            onClick={() => setMode(opt.value)}
+            className={`p-4 rounded-lg border text-left transition-all ${
+              mode === opt.value
+                ? "border-primary bg-primary/5 ring-1 ring-primary"
+                : "border-border hover:border-foreground/20"
+            }`}
+          >
+            <p className="text-sm font-semibold text-foreground">{opt.label}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{opt.desc}</p>
+          </button>
+        ))}
+      </div>
+
+      {/* Mode-specific fields */}
+      {mode === "fixed" && (
+        <div className="space-y-2 max-w-xs">
+          <Label className="text-sm">Montant fixe (€)</Label>
+          <Input type="number" min="0" step="0.01" value={fixedAmount} onChange={(e) => setFixedAmount(e.target.value)} />
+        </div>
+      )}
+
+      {mode === "threshold" && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg">
+          <div className="space-y-2">
+            <Label className="text-sm">Frais de port (€)</Label>
+            <Input type="number" min="0" step="0.01" value={thresholdFee} onChange={(e) => setThresholdFee(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm">Gratuit à partir de (€)</Label>
+            <Input type="number" min="0" step="0.01" value={thresholdAmount} onChange={(e) => setThresholdAmount(e.target.value)} />
+          </div>
+        </div>
+      )}
+
+      {mode === "per_store_type" && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg">
+          <div className="space-y-2">
+            <Label className="text-sm">Frais Merch Interne / Bulk (€)</Label>
+            <Input type="number" min="0" step="0.01" value={bulkFee} onChange={(e) => setBulkFee(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm">Frais Merch Employé / Staff (€)</Label>
+            <Input type="number" min="0" step="0.01" value={staffFee} onChange={(e) => setStaffFee(e.target.value)} />
+          </div>
+        </div>
+      )}
+
+      {/* Preview */}
+      <div className="rounded-lg bg-muted/30 border border-border p-4">
+        <p className="text-xs font-semibold text-muted-foreground mb-1">Aperçu</p>
+        <p className="text-sm text-foreground">
+          {mode === "none" && "Livraison gratuite sur toutes les commandes."}
+          {mode === "fixed" && `${formatCurrency(parseFloat(fixedAmount) || 0)} de frais de port par commande.`}
+          {mode === "threshold" && `${formatCurrency(parseFloat(thresholdFee) || 0)} de frais de port. Gratuit à partir de ${formatCurrency(parseFloat(thresholdAmount) || 0)}.`}
+          {mode === "per_store_type" && `Bulk : ${formatCurrency(parseFloat(bulkFee) || 0)} · Staff : ${formatCurrency(parseFloat(staffFee) || 0)}`}
+        </p>
+      </div>
+    </div>
   );
 }
 
