@@ -62,48 +62,114 @@ async function authenticate(url: string, db: string, login: string, apiKey: stri
   return uid;
 }
 
-async function getSessionId(url: string, db: string, login: string, password: string): Promise<string> {
-  const res = await fetch(`${url}/web/session/authenticate`, {
+async function getInvoicePdf(url: string, db: string, login: string, apiKey: string, invoiceId: number): Promise<Uint8Array> {
+  // First authenticate via XML-RPC (which works with API keys)
+  const uid = await authenticate(url, db, login, apiKey);
+  console.log("XML-RPC auth successful, uid:", uid);
+
+  // Try session auth to use web report controller
+  const sessionRes = await fetch(`${url}/web/session/authenticate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       jsonrpc: "2.0",
       method: "call",
-      params: { db, login, password },
+      id: 1,
+      params: { db, login, password: apiKey },
     }),
   });
 
-  // Try to get session_id from response body first (most reliable)
-  const body = await res.json();
-  if (body?.result?.session_id) {
-    return body.result.session_id;
+  const sessionBody = await sessionRes.json();
+  console.log("Session auth response status:", sessionRes.status);
+  console.log("Session auth result keys:", sessionBody?.result ? Object.keys(sessionBody.result) : "no result");
+  if (sessionBody?.error) {
+    console.error("Session auth error:", JSON.stringify(sessionBody.error));
   }
 
-  // Fallback: try set-cookie header
-  const setCookie = res.headers.get("set-cookie");
-  if (setCookie) {
-    const sessionMatch = setCookie.match(/session_id=([^;]+)/);
-    if (sessionMatch) return sessionMatch[1];
+  // Extract session_id from body or cookie
+  let sessionId: string | null = null;
+  if (sessionBody?.result?.session_id) {
+    sessionId = sessionBody.result.session_id;
+  }
+  if (!sessionId) {
+    const setCookie = sessionRes.headers.get("set-cookie");
+    if (setCookie) {
+      const m = setCookie.match(/session_id=([^;]+)/);
+      if (m) sessionId = m[1];
+    }
   }
 
-  throw new Error("Could not obtain session_id from Odoo authenticate response");
-}
+  if (sessionId) {
+    // Use web report controller
+    console.log("Got session_id, fetching PDF via web controller");
+    const pdfUrl = `${url}/report/pdf/account.report_invoice/${invoiceId}`;
+    const res = await fetch(pdfUrl, {
+      headers: { Cookie: `session_id=${sessionId}` },
+    });
+    if (res.ok) {
+      const ct = res.headers.get("content-type") || "";
+      if (ct.includes("pdf") || ct.includes("octet")) {
+        return new Uint8Array(await res.arrayBuffer());
+      }
+    }
+    const errText = await res.text();
+    console.warn("Web controller failed:", res.status, errText.substring(0, 200));
+  }
 
-async function getInvoicePdf(url: string, db: string, login: string, apiKey: string, invoiceId: number): Promise<Uint8Array> {
-  const sessionId = await getSessionId(url, db, login, apiKey);
-
-  const pdfUrl = `${url}/report/pdf/account.report_invoice/${invoiceId}`;
-  const res = await fetch(pdfUrl, {
-    headers: { Cookie: `session_id=${sessionId}` },
+  // Fallback: use JSON-RPC /jsonrpc to call report action
+  console.log("Trying JSON-RPC /jsonrpc fallback for PDF");
+  const rpcRes = await fetch(`${url}/jsonrpc`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      method: "call",
+      id: 2,
+      params: {
+        service: "object",
+        method: "execute_kw",
+        args: [
+          db, uid, apiKey,
+          "ir.actions.report",
+          "get_pdf",
+          [invoiceId],
+          { report_name: "account.report_invoice" },
+        ],
+      },
+    }),
   });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Failed to fetch PDF from Odoo [${res.status}]: ${text.substring(0, 200)}`);
+  const rpcBody = await rpcRes.json();
+  if (rpcBody?.result) {
+    // result is base64-encoded PDF
+    const b64 = typeof rpcBody.result === "string" ? rpcBody.result : null;
+    if (b64) {
+      const binary = atob(b64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      return bytes;
+    }
   }
 
-  const buffer = await res.arrayBuffer();
-  return new Uint8Array(buffer);
+  // Final fallback: XML-RPC execute_kw with render method
+  console.log("Trying XML-RPC render fallback");
+  const body = xmlRpcCall("execute_kw", [
+    param(str(db)), param(int(uid)), param(str(apiKey)),
+    param(str("ir.actions.report")),
+    param(str("render_qweb_pdf")),
+    param(array([str("account.report_invoice"), array([int(invoiceId)])])),
+    param(struct({})),
+  ]);
+  const xml = await xmlRpcPost(`${url}/xmlrpc/2/object`, body);
+  checkFault(xml);
+  const b64Data = extractBase64(xml);
+  if (b64Data) {
+    const binary = atob(b64Data);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  }
+
+  throw new Error("All PDF retrieval methods failed");
 }
 
 Deno.serve(async (req) => {
