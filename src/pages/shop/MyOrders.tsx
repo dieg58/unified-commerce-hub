@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ShoppingCart, Package, Eye, Loader2 } from "lucide-react";
+import { ShoppingCart, Package, Eye, Loader2, Truck, ExternalLink } from "lucide-react";
 
 const MyOrders = () => {
   const { profile } = useAuth();
@@ -21,7 +21,7 @@ const MyOrders = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
-        .select("*, order_items(qty, unit_price, products(name, image_url)), entities(name)")
+        .select("*, order_items(qty, unit_price, products(name, image_url)), entities(name), shipments(id, status, carrier, tracking_number, shipped_at, delivered_at)")
         .eq("created_by", profile!.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -156,6 +156,73 @@ const MyOrders = () => {
                   ))}
                 </div>
               </div>
+              {/* Shipment tracking */}
+              {(viewOrder.shipments as any[])?.length > 0 && (
+                <div className="border border-border rounded-lg p-3 space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Truck className="w-4 h-4 text-primary" />
+                    Suivi de livraison
+                  </div>
+                  {(viewOrder.shipments as any[]).map((s: any) => {
+                    const trackingUrl = s.tracking_number
+                      ? s.carrier?.toLowerCase().includes("colissimo")
+                        ? `https://www.laposte.fr/outils/suivre-vos-envois?code=${s.tracking_number}`
+                        : s.carrier?.toLowerCase().includes("ups")
+                        ? `https://www.ups.com/track?tracknum=${s.tracking_number}`
+                        : s.carrier?.toLowerCase().includes("dhl")
+                        ? `https://www.dhl.com/fr-fr/home/suivi.html?tracking-id=${s.tracking_number}`
+                        : s.carrier?.toLowerCase().includes("fedex")
+                        ? `https://www.fedex.com/fedextrack/?trknbr=${s.tracking_number}`
+                        : `https://www.google.com/search?q=${s.carrier}+tracking+${s.tracking_number}`
+                      : null;
+                    const statusLabel: Record<string, string> = {
+                      preparing: "En préparation",
+                      shipped: "Expédiée",
+                      delivered: "Livrée",
+                    };
+                    return (
+                      <div key={s.id} className="flex flex-col gap-1 text-sm bg-secondary/50 rounded p-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">Statut</span>
+                          <Badge variant="outline" className={`text-[10px] ${s.status === "delivered" ? "bg-green-500/10 text-green-600" : s.status === "shipped" ? "bg-blue-500/10 text-blue-600" : "bg-muted text-muted-foreground"}`}>
+                            {statusLabel[s.status] || s.status}
+                          </Badge>
+                        </div>
+                        {s.carrier && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">Transporteur</span>
+                            <span className="text-xs font-medium">{s.carrier}</span>
+                          </div>
+                        )}
+                        {s.tracking_number && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">Tracking</span>
+                            {trackingUrl ? (
+                              <a href={trackingUrl} target="_blank" rel="noreferrer" className="text-xs font-mono text-primary hover:underline flex items-center gap-1">
+                                {s.tracking_number} <ExternalLink className="w-3 h-3" />
+                              </a>
+                            ) : (
+                              <span className="text-xs font-mono">{s.tracking_number}</span>
+                            )}
+                          </div>
+                        )}
+                        {s.shipped_at && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">Expédiée le</span>
+                            <span className="text-xs">{new Date(s.shipped_at).toLocaleDateString("fr-FR")}</span>
+                          </div>
+                        )}
+                        {s.delivered_at && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">Livrée le</span>
+                            <span className="text-xs">{new Date(s.delivered_at).toLocaleDateString("fr-FR")}</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
               <div className="text-xs text-muted-foreground">
                 Commandée le {new Date(viewOrder.created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}
               </div>
