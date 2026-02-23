@@ -109,6 +109,27 @@ async function execute(url: string, db: string, uid: number, apiKey: string, mod
 
 // ── Business logic ──
 
+async function ensureProduct(url: string, db: string, uid: number, apiKey: string, name: string, sku: string, price: number): Promise<number> {
+  // Search by default_code (SKU)
+  const domain = array([array([str("default_code"), str("="), str(sku)])]);
+  const searchXml = await execute(url, db, uid, apiKey, "product.product", "search", [domain],
+    struct({ limit: int(1) }));
+  const ids = extractInts(searchXml);
+  if (ids.length > 0) return ids[0];
+
+  // Create product
+  const vals = struct({
+    name: str(name),
+    default_code: str(sku),
+    list_price: `<double>${price}</double>`,
+    type: str("consu"),
+  });
+  const createXml = await execute(url, db, uid, apiKey, "product.product", "create", [vals]);
+  const newId = extractInt(createXml);
+  if (!newId) throw new Error(`Failed to create Odoo product for SKU ${sku}`);
+  return newId;
+}
+
 async function ensurePartner(url: string, db: string, uid: number, apiKey: string, profile: any): Promise<number> {
   // Search by email
   const domain = array([array([str("email"), str("="), str(profile.email)])]);
@@ -131,15 +152,23 @@ async function ensurePartner(url: string, db: string, uid: number, apiKey: strin
 }
 
 async function createSaleOrder(url: string, db: string, uid: number, apiKey: string, partnerId: number, order: any, items: any[]): Promise<number> {
-  const orderLines = items.map((item: any) => {
+  // Ensure all products exist in Odoo first
+  const orderLines: string[] = [];
+  for (const item of items) {
+    const productName = item.products?.name || "Product";
+    const productSku = item.products?.sku || `INKOO-${Date.now()}`;
+    const productPrice = Number(item.unit_price);
+    const odooProductId = await ensureProduct(url, db, uid, apiKey, productName, productSku, productPrice);
+
     const lineVals = struct({
-      name: str(item.products?.name || "Product"),
+      product_id: int(odooProductId),
+      name: str(productName),
       product_uom_qty: int(item.qty),
-      price_unit: `<double>${Number(item.unit_price)}</double>`,
+      price_unit: `<double>${productPrice}</double>`,
     });
     // (0, 0, vals) tuple for one2many
-    return array([int(0), int(0), lineVals]);
-  });
+    orderLines.push(array([int(0), int(0), lineVals]));
+  }
 
   const vals = struct({
     partner_id: int(partnerId),
