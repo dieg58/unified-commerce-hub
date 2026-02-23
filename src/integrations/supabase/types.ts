@@ -486,6 +486,75 @@ export type Database = {
           },
         ]
       }
+      invoices: {
+        Row: {
+          amount_tax: number
+          amount_total: number
+          amount_untaxed: number
+          created_at: string
+          currency: string
+          due_date: string | null
+          id: string
+          invoice_date: string
+          invoice_number: string
+          odoo_invoice_id: number | null
+          odoo_pdf_url: string | null
+          order_id: string
+          payment_status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount_tax?: number
+          amount_total?: number
+          amount_untaxed?: number
+          created_at?: string
+          currency?: string
+          due_date?: string | null
+          id?: string
+          invoice_date?: string
+          invoice_number: string
+          odoo_invoice_id?: number | null
+          odoo_pdf_url?: string | null
+          order_id: string
+          payment_status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount_tax?: number
+          amount_total?: number
+          amount_untaxed?: number
+          created_at?: string
+          currency?: string
+          due_date?: string | null
+          id?: string
+          invoice_date?: string
+          invoice_number?: string
+          odoo_invoice_id?: number | null
+          odoo_pdf_url?: string | null
+          order_id?: string
+          payment_status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           body: string | null
@@ -533,6 +602,66 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      odoo_sync_log: {
+        Row: {
+          created_at: string
+          direction: string
+          error_message: string | null
+          id: string
+          odoo_model: string | null
+          odoo_record_id: number | null
+          order_id: string | null
+          request_payload: Json | null
+          response_payload: Json | null
+          status: string
+          sync_type: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          direction?: string
+          error_message?: string | null
+          id?: string
+          odoo_model?: string | null
+          odoo_record_id?: number | null
+          order_id?: string | null
+          request_payload?: Json | null
+          response_payload?: Json | null
+          status?: string
+          sync_type: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          direction?: string
+          error_message?: string | null
+          id?: string
+          odoo_model?: string | null
+          odoo_record_id?: number | null
+          order_id?: string | null
+          request_payload?: Json | null
+          response_payload?: Json | null
+          status?: string
+          sync_type?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "odoo_sync_log_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "odoo_sync_log_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
@@ -592,6 +721,9 @@ export type Database = {
           created_by: string
           entity_id: string
           id: string
+          odoo_order_id: number | null
+          odoo_order_status: string | null
+          odoo_synced_at: string | null
           status: string
           store_type: Database["public"]["Enums"]["store_type"]
           tenant_id: string
@@ -602,6 +734,9 @@ export type Database = {
           created_by: string
           entity_id: string
           id?: string
+          odoo_order_id?: number | null
+          odoo_order_status?: string | null
+          odoo_synced_at?: string | null
           status?: string
           store_type: Database["public"]["Enums"]["store_type"]
           tenant_id: string
@@ -612,6 +747,9 @@ export type Database = {
           created_by?: string
           entity_id?: string
           id?: string
+          odoo_order_id?: number | null
+          odoo_order_status?: string | null
+          odoo_synced_at?: string | null
           status?: string
           store_type?: Database["public"]["Enums"]["store_type"]
           tenant_id?: string
@@ -870,6 +1008,7 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          odoo_partner_id: number | null
           tenant_id: string | null
           updated_at: string
         }
@@ -878,6 +1017,7 @@ export type Database = {
           email: string
           full_name?: string
           id: string
+          odoo_partner_id?: number | null
           tenant_id?: string | null
           updated_at?: string
         }
@@ -886,6 +1026,7 @@ export type Database = {
           email?: string
           full_name?: string
           id?: string
+          odoo_partner_id?: number | null
           tenant_id?: string | null
           updated_at?: string
         }

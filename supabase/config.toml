@@ -23,3 +23,12 @@ verify_jwt = false
 
 [functions.send-order-email]
 verify_jwt = false
+
+[functions.sync-to-odoo]
+verify_jwt = false
+
+[functions.odoo-webhook]
+verify_jwt = false
+
+[functions.odoo-get-invoice-pdf]
+verify_jwt = false

@@ -40,6 +40,11 @@ const TenantApprovals = () => {
       const emailEvent = status === "approved" ? "order_confirmed" : "order_rejected";
       supabase.functions.invoke("send-order-email", { body: { order_id: id, event_type: emailEvent } })
         .catch((e) => console.warn("Email send failed:", e));
+      // Auto-sync to Odoo on approval
+      if (status === "approved") {
+        supabase.functions.invoke("sync-to-odoo", { body: { order_id: id } })
+          .catch((e) => console.warn("Odoo sync failed:", e));
+      }
     },
     onSuccess: (_, { status }) => {
       toast.success(`${t("common.order")} ${status === "approved" ? t("common.approved") : t("common.rejected")}`);
