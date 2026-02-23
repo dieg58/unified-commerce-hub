@@ -330,6 +330,7 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
   const [noBillingBulk, setNoBillingBulk] = useState(false);
   const [noBillingStaff, setNoBillingStaff] = useState(false);
   const [lowStockThreshold, setLowStockThreshold] = useState("");
+  const [minBulkQty, setMinBulkQty] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -379,6 +380,7 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
     setNoBillingBulk(!!p.no_billing_bulk);
     setNoBillingStaff(!!p.no_billing_staff);
     setLowStockThreshold(String(p.low_stock_threshold || 0));
+    setMinBulkQty(String(p.min_bulk_qty || 1));
     setImageFile(null);
     const { axes, combinations } = variantsToAxesAndCombinations(pvariants || []);
     setVariantAxes(axes);
@@ -390,7 +392,7 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
     setName(""); setSku(""); setSkuManual(false); setCategory(""); setDescription("");
     setBulkPrice(""); setStaffPrice(""); setImageFile(null);
     setStockType("in_stock"); setStockQty(""); setProductLocation("");
-    setNoBillingBulk(false); setNoBillingStaff(false); setLowStockThreshold("");
+    setNoBillingBulk(false); setNoBillingStaff(false); setLowStockThreshold(""); setMinBulkQty("");
     setVariantAxes([]); setVariantCombinations([]); setEditingProduct(null);
   };
 
@@ -420,6 +422,7 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
           no_billing_bulk: noBillingBulk,
           no_billing_staff: noBillingStaff,
           low_stock_threshold: parseInt(lowStockThreshold) || 0,
+          min_bulk_qty: Math.max(1, parseInt(minBulkQty) || 1),
         })
         .select()
         .single();
@@ -481,6 +484,7 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
         no_billing_bulk: noBillingBulk,
         no_billing_staff: noBillingStaff,
         low_stock_threshold: parseInt(lowStockThreshold) || 0,
+        min_bulk_qty: Math.max(1, parseInt(minBulkQty) || 1),
       }).eq("id", editingProduct.id);
       if (error) throw error;
 
@@ -812,6 +816,10 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
                   <Switch checked={noBillingStaff} onCheckedChange={setNoBillingStaff} />
                   <span>Offert en Staff <span className="text-muted-foreground">(sans refacturation)</span></span>
                 </label>
+              </div>
+              <div className="mt-3 max-w-[200px] space-y-2">
+                <Label className="text-xs text-muted-foreground">Minimum de commande (Bulk)</Label>
+                <Input type="number" value={minBulkQty} onChange={(e) => setMinBulkQty(e.target.value)} placeholder="1" min="1" />
               </div>
               </div>
 
