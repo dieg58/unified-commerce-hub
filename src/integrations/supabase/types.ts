@@ -941,6 +941,7 @@ export type Database = {
           name_nl: string | null
           no_billing_bulk: boolean
           no_billing_staff: boolean
+          odoo_product_id: number | null
           sku: string
           stock_qty: number
           stock_type: Database["public"]["Enums"]["stock_type"]
@@ -964,6 +965,7 @@ export type Database = {
           name_nl?: string | null
           no_billing_bulk?: boolean
           no_billing_staff?: boolean
+          odoo_product_id?: number | null
           sku: string
           stock_qty?: number
           stock_type?: Database["public"]["Enums"]["stock_type"]
@@ -987,6 +989,7 @@ export type Database = {
           name_nl?: string | null
           no_billing_bulk?: boolean
           no_billing_staff?: boolean
+          odoo_product_id?: number | null
           sku?: string
           stock_qty?: number
           stock_type?: Database["public"]["Enums"]["stock_type"]

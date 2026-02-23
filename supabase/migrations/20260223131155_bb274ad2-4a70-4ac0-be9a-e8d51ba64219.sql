@@ -1,0 +1,1 @@
+ALTER TABLE public.products ADD COLUMN odoo_product_id integer DEFAULT NULL;

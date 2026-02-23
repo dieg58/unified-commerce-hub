@@ -151,14 +151,23 @@ async function ensurePartner(url: string, db: string, uid: number, apiKey: strin
   return newId;
 }
 
-async function createSaleOrder(url: string, db: string, uid: number, apiKey: string, partnerId: number, order: any, items: any[]): Promise<number> {
-  // Ensure all products exist in Odoo first
+async function createSaleOrder(url: string, db: string, uid: number, apiKey: string, partnerId: number, order: any, items: any[], supabase: any): Promise<number> {
   const orderLines: string[] = [];
   for (const item of items) {
     const productName = item.products?.name || "Product";
     const productSku = item.products?.sku || `INKOO-${Date.now()}`;
     const productPrice = Number(item.unit_price);
-    const odooProductId = await ensureProduct(url, db, uid, apiKey, productName, productSku, productPrice);
+    const productId = item.products?.id;
+
+    // Use cached odoo_product_id if available
+    let odooProductId = item.products?.odoo_product_id;
+    if (!odooProductId) {
+      odooProductId = await ensureProduct(url, db, uid, apiKey, productName, productSku, productPrice);
+      // Cache the mapping in DB
+      if (productId) {
+        await supabase.from("products").update({ odoo_product_id: odooProductId }).eq("id", productId);
+      }
+    }
 
     const lineVals = struct({
       product_id: int(odooProductId),
@@ -166,7 +175,6 @@ async function createSaleOrder(url: string, db: string, uid: number, apiKey: str
       product_uom_qty: int(item.qty),
       price_unit: `<double>${productPrice}</double>`,
     });
-    // (0, 0, vals) tuple for one2many
     orderLines.push(array([int(0), int(0), lineVals]));
   }
 
@@ -212,7 +220,7 @@ Deno.serve(async (req) => {
     // Fetch order with profile and items
     const { data: order, error: orderErr } = await supabase
       .from("orders")
-      .select("*, profiles:created_by(id, full_name, email, odoo_partner_id), order_items(qty, unit_price, products(name, sku)), entities(name, code)")
+      .select("*, profiles:created_by(id, full_name, email, odoo_partner_id), order_items(qty, unit_price, products(id, name, sku, odoo_product_id)), entities(name, code)")
       .eq("id", order_id)
       .single();
     if (orderErr || !order) throw new Error(`Order not found: ${orderErr?.message}`);
@@ -240,7 +248,7 @@ Deno.serve(async (req) => {
     // 2. Create sale order in Odoo
     let odooOrderId: number;
     try {
-      odooOrderId = await createSaleOrder(ODOO_URL, ODOO_DB, uid, ODOO_API_KEY, partnerId, order, items);
+      odooOrderId = await createSaleOrder(ODOO_URL, ODOO_DB, uid, ODOO_API_KEY, partnerId, order, items, supabase);
     } catch (e) {
       await supabase.from("odoo_sync_log").insert({
         ...logEntry,
