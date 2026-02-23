@@ -27,7 +27,7 @@ const OrderDetail = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
-        .select("*, profiles:created_by(full_name, email), entities(name, code, requires_approval), shipping_entity:entities!orders_shipping_entity_id_fkey(name, code), tenants(name, slug), billing_address:addresses!orders_billing_address_id_fkey(label, address_line1, postal_code, city, country, contact_name), shipping_address:addresses!orders_shipping_address_id_fkey(label, address_line1, postal_code, city, country, contact_name)")
+        .select("*, profiles:created_by(full_name, email), entities!orders_entity_id_fkey(name, code, requires_approval), shipping_entity:entities!orders_shipping_entity_id_fkey(name, code), tenants(name, slug), billing_address:addresses!orders_billing_address_id_fkey(label, address_line1, postal_code, city, country, contact_name), shipping_address:addresses!orders_shipping_address_id_fkey(label, address_line1, postal_code, city, country, contact_name)")
         .eq("id", orderId!)
         .single();
       if (error) throw error;
