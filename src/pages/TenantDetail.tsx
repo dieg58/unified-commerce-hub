@@ -16,7 +16,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import {
   ArrowLeft, Loader2, Plus, Pencil, Save, X, MoreHorizontal, Trash2,
   Building2, ShoppingCart, Wallet, Package, Palette, Users, Store,
-  CheckCircle, XCircle, Eye, Mail, Send, Clock, UserPlus, Tag, Sparkles
+  CheckCircle, XCircle, Eye, Mail, Send, Clock, UserPlus, Tag, Sparkles, MapPin, Boxes
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -320,6 +320,8 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
   const [bulkPrice, setBulkPrice] = useState("");
   const [staffPrice, setStaffPrice] = useState("");
   const [stockType, setStockType] = useState<string>("in_stock");
+  const [stockQty, setStockQty] = useState("");
+  const [productLocation, setProductLocation] = useState("");
   const [noBillingBulk, setNoBillingBulk] = useState(false);
   const [noBillingStaff, setNoBillingStaff] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -350,7 +352,7 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
   };
 
   // Variants
-  type VariantRow = { label: string; value: string; skuSuffix: string; priceAdj: string };
+  type VariantRow = { label: string; value: string; skuSuffix: string; priceAdj: string; stockQty: string; location: string };
   const [variants, setVariants] = useState<VariantRow[]>([]);
 
   const openEdit = (p: any) => {
@@ -366,6 +368,8 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
     setBulkPrice(bulk ? String(bulk.price) : "");
     setStaffPrice(staff ? String(staff.price) : "");
     setStockType(p.stock_type || "in_stock");
+    setStockQty(String(p.stock_qty || 0));
+    setProductLocation(p.location || "");
     setNoBillingBulk(!!p.no_billing_bulk);
     setNoBillingStaff(!!p.no_billing_staff);
     setImageFile(null);
@@ -375,11 +379,13 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
         value: v.variant_value,
         skuSuffix: v.sku_suffix || "",
         priceAdj: String(v.price_adjustment || 0),
+        stockQty: String(v.stock_qty || 0),
+        location: v.location || "",
       }))
     );
     setEditingProduct(p);
   };
-  const addVariantRow = () => setVariants((v) => [...v, { label: "", value: "", skuSuffix: "", priceAdj: "0" }]);
+  const addVariantRow = () => setVariants((v) => [...v, { label: "", value: "", skuSuffix: "", priceAdj: "0", stockQty: "0", location: "" }]);
   const updateVariant = (i: number, field: keyof VariantRow, val: string) => {
     setVariants((prev) => prev.map((v, idx) => idx === i ? { ...v, [field]: val } : v));
   };
@@ -388,7 +394,8 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
   const resetForm = () => {
     setName(""); setSku(""); setSkuManual(false); setCategory(""); setDescription("");
     setBulkPrice(""); setStaffPrice(""); setImageFile(null);
-    setStockType("in_stock"); setNoBillingBulk(false); setNoBillingStaff(false);
+    setStockType("in_stock"); setStockQty(""); setProductLocation("");
+    setNoBillingBulk(false); setNoBillingStaff(false);
     setVariants([]); setEditingProduct(null);
   };
 
@@ -413,6 +420,8 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
           category: category.trim().toLowerCase(),
           description: description.trim() || null,
           stock_type: stockType as any,
+          stock_qty: parseInt(stockQty) || 0,
+          location: productLocation.trim() || null,
           no_billing_bulk: noBillingBulk,
           no_billing_staff: noBillingStaff,
         })
@@ -443,6 +452,8 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
             variant_value: v.value.trim(),
             sku_suffix: v.skuSuffix.trim() || null,
             price_adjustment: parseFloat(v.priceAdj) || 0,
+            stock_qty: parseInt(v.stockQty) || 0,
+            location: v.location.trim() || null,
             sort_order: i,
           }))
         );
@@ -469,6 +480,8 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
         category: category.trim().toLowerCase(),
         description: description.trim() || null,
         stock_type: stockType as any,
+        stock_qty: parseInt(stockQty) || 0,
+        location: productLocation.trim() || null,
         no_billing_bulk: noBillingBulk,
         no_billing_staff: noBillingStaff,
       }).eq("id", editingProduct.id);
@@ -500,6 +513,8 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
             variant_value: v.value.trim(),
             sku_suffix: v.skuSuffix.trim() || null,
             price_adjustment: parseFloat(v.priceAdj) || 0,
+            stock_qty: parseInt(v.stockQty) || 0,
+            location: v.location.trim() || null,
             sort_order: i,
           }))
         );
@@ -614,6 +629,7 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
               <TableHead className="text-xs">SKU</TableHead>
               <TableHead className="text-xs">Type</TableHead>
               <TableHead className="text-xs">Catégorie</TableHead>
+              <TableHead className="text-xs">Stock</TableHead>
               <TableHead className="text-xs">Prix Bulk</TableHead>
               <TableHead className="text-xs">Prix Staff</TableHead>
               <TableHead className="text-xs">Statut</TableHead>
@@ -650,6 +666,26 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
                     </Badge>
                   </TableCell>
                   <TableCell><Badge variant="outline" className="text-xs capitalize">{categories.find(c => c.slug === p.category)?.name || p.category || "—"}</Badge></TableCell>
+                  <TableCell>
+                    <div className="text-xs">
+                      {pvariants?.length ? (
+                        <div className="space-y-0.5">
+                          {pvariants.map((v: any) => (
+                            <div key={v.id} className="flex items-center gap-1">
+                              <span className="text-muted-foreground">{v.variant_value}:</span>
+                              <span className="font-medium">{v.stock_qty}</span>
+                              {v.location && <span className="text-muted-foreground text-[10px]">({v.location})</span>}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <span className="font-medium">{p.stock_qty}</span>
+                          {p.location && <span className="text-muted-foreground text-[10px]">({p.location})</span>}
+                        </div>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell>{bulk ? formatCurrency(Number(bulk.price)) : "—"}</TableCell>
                   <TableCell>{staff ? formatCurrency(Number(staff.price)) : "—"}</TableCell>
                   <TableCell>
@@ -766,6 +802,21 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
                 </label>
               </div>
               </div>
+
+            {/* Stock (product-level, shown when no variants) */}
+            <div>
+              <Label className="text-sm font-semibold flex items-center gap-1.5"><Boxes className="w-4 h-4" /> Stock produit</Label>
+              <p className="text-xs text-muted-foreground mt-0.5 mb-2">Si des variantes sont définies, le stock sera géré par variante.</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Quantité en stock</Label>
+                  <Input type="number" value={stockQty} onChange={(e) => setStockQty(e.target.value)} placeholder="0" min="0" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Emplacement</Label>
+                  <Input value={productLocation} onChange={(e) => setProductLocation(e.target.value)} placeholder="Ex: Étagère A3, Entrepôt Nord…" maxLength={100} />
+                </div>
+              </div>
             </div>
 
             {/* Variants */}
@@ -796,7 +847,7 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
                           if (emptyIdx >= 0) {
                             updateVariant(emptyIdx, "label", preset);
                           } else {
-                            setVariants((prev) => [...prev, { label: preset, value: "", skuSuffix: "", priceAdj: "0" }]);
+                            setVariants((prev) => [...prev, { label: preset, value: "", skuSuffix: "", priceAdj: "0", stockQty: "0", location: "" }]);
                           }
                         }}
                       >
@@ -806,50 +857,38 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
                   </div>
 
                   {variants.map((v, i) => (
-                    <div key={i} className="grid grid-cols-[1fr_1fr_auto_auto_auto] gap-2 items-end rounded-md border border-border p-2.5 bg-muted/30">
-                      <div className="space-y-1">
-                        <Label className="text-[10px] text-muted-foreground">Type</Label>
-                        <Input
-                          value={v.label}
-                          onChange={(e) => updateVariant(i, "label", e.target.value)}
-                          placeholder="Couleur"
-                          className="h-8 text-xs"
-                          maxLength={50}
-                        />
+                    <div key={i} className="rounded-md border border-border p-2.5 bg-muted/30 space-y-2">
+                      <div className="grid grid-cols-[1fr_1fr_auto_auto_auto] gap-2 items-end">
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-muted-foreground">Type</Label>
+                          <Input value={v.label} onChange={(e) => updateVariant(i, "label", e.target.value)} placeholder="Couleur" className="h-8 text-xs" maxLength={50} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-muted-foreground">Valeur</Label>
+                          <Input value={v.value} onChange={(e) => updateVariant(i, "value", e.target.value)} placeholder="Rouge" className="h-8 text-xs" maxLength={100} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-muted-foreground">Suffixe SKU</Label>
+                          <Input value={v.skuSuffix} onChange={(e) => updateVariant(i, "skuSuffix", e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))} placeholder="-RED" className="h-8 text-xs w-20" maxLength={10} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-muted-foreground">Ajust. €</Label>
+                          <Input type="number" value={v.priceAdj} onChange={(e) => updateVariant(i, "priceAdj", e.target.value)} className="h-8 text-xs w-20" step="0.01" />
+                        </div>
+                        <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive self-end" onClick={() => removeVariant(i)}>
+                          <X className="w-3.5 h-3.5" />
+                        </Button>
                       </div>
-                      <div className="space-y-1">
-                        <Label className="text-[10px] text-muted-foreground">Valeur</Label>
-                        <Input
-                          value={v.value}
-                          onChange={(e) => updateVariant(i, "value", e.target.value)}
-                          placeholder="Rouge"
-                          className="h-8 text-xs"
-                          maxLength={100}
-                        />
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-muted-foreground flex items-center gap-1"><Boxes className="w-3 h-3" /> Stock</Label>
+                          <Input type="number" value={v.stockQty} onChange={(e) => updateVariant(i, "stockQty", e.target.value)} placeholder="0" className="h-8 text-xs" min="0" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" /> Emplacement</Label>
+                          <Input value={v.location} onChange={(e) => updateVariant(i, "location", e.target.value)} placeholder="Étagère A3" className="h-8 text-xs" maxLength={100} />
+                        </div>
                       </div>
-                      <div className="space-y-1">
-                        <Label className="text-[10px] text-muted-foreground">Suffixe SKU</Label>
-                        <Input
-                          value={v.skuSuffix}
-                          onChange={(e) => updateVariant(i, "skuSuffix", e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))}
-                          placeholder="-RED"
-                          className="h-8 text-xs w-20"
-                          maxLength={10}
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-[10px] text-muted-foreground">Ajust. €</Label>
-                        <Input
-                          type="number"
-                          value={v.priceAdj}
-                          onChange={(e) => updateVariant(i, "priceAdj", e.target.value)}
-                          className="h-8 text-xs w-20"
-                          step="0.01"
-                        />
-                      </div>
-                      <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive self-end" onClick={() => removeVariant(i)}>
-                        <X className="w-3.5 h-3.5" />
-                      </Button>
                     </div>
                   ))}
                 </div>
@@ -949,7 +988,23 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
                 </label>
               </div>
               </div>
+
+            {/* Stock (product-level) */}
+            <div>
+              <Label className="text-sm font-semibold flex items-center gap-1.5"><Boxes className="w-4 h-4" /> Stock produit</Label>
+              <p className="text-xs text-muted-foreground mt-0.5 mb-2">Si des variantes sont définies, le stock sera géré par variante.</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Quantité en stock</Label>
+                  <Input type="number" value={stockQty} onChange={(e) => setStockQty(e.target.value)} placeholder="0" min="0" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Emplacement</Label>
+                  <Input value={productLocation} onChange={(e) => setProductLocation(e.target.value)} placeholder="Ex: Étagère A3" maxLength={100} />
+                </div>
+              </div>
             </div>
+
             <div>
               <div className="flex items-center justify-between mb-2">
                 <div>
@@ -968,32 +1023,44 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
                         onClick={() => {
                           const emptyIdx = variants.findIndex((v) => !v.label.trim());
                           if (emptyIdx >= 0) updateVariant(emptyIdx, "label", preset);
-                          else setVariants((prev) => [...prev, { label: preset, value: "", skuSuffix: "", priceAdj: "0" }]);
+                          else setVariants((prev) => [...prev, { label: preset, value: "", skuSuffix: "", priceAdj: "0", stockQty: "0", location: "" }]);
                         }}
                       >{preset}</Button>
                     ))}
                   </div>
                   {variants.map((v, i) => (
-                    <div key={i} className="grid grid-cols-[1fr_1fr_auto_auto_auto] gap-2 items-end rounded-md border border-border p-2.5 bg-muted/30">
-                      <div className="space-y-1">
-                        <Label className="text-[10px] text-muted-foreground">Type</Label>
-                        <Input value={v.label} onChange={(e) => updateVariant(i, "label", e.target.value)} placeholder="Couleur" className="h-8 text-xs" maxLength={50} />
+                    <div key={i} className="rounded-md border border-border p-2.5 bg-muted/30 space-y-2">
+                      <div className="grid grid-cols-[1fr_1fr_auto_auto_auto] gap-2 items-end">
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-muted-foreground">Type</Label>
+                          <Input value={v.label} onChange={(e) => updateVariant(i, "label", e.target.value)} placeholder="Couleur" className="h-8 text-xs" maxLength={50} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-muted-foreground">Valeur</Label>
+                          <Input value={v.value} onChange={(e) => updateVariant(i, "value", e.target.value)} placeholder="Rouge" className="h-8 text-xs" maxLength={100} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-muted-foreground">Suffixe SKU</Label>
+                          <Input value={v.skuSuffix} onChange={(e) => updateVariant(i, "skuSuffix", e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))} placeholder="-RED" className="h-8 text-xs w-20" maxLength={10} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-muted-foreground">Ajust. €</Label>
+                          <Input type="number" value={v.priceAdj} onChange={(e) => updateVariant(i, "priceAdj", e.target.value)} className="h-8 text-xs w-20" step="0.01" />
+                        </div>
+                        <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive self-end" onClick={() => removeVariant(i)}>
+                          <X className="w-3.5 h-3.5" />
+                        </Button>
                       </div>
-                      <div className="space-y-1">
-                        <Label className="text-[10px] text-muted-foreground">Valeur</Label>
-                        <Input value={v.value} onChange={(e) => updateVariant(i, "value", e.target.value)} placeholder="Rouge" className="h-8 text-xs" maxLength={100} />
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-muted-foreground flex items-center gap-1"><Boxes className="w-3 h-3" /> Stock</Label>
+                          <Input type="number" value={v.stockQty} onChange={(e) => updateVariant(i, "stockQty", e.target.value)} placeholder="0" className="h-8 text-xs" min="0" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" /> Emplacement</Label>
+                          <Input value={v.location} onChange={(e) => updateVariant(i, "location", e.target.value)} placeholder="Étagère A3" className="h-8 text-xs" maxLength={100} />
+                        </div>
                       </div>
-                      <div className="space-y-1">
-                        <Label className="text-[10px] text-muted-foreground">Suffixe SKU</Label>
-                        <Input value={v.skuSuffix} onChange={(e) => updateVariant(i, "skuSuffix", e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))} placeholder="-RED" className="h-8 text-xs w-20" maxLength={10} />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-[10px] text-muted-foreground">Ajust. €</Label>
-                        <Input type="number" value={v.priceAdj} onChange={(e) => updateVariant(i, "priceAdj", e.target.value)} className="h-8 text-xs w-20" step="0.01" />
-                      </div>
-                      <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive self-end" onClick={() => removeVariant(i)}>
-                        <X className="w-3.5 h-3.5" />
-                      </Button>
                     </div>
                   ))}
                 </div>
