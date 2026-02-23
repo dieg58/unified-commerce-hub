@@ -22,41 +22,42 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { getStorefrontUrl } from "@/lib/subdomain";
+import { useTranslation } from "react-i18next";
 
 type NavItem = { to: string; icon: any; label: string } | { separator: string };
-
-const shopManagerNav: NavItem[] = [
-  { to: "/tenant", icon: LayoutDashboard, label: "Tableau de bord" },
-  { separator: "Structure" },
-  { to: "/tenant/entities", icon: Building2, label: "Entités" },
-  { to: "/tenant/users", icon: Users, label: "Utilisateurs" },
-  { to: "/tenant/budgets", icon: Wallet, label: "Budgets" },
-  { separator: "Commerce" },
-  { to: "/tenant/products", icon: Package, label: "Produits" },
-  { to: "/tenant/orders", icon: ShoppingCart, label: "Commandes" },
-  { to: "/tenant/approvals", icon: ClipboardCheck, label: "Approbations" },
-  { to: "/tenant/discounts", icon: Tag, label: "Codes promo" },
-  { separator: "Analyse" },
-  { to: "/tenant/stats", icon: BarChart3, label: "Statistiques" },
-  { to: "/tenant/settings", icon: Settings, label: "Paramètres" },
-];
-
-const deptManagerNav: NavItem[] = [
-  { to: "/tenant", icon: LayoutDashboard, label: "Tableau de bord" },
-  { separator: "Commerce" },
-  { to: "/tenant/orders", icon: ShoppingCart, label: "Commandes" },
-  { to: "/tenant/approvals", icon: ClipboardCheck, label: "Approbations" },
-  { separator: "Analyse" },
-  { to: "/tenant/stats", icon: BarChart3, label: "Statistiques" },
-];
 
 const TenantAdminSidebar = () => {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const { isShopManager, signOut, profile } = useAuth();
   const tenantId = profile?.tenant_id;
+  const { t } = useTranslation();
 
-  // Fetch tenant slug for storefront link
+  const shopManagerNav: NavItem[] = [
+    { to: "/tenant", icon: LayoutDashboard, label: t("nav.dashboard") },
+    { separator: t("nav.structure") },
+    { to: "/tenant/entities", icon: Building2, label: t("nav.entities") },
+    { to: "/tenant/users", icon: Users, label: t("nav.users") },
+    { to: "/tenant/budgets", icon: Wallet, label: t("nav.budgets") },
+    { separator: t("nav.commerce") },
+    { to: "/tenant/products", icon: Package, label: t("nav.products") },
+    { to: "/tenant/orders", icon: ShoppingCart, label: t("nav.orders") },
+    { to: "/tenant/approvals", icon: ClipboardCheck, label: t("nav.approvals") },
+    { to: "/tenant/discounts", icon: Tag, label: t("nav.promoCodes") },
+    { separator: t("nav.analysis") },
+    { to: "/tenant/stats", icon: BarChart3, label: t("nav.statistics") },
+    { to: "/tenant/settings", icon: Settings, label: t("nav.settings") },
+  ];
+
+  const deptManagerNav: NavItem[] = [
+    { to: "/tenant", icon: LayoutDashboard, label: t("nav.dashboard") },
+    { separator: t("nav.commerce") },
+    { to: "/tenant/orders", icon: ShoppingCart, label: t("nav.orders") },
+    { to: "/tenant/approvals", icon: ClipboardCheck, label: t("nav.approvals") },
+    { separator: t("nav.analysis") },
+    { to: "/tenant/stats", icon: BarChart3, label: t("nav.statistics") },
+  ];
+
   const { data: tenant } = useQuery({
     queryKey: ["tenant-sidebar-slug", tenantId],
     queryFn: async () => {
@@ -68,7 +69,6 @@ const TenantAdminSidebar = () => {
   });
 
   const storefrontUrl = tenant?.slug ? getStorefrontUrl(tenant.slug) : null;
-
   const navItems = isShopManager ? shopManagerNav : deptManagerNav;
 
   return (
@@ -84,7 +84,7 @@ const TenantAdminSidebar = () => {
         </div>
         {!collapsed && (
           <span className="text-sidebar-accent-foreground font-semibold text-sm tracking-tight truncate">
-            Gestion Boutique
+            {t("nav.shopManagement")}
           </span>
         )}
       </div>
@@ -124,7 +124,6 @@ const TenantAdminSidebar = () => {
         })}
       </nav>
 
-      {/* External link to storefront */}
       {storefrontUrl && (
         <div className="px-2 pb-1">
           <a
@@ -136,7 +135,7 @@ const TenantAdminSidebar = () => {
             <Store className="w-4 h-4 shrink-0" />
             {!collapsed && (
               <>
-                <span className="truncate flex-1">Voir la boutique</span>
+                <span className="truncate flex-1">{t("nav.viewShop")}</span>
                 <ExternalLink className="w-3 h-3 shrink-0 opacity-50" />
               </>
             )}
@@ -156,7 +155,7 @@ const TenantAdminSidebar = () => {
           className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors w-full"
         >
           <LogOut className="w-4 h-4 shrink-0" />
-          {!collapsed && <span>Déconnexion</span>}
+          {!collapsed && <span>{t("common.logout")}</span>}
         </button>
         <button
           onClick={() => setCollapsed(!collapsed)}

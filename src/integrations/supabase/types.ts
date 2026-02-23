@@ -183,9 +183,13 @@ export type Database = {
           category: string
           created_at: string
           description: string | null
+          description_en: string | null
+          description_nl: string | null
           id: string
           image_url: string | null
           name: string
+          name_en: string | null
+          name_nl: string | null
           sku: string
         }
         Insert: {
@@ -194,9 +198,13 @@ export type Database = {
           category?: string
           created_at?: string
           description?: string | null
+          description_en?: string | null
+          description_nl?: string | null
           id?: string
           image_url?: string | null
           name: string
+          name_en?: string | null
+          name_nl?: string | null
           sku: string
         }
         Update: {
@@ -205,9 +213,13 @@ export type Database = {
           category?: string
           created_at?: string
           description?: string | null
+          description_en?: string | null
+          description_nl?: string | null
           id?: string
           image_url?: string | null
           name?: string
+          name_en?: string | null
+          name_nl?: string | null
           sku?: string
         }
         Relationships: []
@@ -634,6 +646,8 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          name_en: string | null
+          name_nl: string | null
           slug: string
           sort_order: number
           tenant_id: string
@@ -642,6 +656,8 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
+          name_en?: string | null
+          name_nl?: string | null
           slug: string
           sort_order?: number
           tenant_id: string
@@ -650,6 +666,8 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          name_en?: string | null
+          name_nl?: string | null
           slug?: string
           sort_order?: number
           tenant_id?: string
@@ -773,12 +791,16 @@ export type Database = {
           active_staff: boolean
           category: string
           description: string | null
+          description_en: string | null
+          description_nl: string | null
           id: string
           image_url: string | null
           location: string | null
           low_stock_threshold: number
           min_bulk_qty: number
           name: string
+          name_en: string | null
+          name_nl: string | null
           no_billing_bulk: boolean
           no_billing_staff: boolean
           sku: string
@@ -792,12 +814,16 @@ export type Database = {
           active_staff?: boolean
           category?: string
           description?: string | null
+          description_en?: string | null
+          description_nl?: string | null
           id?: string
           image_url?: string | null
           location?: string | null
           low_stock_threshold?: number
           min_bulk_qty?: number
           name: string
+          name_en?: string | null
+          name_nl?: string | null
           no_billing_bulk?: boolean
           no_billing_staff?: boolean
           sku: string
@@ -811,12 +837,16 @@ export type Database = {
           active_staff?: boolean
           category?: string
           description?: string | null
+          description_en?: string | null
+          description_nl?: string | null
           id?: string
           image_url?: string | null
           location?: string | null
           low_stock_threshold?: number
           min_bulk_qty?: number
           name?: string
+          name_en?: string | null
+          name_nl?: string | null
           no_billing_bulk?: boolean
           no_billing_staff?: boolean
           sku?: string

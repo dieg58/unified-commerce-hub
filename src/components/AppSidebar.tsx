@@ -12,23 +12,25 @@ import {
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
-
-const superAdminNav = [
-  { to: "/dashboard", icon: LayoutDashboard, label: "Tableau de bord" },
-  { to: "/tenants", icon: Building2, label: "Boutiques" },
-  { to: "/orders", icon: ShoppingCart, label: "Commandes" },
-  { to: "/settings", icon: Settings, label: "Paramètres" },
-];
-
-const tenantNav = [
-  { to: "/tenant", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/store", icon: ShoppingCart, label: "Boutique" },
-];
+import { useTranslation } from "react-i18next";
 
 const AppSidebar = () => {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const { isSuperAdmin, signOut, profile } = useAuth();
+  const { t } = useTranslation();
+
+  const superAdminNav = [
+    { to: "/dashboard", icon: LayoutDashboard, label: t("nav.dashboard") },
+    { to: "/tenants", icon: Building2, label: t("nav.shops") },
+    { to: "/orders", icon: ShoppingCart, label: t("nav.orders") },
+    { to: "/settings", icon: Settings, label: t("nav.settings") },
+  ];
+
+  const tenantNav = [
+    { to: "/tenant", icon: LayoutDashboard, label: t("nav.dashboard") },
+    { to: "/store", icon: ShoppingCart, label: t("nav.store") },
+  ];
 
   const navItems = isSuperAdmin ? superAdminNav : tenantNav;
 
@@ -85,7 +87,7 @@ const AppSidebar = () => {
           className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors w-full"
         >
           <LogOut className="w-4 h-4 shrink-0" />
-          {!collapsed && <span>Déconnexion</span>}
+          {!collapsed && <span>{t("common.logout")}</span>}
         </button>
         <button
           onClick={() => setCollapsed(!collapsed)}

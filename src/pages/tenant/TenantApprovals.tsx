@@ -9,12 +9,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { formatCurrency } from "@/lib/mock-data";
 import { toast } from "sonner";
 import { Loader2, CheckCircle, XCircle, Eye, Clock, AlertTriangle, ShoppingCart } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 const TenantApprovals = () => {
   const { profile } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const tenantId = profile?.tenant_id;
+  const { t } = useTranslation();
 
   const { data: orders, isLoading } = useQuery({
     queryKey: ["pending-approvals", tenantId],
@@ -35,13 +37,12 @@ const TenantApprovals = () => {
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       const { error } = await supabase.from("orders").update({ status }).eq("id", id);
       if (error) throw error;
-      // Send email notification (fire and forget)
       const emailEvent = status === "approved" ? "order_confirmed" : "order_rejected";
       supabase.functions.invoke("send-order-email", { body: { order_id: id, event_type: emailEvent } })
         .catch((e) => console.warn("Email send failed:", e));
     },
     onSuccess: (_, { status }) => {
-      toast.success(`Commande ${status === "approved" ? "approuvée" : "rejetée"}`);
+      toast.success(`${t("common.order")} ${status === "approved" ? t("common.approved") : t("common.rejected")}`);
       qc.invalidateQueries({ queryKey: ["pending-approvals"] });
       qc.invalidateQueries({ queryKey: ["tenant-orders"] });
     },
@@ -50,21 +51,21 @@ const TenantApprovals = () => {
 
   return (
     <>
-      <TopBar title="Approbations" subtitle="Commandes en attente de validation" />
+      <TopBar title={t("approvals.title")} subtitle={t("approvals.subtitle")} />
       <div className="p-6 space-y-6 overflow-auto">
         {isLoading ? (
           <div className="flex items-center justify-center p-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
         ) : !orders?.length ? (
           <div className="bg-card rounded-lg border border-border p-12 text-center animate-fade-in">
             <CheckCircle className="w-12 h-12 text-success/30 mx-auto mb-3" />
-            <h3 className="text-base font-semibold text-foreground">Tout est à jour</h3>
-            <p className="text-sm text-muted-foreground mt-1">Aucune commande en attente d'approbation</p>
+            <h3 className="text-base font-semibold text-foreground">{t("approvals.allUpToDate")}</h3>
+            <p className="text-sm text-muted-foreground mt-1">{t("approvals.noPending")}</p>
           </div>
         ) : (
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-sm text-muted-foreground animate-fade-in">
               <AlertTriangle className="w-4 h-4 text-warning" />
-              <span>{orders.length} commande{orders.length > 1 ? "s" : ""} en attente d'approbation</span>
+              <span>{t("approvals.pendingCount", { count: orders.length })}</span>
             </div>
 
             {orders.map((order, i) => {
@@ -86,11 +87,11 @@ const TenantApprovals = () => {
                           <span className="font-mono text-xs text-muted-foreground">#{order.id.slice(0, 8)}</span>
                           <StatusBadge status={order.status} />
                           <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${order.store_type === "bulk" ? "bg-primary/10 text-primary" : "bg-accent/10 text-accent"}`}>
-                            {order.store_type === "bulk" ? "Interne" : "Employé"}
+                            {order.store_type === "bulk" ? t("approvals.internal") : t("approvals.employee")}
                           </span>
                         </div>
                         <h3 className="text-sm font-semibold text-foreground">
-                          {orderProfile?.full_name || orderProfile?.email || "Utilisateur"}
+                          {orderProfile?.full_name || orderProfile?.email || t("common.user")}
                         </h3>
                         <p className="text-xs text-muted-foreground mt-0.5">
                           {entity?.name} ({entity?.code}) · {new Date(order.created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}
@@ -98,19 +99,18 @@ const TenantApprovals = () => {
                       </div>
                       <div className="text-right">
                         <p className="text-lg font-bold text-foreground">{formatCurrency(Number(order.total))}</p>
-                        <p className="text-xs text-muted-foreground">{itemsCount} article{itemsCount > 1 ? "s" : ""}</p>
+                        <p className="text-xs text-muted-foreground">{t("approvals.article", { count: itemsCount })}</p>
                       </div>
                     </div>
 
-                    {/* Items preview */}
                     <div className="border border-border rounded-md overflow-hidden mb-4">
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead className="text-xs">Produit</TableHead>
-                            <TableHead className="text-xs text-right">Prix</TableHead>
-                            <TableHead className="text-xs text-right">Qté</TableHead>
-                            <TableHead className="text-xs text-right">Total</TableHead>
+                            <TableHead className="text-xs">{t("common.product")}</TableHead>
+                            <TableHead className="text-xs text-right">{t("common.price")}</TableHead>
+                            <TableHead className="text-xs text-right">{t("common.quantity")}</TableHead>
+                            <TableHead className="text-xs text-right">{t("common.total")}</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -126,33 +126,18 @@ const TenantApprovals = () => {
                       </Table>
                     </div>
 
-                    {/* Actions */}
                     <div className="flex items-center justify-between">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="gap-1 text-xs"
-                        onClick={() => navigate(`/orders/${order.id}`)}
-                      >
-                        <Eye className="w-3.5 h-3.5" /> Voir détail
+                      <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={() => navigate(`/orders/${order.id}`)}>
+                        <Eye className="w-3.5 h-3.5" /> {t("common.viewDetails")}
                       </Button>
                       <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="gap-1 text-destructive hover:text-destructive"
-                          disabled={updateStatus.isPending}
-                          onClick={() => updateStatus.mutate({ id: order.id, status: "rejected" })}
-                        >
-                          <XCircle className="w-3.5 h-3.5" /> Rejeter
+                        <Button variant="outline" size="sm" className="gap-1 text-destructive hover:text-destructive" disabled={updateStatus.isPending}
+                          onClick={() => updateStatus.mutate({ id: order.id, status: "rejected" })}>
+                          <XCircle className="w-3.5 h-3.5" /> {t("common.reject")}
                         </Button>
-                        <Button
-                          size="sm"
-                          className="gap-1"
-                          disabled={updateStatus.isPending}
-                          onClick={() => updateStatus.mutate({ id: order.id, status: "approved" })}
-                        >
-                          <CheckCircle className="w-3.5 h-3.5" /> Approuver
+                        <Button size="sm" className="gap-1" disabled={updateStatus.isPending}
+                          onClick={() => updateStatus.mutate({ id: order.id, status: "approved" })}>
+                          <CheckCircle className="w-3.5 h-3.5" /> {t("common.approve")}
                         </Button>
                       </div>
                     </div>
