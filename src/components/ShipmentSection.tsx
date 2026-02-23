@@ -85,15 +85,13 @@ const ShipmentSection = ({ orderId, tenantId }: ShipmentSectionProps) => {
       const { error } = await supabase.from("shipments").update(updates).eq("id", id);
       if (error) throw error;
 
-      // Send notification email
+      // Send notification emails
       if (status === "shipped" || status === "delivered") {
-        try {
-          await supabase.functions.invoke("notify-shipment", {
-            body: { shipment_id: id },
-          });
-        } catch (e) {
-          console.warn("Notification email failed:", e);
-        }
+        const emailEvent = status === "shipped" ? "order_shipped" : "order_delivered";
+        Promise.all([
+          supabase.functions.invoke("notify-shipment", { body: { shipment_id: id } }),
+          supabase.functions.invoke("send-order-email", { body: { order_id: orderId, event_type: emailEvent } }),
+        ]).catch((e) => console.warn("Notification email failed:", e));
       }
     },
     onSuccess: (_, { status }) => {
