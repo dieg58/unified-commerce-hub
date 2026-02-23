@@ -724,6 +724,7 @@ export type Database = {
           odoo_order_id: number | null
           odoo_order_status: string | null
           odoo_synced_at: string | null
+          shipping_entity_id: string | null
           status: string
           store_type: Database["public"]["Enums"]["store_type"]
           tenant_id: string
@@ -737,6 +738,7 @@ export type Database = {
           odoo_order_id?: number | null
           odoo_order_status?: string | null
           odoo_synced_at?: string | null
+          shipping_entity_id?: string | null
           status?: string
           store_type: Database["public"]["Enums"]["store_type"]
           tenant_id: string
@@ -750,6 +752,7 @@ export type Database = {
           odoo_order_id?: number | null
           odoo_order_status?: string | null
           odoo_synced_at?: string | null
+          shipping_entity_id?: string | null
           status?: string
           store_type?: Database["public"]["Enums"]["store_type"]
           tenant_id?: string
@@ -766,6 +769,13 @@ export type Database = {
           {
             foreignKeyName: "orders_entity_id_fkey"
             columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_shipping_entity_id_fkey"
+            columns: ["shipping_entity_id"]
             isOneToOne: false
             referencedRelation: "entities"
             referencedColumns: ["id"]

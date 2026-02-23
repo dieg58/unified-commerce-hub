@@ -31,7 +31,8 @@ const Storefront = () => {
   const [sortBy, setSortBy] = useState<"name" | "price_asc" | "price_desc">("name");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [placing, setPlacing] = useState(false);
-  const [entityId, setEntityId] = useState<string>("");
+  const [billingEntityId, setBillingEntityId] = useState<string>("");
+  const [shippingEntityId, setShippingEntityId] = useState<string>("");
   const [variantMatrixProduct, setVariantMatrixProduct] = useState<any | null>(null);
 
   const { tenantId: paramTenantId } = useParams<{ tenantId: string }>();
@@ -146,25 +147,25 @@ const Storefront = () => {
     return price ? Number(price.price) : 0;
   };
 
-  const selectedBudget = budgets?.find((b) => b.entity_id === entityId && b.store_type === storeType);
+  const selectedBudget = budgets?.find((b) => b.entity_id === billingEntityId && b.store_type === storeType);
   const budgetRemaining = selectedBudget ? Number(selectedBudget.amount) - Number(selectedBudget.spent) : null;
   // Calculate effective total: exclude free products
   const freeProductIds = new Set(products?.filter((p) => isProductFree(p)).map((p) => p.id) || []);
   const effectiveTotal = items.reduce((s, i) => s + (freeProductIds.has(i.productId) ? 0 : i.price * i.qty), 0);
   const hasAnyFreeItems = items.some((i) => freeProductIds.has(i.productId));
   const isBudgetExceeded = storeType === "staff" && budgetRemaining !== null && effectiveTotal > budgetRemaining;
-  const selectedEntity = entities?.find((e) => e.id === entityId);
+  const selectedEntity = entities?.find((e) => e.id === billingEntityId);
   const requiresApproval = selectedEntity?.requires_approval || isBudgetExceeded;
   const needsApproval = requiresApproval;
 
   const handleCheckout = async () => {
-    if (!entityId || !profile || !tenantId) return;
+    if (!billingEntityId || !shippingEntityId || !profile || !tenantId) return;
     setPlacing(true);
     try {
       const { data: order, error: oErr } = await supabase
         .from("orders")
         .insert({
-          tenant_id: tenantId, entity_id: entityId, created_by: profile.id,
+          tenant_id: tenantId, entity_id: billingEntityId, shipping_entity_id: shippingEntityId, created_by: profile.id,
           store_type: storeType, total: effectiveTotal, status: needsApproval ? "pending_approval" : "pending",
         })
         .select().single();
@@ -505,9 +506,9 @@ const Storefront = () => {
           <DialogHeader><DialogTitle>Finaliser la commande</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Entité *</label>
-              <Select value={entityId} onValueChange={setEntityId}>
-                <SelectTrigger><SelectValue placeholder="Sélectionner une entité" /></SelectTrigger>
+              <label className="text-sm font-medium">Entité de facturation *</label>
+              <Select value={billingEntityId} onValueChange={setBillingEntityId}>
+                <SelectTrigger><SelectValue placeholder="Sélectionner l'entité à facturer" /></SelectTrigger>
                 <SelectContent>
                   {entities?.map((e) => (
                     <SelectItem key={e.id} value={e.id}>{e.name} ({e.code})</SelectItem>
@@ -515,7 +516,18 @@ const Storefront = () => {
                 </SelectContent>
               </Select>
             </div>
-            {entityId && storeType === "staff" && budgetRemaining !== null && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Entité de livraison *</label>
+              <Select value={shippingEntityId} onValueChange={setShippingEntityId}>
+                <SelectTrigger><SelectValue placeholder="Sélectionner l'entité de livraison" /></SelectTrigger>
+                <SelectContent>
+                  {entities?.map((e) => (
+                    <SelectItem key={e.id} value={e.id}>{e.name} ({e.code})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {billingEntityId && storeType === "staff" && budgetRemaining !== null && (
               <div className={`rounded-lg border p-3 ${isBudgetExceeded ? "border-warning bg-warning/5" : "border-border bg-muted/30"}`}>
                 <div className="flex items-center gap-2">
                   {isBudgetExceeded ? <AlertTriangle className="w-4 h-4 text-warning" /> : <CheckCircle className="w-4 h-4 text-success" />}
@@ -559,7 +571,7 @@ const Storefront = () => {
             <Button variant="outline" onClick={() => setCheckoutOpen(false)}>Annuler</Button>
             <Button
               onClick={handleCheckout}
-              disabled={!entityId || placing}
+              disabled={!billingEntityId || !shippingEntityId || placing}
               className="text-white"
               style={{ backgroundColor: primaryColor }}
             >
