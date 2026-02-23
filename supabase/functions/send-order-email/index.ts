@@ -6,12 +6,14 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const VALID_EVENT_TYPES = ["order_confirmed", "order_shipped", "order_delivered", "approval_required", "order_rejected"];
+
 function replaceVars(template: string, vars: Record<string, string>): string {
   let result = template;
   for (const [key, value] of Object.entries(vars)) {
     result = result.replaceAll(`{{${key}}}`, value || "");
   }
-  // Remove mustache conditionals (simple handling)
   result = result.replace(/\{\{#(\w+)\}\}([\s\S]*?)\{\{\/\1\}\}/g, (_, key, content) => {
     return vars[key] ? content : "";
   });
@@ -24,12 +26,49 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { order_id, event_type } = await req.json();
-    if (!order_id || !event_type) throw new Error("order_id and event_type are required");
+    // Auth check
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const resendKey = Deno.env.get("RESEND_API_KEY");
+
+    const callerClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: { user: caller }, error: authErr } = await callerClient.auth.getUser();
+    if (authErr || !caller) {
+      return new Response(JSON.stringify({ error: "Invalid token" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const body = await req.json();
+    const order_id = typeof body.order_id === "string" ? body.order_id.trim() : "";
+    const event_type = typeof body.event_type === "string" ? body.event_type.trim() : "";
+
+    if (!order_id || !UUID_RE.test(order_id)) {
+      return new Response(JSON.stringify({ error: "Valid order_id is required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!event_type || !VALID_EVENT_TYPES.includes(event_type)) {
+      return new Response(JSON.stringify({ error: "Valid event_type is required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const supabase = createClient(supabaseUrl, serviceKey);
 
     if (!resendKey) {
@@ -66,18 +105,15 @@ Deno.serve(async (req) => {
       .eq("id", order_id)
       .single();
 
-    if (oErr || !order) throw new Error(oErr?.message || "Order not found");
+    if (oErr || !order) throw new Error("Order not found");
 
     const profile = order.profiles as any;
     const entity = order.entities as any;
     const tenant = order.tenants as any;
 
-    // Determine recipients
-    let recipientEmail = profile?.email;
     let recipientEmails: string[] = [];
 
     if (event_type === "approval_required") {
-      // Send to shop_managers and dept_managers of the tenant
       const { data: managers } = await supabase
         .from("user_roles")
         .select("user_id, role")
@@ -94,7 +130,7 @@ Deno.serve(async (req) => {
         recipientEmails = managerProfiles?.map((p) => p.email).filter(Boolean) || [];
       }
     } else {
-      recipientEmails = recipientEmail ? [recipientEmail] : [];
+      recipientEmails = profile?.email ? [profile.email] : [];
     }
 
     if (!recipientEmails.length) {
@@ -103,7 +139,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Fetch shipment data for shipped/delivered events
     let carrier = "";
     let trackingNumber = "";
     let trackingUrl = "";
@@ -125,7 +160,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Build template variables
     const vars: Record<string, string> = {
       order_ref: order.id.slice(0, 8).toUpperCase(),
       order_total: Number(order.total).toFixed(2),
@@ -148,7 +182,6 @@ Deno.serve(async (req) => {
       </div>
     `;
 
-    // Send to all recipients
     const results = [];
     for (const to of recipientEmails) {
       const resendRes = await fetch("https://api.resend.com/emails", {
@@ -165,7 +198,6 @@ Deno.serve(async (req) => {
       const resendData = await resendRes.json();
       console.log(`Email sent to ${to}:`, resendData);
 
-      // Log
       await supabase.from("email_logs").insert({
         event_type,
         recipient_email: to,
@@ -184,7 +216,7 @@ Deno.serve(async (req) => {
     });
   } catch (err) {
     console.error("send-order-email error:", err);
-    return new Response(JSON.stringify({ error: err.message }), {
+    return new Response(JSON.stringify({ error: "Failed to send email." }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

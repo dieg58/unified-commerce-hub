@@ -5,6 +5,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-odoo-webhook-secret",
 };
 
+const VALID_EVENT_TYPES = ["order_status_update", "invoice_created", "invoice_updated", "payment_registered"];
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -15,30 +17,41 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    // Optional: verify webhook secret
+    // Webhook secret is REQUIRED
     const webhookSecret = Deno.env.get("ODOO_WEBHOOK_SECRET");
-    if (webhookSecret) {
-      const incomingSecret = req.headers.get("x-odoo-webhook-secret");
-      if (incomingSecret !== webhookSecret) {
-        return new Response(JSON.stringify({ error: "Invalid webhook secret" }), {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+    if (!webhookSecret) {
+      console.error("ODOO_WEBHOOK_SECRET is not configured");
+      return new Response(JSON.stringify({ error: "Webhook not configured" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const incomingSecret = req.headers.get("x-odoo-webhook-secret");
+    if (incomingSecret !== webhookSecret) {
+      return new Response(JSON.stringify({ error: "Invalid webhook secret" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const payload = await req.json();
     const { event_type, data } = payload;
 
-    console.log("Odoo webhook received:", event_type, JSON.stringify(data));
+    if (!event_type || !VALID_EVENT_TYPES.includes(event_type)) {
+      return new Response(JSON.stringify({ error: "Invalid event_type" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    console.log("Odoo webhook received:", event_type);
 
     switch (event_type) {
       case "order_status_update": {
-        // data: { odoo_order_id, status, origin }
         const { odoo_order_id, status } = data;
         if (!odoo_order_id) throw new Error("odoo_order_id required");
 
-        // Map Odoo status to Inkoo status
         const statusMap: Record<string, string> = {
           draft: "approved",
           sent: "approved",
@@ -73,12 +86,9 @@ Deno.serve(async (req) => {
 
       case "invoice_created":
       case "invoice_updated": {
-        // data: { odoo_invoice_id, odoo_order_id, invoice_number, invoice_date, due_date,
-        //         amount_untaxed, amount_tax, amount_total, payment_status, pdf_url }
         const { odoo_invoice_id, odoo_order_id, invoice_number, invoice_date, due_date,
                 amount_untaxed, amount_tax, amount_total, payment_status, pdf_url } = data;
 
-        // Find order by odoo_order_id
         const { data: order } = await supabase
           .from("orders")
           .select("id, tenant_id")
@@ -90,7 +100,6 @@ Deno.serve(async (req) => {
           break;
         }
 
-        // Upsert invoice
         const { data: existing } = await supabase
           .from("invoices")
           .select("id")
@@ -138,7 +147,6 @@ Deno.serve(async (req) => {
       }
 
       case "payment_registered": {
-        // data: { odoo_invoice_id, payment_status }
         const { odoo_invoice_id, payment_status } = data;
         
         const { error } = await supabase
@@ -149,9 +157,6 @@ Deno.serve(async (req) => {
         if (error) console.error("Payment update error:", error);
         break;
       }
-
-      default:
-        console.warn("Unknown event_type:", event_type);
     }
 
     return new Response(JSON.stringify({ success: true }), {
@@ -160,8 +165,7 @@ Deno.serve(async (req) => {
     });
   } catch (error: unknown) {
     console.error("Webhook error:", error);
-    const msg = error instanceof Error ? error.message : "Unknown error";
-    return new Response(JSON.stringify({ success: false, error: msg }), {
+    return new Response(JSON.stringify({ success: false, error: "Webhook processing failed" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

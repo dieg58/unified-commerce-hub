@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,7 +13,30 @@ serve(async (req) => {
   }
 
   try {
-    const { url } = await req.json();
+    // Auth check
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const callerClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: { user }, error: authErr } = await callerClient.auth.getUser();
+    if (authErr || !user) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Invalid token" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const body = await req.json();
+    const url = typeof body.url === "string" ? body.url.trim().slice(0, 500) : "";
     if (!url) {
       return new Response(
         JSON.stringify({ success: false, error: "URL is required" }),
@@ -29,14 +53,13 @@ serve(async (req) => {
     }
 
     // Format URL
-    let formattedUrl = url.trim();
+    let formattedUrl = url;
     if (!formattedUrl.startsWith("http://") && !formattedUrl.startsWith("https://")) {
       formattedUrl = `https://${formattedUrl}`;
     }
 
     console.log("Extracting branding from:", formattedUrl);
 
-    // Use Firecrawl branding + markdown formats
     const response = await fetch("https://api.firecrawl.dev/v1/scrape", {
       method: "POST",
       headers: {
@@ -55,17 +78,14 @@ serve(async (req) => {
     if (!response.ok) {
       console.error("Firecrawl error:", data);
       return new Response(
-        JSON.stringify({ success: false, error: data.error || "Scrape failed" }),
+        JSON.stringify({ success: false, error: "Scrape failed" }),
         { status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Extract branding info
     const branding = data.data?.branding || data.branding || {};
     const metadata = data.data?.metadata || data.metadata || {};
-    const markdown = data.data?.markdown || data.markdown || "";
 
-    // Build result
     const result = {
       success: true,
       branding: {
@@ -86,7 +106,7 @@ serve(async (req) => {
   } catch (error) {
     console.error("Error extracting branding:", error);
     return new Response(
-      JSON.stringify({ success: false, error: error instanceof Error ? error.message : "Unknown error" }),
+      JSON.stringify({ success: false, error: "An error occurred." }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
