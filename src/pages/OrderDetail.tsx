@@ -161,6 +161,7 @@ const OrderDetail = () => {
               <div className="flex justify-between"><span className="text-muted-foreground">Type</span>
                 <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${order.store_type === "bulk" ? "bg-primary/10 text-primary" : "bg-accent/10 text-accent"}`}>{order.store_type === "bulk" ? "Bulk" : "Staff"}</span>
               </div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Frais de port</span><span className="text-foreground">{Number((order as any).shipping_fee) > 0 ? formatCurrency(Number((order as any).shipping_fee)) : "Offert"}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">{t("common.total")}</span><span className="font-semibold text-foreground">{formatCurrency(Number(order.total))}</span></div>
               <div className="flex justify-between items-center"><span className="text-muted-foreground">{t("common.date")}</span>
                 <span className="text-xs text-foreground flex items-center gap-1"><Calendar className="w-3 h-3" />{new Date(order.created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}</span>
@@ -249,9 +250,17 @@ const OrderDetail = () => {
             </Table>
           )}
           <div className="p-5 border-t border-border flex justify-end">
-            <div className="text-right">
-              <span className="text-sm text-muted-foreground mr-4">{t("common.total")}</span>
-              <span className="text-lg font-bold text-foreground">{formatCurrency(Number(order.total))}</span>
+            <div className="text-right space-y-1">
+              {Number((order as any).shipping_fee) > 0 && (
+                <div>
+                  <span className="text-sm text-muted-foreground mr-4">Frais de port</span>
+                  <span className="text-sm font-medium text-foreground">{formatCurrency(Number((order as any).shipping_fee))}</span>
+                </div>
+              )}
+              <div>
+                <span className="text-sm text-muted-foreground mr-4">{t("common.total")}</span>
+                <span className="text-lg font-bold text-foreground">{formatCurrency(Number(order.total))}</span>
+              </div>
             </div>
           </div>
         </div>

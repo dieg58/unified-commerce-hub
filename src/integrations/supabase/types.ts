@@ -727,6 +727,7 @@ export type Database = {
           odoo_synced_at: string | null
           shipping_address_id: string | null
           shipping_entity_id: string | null
+          shipping_fee: number
           status: string
           store_type: Database["public"]["Enums"]["store_type"]
           tenant_id: string
@@ -743,6 +744,7 @@ export type Database = {
           odoo_synced_at?: string | null
           shipping_address_id?: string | null
           shipping_entity_id?: string | null
+          shipping_fee?: number
           status?: string
           store_type: Database["public"]["Enums"]["store_type"]
           tenant_id: string
@@ -759,6 +761,7 @@ export type Database = {
           odoo_synced_at?: string | null
           shipping_address_id?: string | null
           shipping_entity_id?: string | null
+          shipping_fee?: number
           status?: string
           store_type?: Database["public"]["Enums"]["store_type"]
           tenant_id?: string
