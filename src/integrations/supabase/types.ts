@@ -788,6 +788,77 @@ export type Database = {
           },
         ]
       }
+      stock_movements: {
+        Row: {
+          created_at: string
+          id: string
+          movement_type: Database["public"]["Enums"]["stock_movement_type"]
+          new_qty: number
+          performed_by: string
+          previous_qty: number
+          product_id: string
+          quantity: number
+          reason: string | null
+          tenant_id: string
+          variant_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          movement_type: Database["public"]["Enums"]["stock_movement_type"]
+          new_qty?: number
+          performed_by: string
+          previous_qty?: number
+          product_id: string
+          quantity: number
+          reason?: string | null
+          tenant_id: string
+          variant_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          movement_type?: Database["public"]["Enums"]["stock_movement_type"]
+          new_qty?: number
+          performed_by?: string
+          previous_qty?: number
+          product_id?: string
+          quantity?: number
+          reason?: string | null
+          tenant_id?: string
+          variant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_movements_performed_by_fkey"
+            columns: ["performed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_variant_id_fkey"
+            columns: ["variant_id"]
+            isOneToOne: false
+            referencedRelation: "product_variants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_branding: {
         Row: {
           accent_color: string
@@ -1000,6 +1071,7 @@ export type Database = {
       address_type: "shipping" | "billing"
       app_role: "super_admin" | "shop_manager" | "dept_manager" | "employee"
       budget_period: "monthly" | "quarterly" | "yearly"
+      stock_movement_type: "entry" | "exit" | "adjustment"
       stock_type: "in_stock" | "made_to_order"
       store_type: "bulk" | "staff"
     }
@@ -1132,6 +1204,7 @@ export const Constants = {
       address_type: ["shipping", "billing"],
       app_role: ["super_admin", "shop_manager", "dept_manager", "employee"],
       budget_period: ["monthly", "quarterly", "yearly"],
+      stock_movement_type: ["entry", "exit", "adjustment"],
       stock_type: ["in_stock", "made_to_order"],
       store_type: ["bulk", "staff"],
     },
