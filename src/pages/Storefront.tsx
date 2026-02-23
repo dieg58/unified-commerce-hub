@@ -417,7 +417,7 @@ const Storefront = () => {
                     {product.description && (
                       <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{product.description}</p>
                     )}
-                    <div className="mt-auto flex items-center justify-between pt-2">
+                    <div className="mt-auto pt-2 space-y-2">
                       <p className="text-lg font-bold" style={{ color: primaryColor }}>
                         {isProductFree(product) ? (
                           <span className="flex items-center gap-1.5">
@@ -426,9 +426,10 @@ const Storefront = () => {
                           </span>
                         ) : formatCurrency(price)}
                       </p>
+                      <div className="flex items-center justify-between">
                       {hasVariants ? (
                         totalInCart > 0 ? (
-                          <div className="flex items-center gap-2">
+                          <>
                             <span className="text-xs font-medium text-muted-foreground">{totalInCart} dans le panier</span>
                             <Button
                               size="sm"
@@ -438,47 +439,57 @@ const Storefront = () => {
                             >
                               <Plus className="w-3 h-3" /> Modifier
                             </Button>
-                          </div>
+                          </>
                         ) : (
+                          <>
+                            <span />
+                            <Button
+                              size="sm"
+                              className="gap-1.5 text-white rounded-lg"
+                              style={{ backgroundColor: primaryColor }}
+                              onClick={() => setVariantMatrixProduct(product)}
+                            >
+                              <Plus className="w-3.5 h-3.5" /> Choisir
+                            </Button>
+                          </>
+                        )
+                      ) : inCart ? (
+                        <>
+                          <span />
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => {
+                                const minQty = storeType === "bulk" ? product.min_bulk_qty : 1;
+                                const newQty = inCart.qty - 1;
+                                updateQty(product.id, newQty < minQty ? 0 : newQty);
+                              }}
+                              className="w-8 h-8 rounded-lg border border-border flex items-center justify-center hover:bg-muted transition-colors"
+                            >
+                              <Minus className="w-3 h-3" />
+                            </button>
+                            <span className="text-sm font-bold w-6 text-center">{inCart.qty}</span>
+                            <button
+                              onClick={() => updateQty(product.id, inCart.qty + 1)}
+                              className="w-8 h-8 rounded-lg border border-border flex items-center justify-center hover:bg-muted transition-colors"
+                            >
+                              <Plus className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <span />
                           <Button
                             size="sm"
                             className="gap-1.5 text-white rounded-lg"
                             style={{ backgroundColor: primaryColor }}
-                            onClick={() => setVariantMatrixProduct(product)}
+                            onClick={() => addItem({ productId: product.id, name: product.name, sku: product.sku, price, storeType }, storeType === "bulk" ? Math.max(1, product.min_bulk_qty) : 1)}
                           >
-                            <Plus className="w-3.5 h-3.5" /> Choisir
+                            <Plus className="w-3.5 h-3.5" /> Ajouter
                           </Button>
-                        )
-                      ) : inCart ? (
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => {
-                              const minQty = storeType === "bulk" ? product.min_bulk_qty : 1;
-                              const newQty = inCart.qty - 1;
-                              updateQty(product.id, newQty < minQty ? 0 : newQty);
-                            }}
-                            className="w-8 h-8 rounded-lg border border-border flex items-center justify-center hover:bg-muted transition-colors"
-                          >
-                            <Minus className="w-3 h-3" />
-                          </button>
-                          <span className="text-sm font-bold w-6 text-center">{inCart.qty}</span>
-                          <button
-                            onClick={() => updateQty(product.id, inCart.qty + 1)}
-                            className="w-8 h-8 rounded-lg border border-border flex items-center justify-center hover:bg-muted transition-colors"
-                          >
-                            <Plus className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ) : (
-                        <Button
-                          size="sm"
-                          className="gap-1.5 text-white rounded-lg"
-                          style={{ backgroundColor: primaryColor }}
-                          onClick={() => addItem({ productId: product.id, name: product.name, sku: product.sku, price, storeType }, storeType === "bulk" ? Math.max(1, product.min_bulk_qty) : 1)}
-                        >
-                          <Plus className="w-3.5 h-3.5" /> Ajouter
-                        </Button>
+                        </>
                       )}
+                      </div>
                     </div>
                   </div>
                 </div>
