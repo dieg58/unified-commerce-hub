@@ -35,6 +35,11 @@ async function ensurePartner(url: string, db: string, login: string, apiKey: str
       "X-Odoo-Login": login,
     },
   });
+  if (!searchRes.ok) {
+    const text = await searchRes.text();
+    console.error("Odoo partner search failed:", searchRes.status, text.substring(0, 500));
+    throw new Error(`Odoo partner search failed [${searchRes.status}]. Check ODOO_URL (${url}), ODOO_LOGIN, and ODOO_API_KEY.`);
+  }
   const searchData = await searchRes.json();
 
   if (searchData?.data?.length > 0) {
