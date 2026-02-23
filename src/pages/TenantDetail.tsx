@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import TopBar from "@/components/TopBar";
 import { StatusBadge, SectionHeader } from "@/components/DashboardWidgets";
@@ -16,7 +16,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import {
   ArrowLeft, Loader2, Plus, Pencil, Save, X, MoreHorizontal, Trash2,
   Building2, ShoppingCart, Wallet, Package, Palette, Users, Store,
-  CheckCircle, XCircle, Eye, Mail, Send, Clock, UserPlus, Tag, Sparkles, MapPin, Boxes, AlertTriangle
+  CheckCircle, XCircle, Eye, Mail, Send, Clock, UserPlus, Tag, Sparkles, MapPin, Boxes, AlertTriangle,
+  ArrowUpCircle, ArrowDownCircle, RefreshCw, History
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -311,6 +312,7 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
   const [showAdd, setShowAdd] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [showCatManager, setShowCatManager] = useState(false);
+  const [stockHistoryProduct, setStockHistoryProduct] = useState<any>(null);
   const [newCatName, setNewCatName] = useState("");
   const [name, setName] = useState("");
   const [sku, setSku] = useState("");
@@ -720,6 +722,9 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => toggleActive.mutate({ productId: p.id, current: p.active })}>
                           {p.active ? <><X className="w-4 h-4 mr-2" /> Désactiver</> : <><CheckCircle className="w-4 h-4 mr-2" /> Activer</>}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setStockHistoryProduct(p)}>
+                          <History className="w-4 h-4 mr-2" /> Historique stock
                         </DropdownMenuItem>
                         <DropdownMenuItem className="text-destructive" onClick={() => deleteProduct.mutate(p.id)}>
                           <Trash2 className="w-4 h-4 mr-2" /> Supprimer
@@ -1149,6 +1154,15 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Stock History Dialog */}
+      {stockHistoryProduct && (
+        <StockHistoryDialog
+          product={stockHistoryProduct}
+          tenantId={tenantId}
+          onClose={() => setStockHistoryProduct(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1570,6 +1584,228 @@ function BrandingTab({ tenant, branding }: { tenant: any; branding: any }) {
         </div>
       </div>
     </div>
+  );
+}
+
+/* ─── Stock History Dialog ─── */
+function StockHistoryDialog({ product, tenantId, onClose }: { product: any; tenantId: string; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [showAddMovement, setShowAddMovement] = useState(false);
+  const [movementType, setMovementType] = useState<string>("entry");
+  const [movementQty, setMovementQty] = useState("");
+  const [movementReason, setMovementReason] = useState("");
+  const [movementVariantId, setMovementVariantId] = useState<string>("");
+
+  const pvariants = (product.product_variants as any[]) || [];
+
+  const { data: movements, isLoading } = useQuery({
+    queryKey: ["stock-movements", product.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("stock_movements")
+        .select("*, profiles:profiles!stock_movements_performed_by_fkey(full_name, email)")
+        .eq("product_id", product.id)
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const addMovement = useMutation({
+    mutationFn: async () => {
+      const qty = parseInt(movementQty);
+      if (!qty || qty <= 0) throw new Error("Quantité invalide");
+
+      const type = movementType as "entry" | "exit" | "adjustment";
+      const variantId = movementVariantId || null;
+
+      // Get current stock
+      let previousQty = 0;
+      if (variantId) {
+        const variant = pvariants.find((v: any) => v.id === variantId);
+        previousQty = variant?.stock_qty || 0;
+      } else {
+        previousQty = product.stock_qty || 0;
+      }
+
+      let newQty = previousQty;
+      if (type === "entry") newQty = previousQty + qty;
+      else if (type === "exit") newQty = Math.max(0, previousQty - qty);
+      else newQty = qty; // adjustment sets absolute value
+
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Non authentifié");
+
+      // Insert movement
+      const { error: mErr } = await supabase.from("stock_movements").insert({
+        tenant_id: tenantId,
+        product_id: product.id,
+        variant_id: variantId,
+        movement_type: type,
+        quantity: qty,
+        previous_qty: previousQty,
+        new_qty: newQty,
+        reason: movementReason.trim() || null,
+        performed_by: user.id,
+      });
+      if (mErr) throw mErr;
+
+      // Update stock
+      if (variantId) {
+        const { error: uErr } = await supabase.from("product_variants").update({ stock_qty: newQty }).eq("id", variantId);
+        if (uErr) throw uErr;
+      } else {
+        const { error: uErr } = await supabase.from("products").update({ stock_qty: newQty }).eq("id", product.id);
+        if (uErr) throw uErr;
+      }
+    },
+    onSuccess: () => {
+      toast.success("Mouvement enregistré");
+      qc.invalidateQueries({ queryKey: ["stock-movements", product.id] });
+      qc.invalidateQueries({ queryKey: ["products", tenantId] });
+      setShowAddMovement(false);
+      setMovementQty("");
+      setMovementReason("");
+      setMovementVariantId("");
+      setMovementType("entry");
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const typeConfig: Record<string, { label: string; icon: any; color: string }> = {
+    entry: { label: "Entrée", icon: ArrowDownCircle, color: "text-success" },
+    exit: { label: "Sortie", icon: ArrowUpCircle, color: "text-destructive" },
+    adjustment: { label: "Ajustement", icon: RefreshCw, color: "text-warning" },
+  };
+
+  return (
+    <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <History className="w-5 h-5" /> Historique stock — {product.name}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 max-h-[65vh] overflow-auto">
+          {/* Add movement button */}
+          <div className="flex justify-end">
+            <Button size="sm" className="gap-1.5" onClick={() => setShowAddMovement(!showAddMovement)}>
+              <Plus className="w-4 h-4" /> Nouveau mouvement
+            </Button>
+          </div>
+
+          {/* Add movement form */}
+          {showAddMovement && (
+            <div className="rounded-lg border border-border p-4 bg-muted/30 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label className="text-xs">Type de mouvement</Label>
+                  <Select value={movementType} onValueChange={setMovementType}>
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="entry">📦 Entrée de stock</SelectItem>
+                      <SelectItem value="exit">📤 Sortie de stock</SelectItem>
+                      <SelectItem value="adjustment">🔄 Ajustement (valeur absolue)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Quantité</Label>
+                  <Input type="number" value={movementQty} onChange={(e) => setMovementQty(e.target.value)} placeholder="0" min="1" className="h-9" />
+                </div>
+              </div>
+              {pvariants.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-xs">Variante (optionnel)</Label>
+                  <Select value={movementVariantId} onValueChange={setMovementVariantId}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="Produit global" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Produit global</SelectItem>
+                      {pvariants.map((v: any) => (
+                        <SelectItem key={v.id} value={v.id}>{v.variant_label}: {v.variant_value} (stock: {v.stock_qty})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label className="text-xs">Raison / commentaire</Label>
+                <Input value={movementReason} onChange={(e) => setMovementReason(e.target.value)} placeholder="Ex: Réapprovisionnement fournisseur, Casse, Inventaire…" maxLength={500} className="h-9" />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={() => setShowAddMovement(false)}>Annuler</Button>
+                <Button size="sm" onClick={() => addMovement.mutate()} disabled={!movementQty || addMovement.isPending} className="gap-1.5">
+                  {addMovement.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Enregistrer
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Movements list */}
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+          ) : !movements?.length ? (
+            <div className="text-center py-8">
+              <History className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
+              <p className="text-sm text-muted-foreground">Aucun mouvement de stock enregistré</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-xs">Date</TableHead>
+                  <TableHead className="text-xs">Type</TableHead>
+                  <TableHead className="text-xs">Variante</TableHead>
+                  <TableHead className="text-xs">Qté</TableHead>
+                  <TableHead className="text-xs">Avant → Après</TableHead>
+                  <TableHead className="text-xs">Raison</TableHead>
+                  <TableHead className="text-xs">Par</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {movements.map((m: any) => {
+                  const config = typeConfig[m.movement_type] || typeConfig.adjustment;
+                  const Icon = config.icon;
+                  const variant = pvariants.find((v: any) => v.id === m.variant_id);
+                  return (
+                    <TableRow key={m.id} className="text-xs">
+                      <TableCell className="text-muted-foreground whitespace-nowrap">
+                        {new Date(m.created_at).toLocaleDateString("fr-FR")}
+                        <br />
+                        <span className="text-[10px]">{new Date(m.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</span>
+                      </TableCell>
+                      <TableCell>
+                        <div className={`flex items-center gap-1 ${config.color}`}>
+                          <Icon className="w-3.5 h-3.5" />
+                          <span className="font-medium">{config.label}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {variant ? `${variant.variant_label}: ${variant.variant_value}` : "—"}
+                      </TableCell>
+                      <TableCell className="font-medium">{m.quantity}</TableCell>
+                      <TableCell>
+                        <span className="text-muted-foreground">{m.previous_qty}</span>
+                        <span className="mx-1">→</span>
+                        <span className="font-medium">{m.new_qty}</span>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground max-w-[150px] truncate">{m.reason || "—"}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {(m.profiles as any)?.full_name || (m.profiles as any)?.email || "—"}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
