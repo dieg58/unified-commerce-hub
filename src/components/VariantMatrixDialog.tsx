@@ -29,12 +29,43 @@ interface VariantMatrixDialogProps {
   primaryColor: string;
   storeType?: "bulk" | "staff";
   onConfirm: (selections: { variantId: string; variantValue: string; qty: number }[]) => void;
+  existingSelections?: { variantId: string; qty: number }[];
 }
 
 export default function VariantMatrixDialog({
-  open, onOpenChange, product, variants, basePrice, primaryColor, storeType, onConfirm,
+  open, onOpenChange, product, variants, basePrice, primaryColor, storeType, onConfirm, existingSelections,
 }: VariantMatrixDialogProps) {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [initialized, setInitialized] = useState(false);
+
+  // Pre-fill quantities from existing cart items when dialog opens
+  useMemo(() => {
+    if (open && existingSelections?.length && !initialized) {
+      const initial: Record<string, number> = {};
+      for (const sel of existingSelections) {
+        const variant = variants.find((v) => v.id === sel.variantId);
+        if (variant) {
+          const parts = variant.variant_value.split(" - ");
+          let color: string, size: string;
+          if (parts.length >= 2) {
+            color = parts.slice(0, -1).join(" - ").trim();
+            size = parts[parts.length - 1].trim();
+          } else {
+            color = variant.variant_value;
+            size = "";
+          }
+          initial[`${color}__${size}`] = sel.qty;
+        }
+      }
+      setQuantities(initial);
+      setInitialized(true);
+    }
+    if (!open) {
+      setInitialized(false);
+    }
+  }, [open, existingSelections, variants]);
+
+  const isEditing = (existingSelections?.length || 0) > 0;
 
   // Parse variants into rows (sizes) and columns (colors)
   const { sizes, colors, variantMap } = useMemo(() => {
@@ -219,8 +250,8 @@ export default function VariantMatrixDialog({
                   className="text-white gap-1.5"
                   style={{ backgroundColor: primaryColor }}
                 >
-                  <ShoppingCart className="w-4 h-4" />
-                  Ajouter au panier
+                   <ShoppingCart className="w-4 h-4" />
+                  {isEditing ? "Modifier le panier" : "Ajouter au panier"}
                 </Button>
               </div>
             </div>

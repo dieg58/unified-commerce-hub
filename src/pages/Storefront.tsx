@@ -657,7 +657,18 @@ const Storefront = () => {
           basePrice={getPrice(variantMatrixProduct)}
           primaryColor={primaryColor}
           storeType={storeType}
+          existingSelections={
+            items
+              .filter((i) => i.productId === variantMatrixProduct.id && i.variantId)
+              .map((i) => ({ variantId: i.variantId!, qty: i.qty }))
+          }
           onConfirm={(selections) => {
+            // Remove all existing variant items for this product first
+            const existingVariantItems = items.filter((i) => i.productId === variantMatrixProduct.id && i.variantId);
+            for (const item of existingVariantItems) {
+              removeItem(item.productId, item.variantId);
+            }
+            // Then add all new selections
             for (const sel of selections) {
               addItem({
                 productId: variantMatrixProduct.id,
