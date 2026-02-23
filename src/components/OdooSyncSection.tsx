@@ -1,8 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { StatusBadge } from "@/components/DashboardWidgets";
-import { RefreshCw, CheckCircle, XCircle, ExternalLink, Loader2 } from "lucide-react";
+import { RefreshCw, CheckCircle, XCircle, Loader2, CloudDownload } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
@@ -41,7 +40,26 @@ const OdooSyncSection = ({ orderId, odooOrderId, odooOrderStatus, odooSyncedAt }
     onError: (err: any) => toast.error(`Erreur sync Odoo: ${err.message}`),
   });
 
+  const pollFromOdoo = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("poll-odoo-updates", {
+        body: { order_id: orderId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (data) => {
+      const msg = `Odoo: ${data.orders_updated || 0} maj statut, ${data.invoices_synced || 0} factures`;
+      toast.success(msg);
+      qc.invalidateQueries({ queryKey: ["order-detail", orderId] });
+      qc.invalidateQueries({ queryKey: ["order-invoices", orderId] });
+    },
+    onError: (err: any) => toast.error(`Erreur refresh Odoo: ${err.message}`),
+  });
+
   const isSynced = !!odooOrderId;
+  const isLoading = syncToOdoo.isPending || pollFromOdoo.isPending;
 
   return (
     <div className="bg-card rounded-lg border border-border shadow-card">
@@ -50,20 +68,38 @@ const OdooSyncSection = ({ orderId, odooOrderId, odooOrderStatus, odooSyncedAt }
           <img src="https://www.odoo.com/favicon.ico" alt="Odoo" className="w-4 h-4" />
           Odoo ERP
         </h3>
-        <Button
-          size="sm"
-          variant={isSynced ? "outline" : "default"}
-          className="gap-1.5"
-          disabled={syncToOdoo.isPending}
-          onClick={() => syncToOdoo.mutate()}
-        >
-          {syncToOdoo.isPending ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          ) : (
-            <RefreshCw className="w-3.5 h-3.5" />
+        <div className="flex items-center gap-2">
+          {isSynced && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              disabled={isLoading}
+              onClick={() => pollFromOdoo.mutate()}
+            >
+              {pollFromOdoo.isPending ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <CloudDownload className="w-3.5 h-3.5" />
+              )}
+              Rafraîchir
+            </Button>
           )}
-          {isSynced ? "Re-sync" : "Synchroniser vers Odoo"}
-        </Button>
+          <Button
+            size="sm"
+            variant={isSynced ? "outline" : "default"}
+            className="gap-1.5"
+            disabled={isLoading}
+            onClick={() => syncToOdoo.mutate()}
+          >
+            {syncToOdoo.isPending ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="w-3.5 h-3.5" />
+            )}
+            {isSynced ? "Re-sync" : "Synchroniser vers Odoo"}
+          </Button>
+        </div>
       </div>
       <div className="p-5">
         {isSynced ? (
