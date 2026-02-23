@@ -128,18 +128,18 @@ const Storefront = () => {
   const hasAnyFreeItems = items.some((i) => freeProductIds.has(i.productId));
   const isBudgetExceeded = storeType === "staff" && budgetRemaining !== null && effectiveTotal > budgetRemaining;
   const selectedEntity = entities?.find((e) => e.id === entityId);
-  const requiresApproval = storeType === "bulk" && selectedEntity?.requires_approval;
+  const requiresApproval = selectedEntity?.requires_approval || isBudgetExceeded;
+  const needsApproval = requiresApproval;
 
   const handleCheckout = async () => {
     if (!entityId || !profile || !tenantId) return;
-    if (isBudgetExceeded) { toast.error("Budget dépassé"); return; }
     setPlacing(true);
     try {
       const { data: order, error: oErr } = await supabase
         .from("orders")
         .insert({
           tenant_id: tenantId, entity_id: entityId, created_by: profile.id,
-          store_type: storeType, total: effectiveTotal, status: requiresApproval ? "pending_approval" : "pending",
+          store_type: storeType, total: effectiveTotal, status: needsApproval ? "pending_approval" : "pending",
         })
         .select().single();
       if (oErr) throw oErr;
@@ -149,7 +149,7 @@ const Storefront = () => {
       }));
       const { error: iErr } = await supabase.from("order_items").insert(orderItems);
       if (iErr) throw iErr;
-      toast.success(requiresApproval ? "Commande soumise pour approbation" : "Commande confirmée !");
+      toast.success(needsApproval ? "Commande soumise pour approbation" : "Commande confirmée !");
       clear(); setCheckoutOpen(false);
     } catch (err: any) {
       toast.error(err.message);
@@ -424,18 +424,20 @@ const Storefront = () => {
               </Select>
             </div>
             {entityId && storeType === "staff" && budgetRemaining !== null && (
-              <div className={`rounded-lg border p-3 ${isBudgetExceeded ? "border-destructive bg-destructive/5" : "border-border bg-muted/30"}`}>
+              <div className={`rounded-lg border p-3 ${isBudgetExceeded ? "border-warning bg-warning/5" : "border-border bg-muted/30"}`}>
                 <div className="flex items-center gap-2">
-                  {isBudgetExceeded ? <AlertTriangle className="w-4 h-4 text-destructive" /> : <CheckCircle className="w-4 h-4 text-success" />}
+                  {isBudgetExceeded ? <AlertTriangle className="w-4 h-4 text-warning" /> : <CheckCircle className="w-4 h-4 text-success" />}
                   <span className="text-sm font-medium">Budget restant : {formatCurrency(budgetRemaining)}</span>
                 </div>
-                {isBudgetExceeded && <p className="text-xs text-destructive mt-1">Le total ({formatCurrency(effectiveTotal)}) dépasse le budget.</p>}
+                {isBudgetExceeded && <p className="text-xs text-warning mt-1">Le total ({formatCurrency(effectiveTotal)}) dépasse le budget. La commande nécessitera une approbation.</p>}
               </div>
             )}
-            {requiresApproval && (
+            {needsApproval && (
               <div className="rounded-lg border border-warning/30 bg-warning/5 p-3 flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-warning shrink-0" />
-                <p className="text-xs text-warning">Cette commande nécessite une approbation.</p>
+                <p className="text-xs text-warning">
+                  {isBudgetExceeded ? "Budget dépassé — cette commande sera soumise à approbation." : "Cette entité nécessite une approbation pour les commandes."}
+                </p>
               </div>
             )}
             <div className="rounded-lg border border-border p-3 space-y-2">
@@ -465,12 +467,12 @@ const Storefront = () => {
             <Button variant="outline" onClick={() => setCheckoutOpen(false)}>Annuler</Button>
             <Button
               onClick={handleCheckout}
-              disabled={!entityId || placing || isBudgetExceeded}
+              disabled={!entityId || placing}
               className="text-white"
               style={{ backgroundColor: primaryColor }}
             >
               {placing ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <CheckCircle className="w-4 h-4 mr-1" />}
-              {requiresApproval ? "Soumettre" : "Confirmer"}
+              {needsApproval ? "Soumettre pour approbation" : "Confirmer"}
             </Button>
           </div>
         </DialogContent>
