@@ -31,6 +31,7 @@ const Storefront = () => {
   const [activeCategory, setActiveCategory] = useState("Tous");
   const [sortBy, setSortBy] = useState<"name" | "price_asc" | "price_desc">("name");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [billingEntityId, setBillingEntityId] = useState<string>("");
   const [shippingEntityId, setShippingEntityId] = useState<string>("");
@@ -258,7 +259,7 @@ const Storefront = () => {
             >
               Merch Employé
             </button>
-            <Sheet>
+            <Sheet open={cartOpen} onOpenChange={setCartOpen}>
               <SheetTrigger asChild>
                 <button className="relative p-2 rounded-md hover:bg-muted transition-colors ml-2">
                   <ShoppingCart className="w-5 h-5 text-foreground" />
@@ -509,7 +510,7 @@ const Storefront = () => {
                             size="sm"
                             className="gap-1.5 text-white rounded-lg"
                             style={{ backgroundColor: primaryColor }}
-                            onClick={() => addItem({ productId: product.id, name: product.name, sku: product.sku, price, storeType }, storeType === "bulk" ? Math.max(1, product.min_bulk_qty) : 1)}
+                            onClick={() => { addItem({ productId: product.id, name: product.name, sku: product.sku, price, storeType }, storeType === "bulk" ? Math.max(1, product.min_bulk_qty) : 1); setCartOpen(true); }}
                           >
                             <Plus className="w-3.5 h-3.5" /> Ajouter
                           </Button>
@@ -668,6 +669,7 @@ const Storefront = () => {
                 storeType,
               }, sel.qty);
             }
+            setCartOpen(true);
           }}
         />
       )}
