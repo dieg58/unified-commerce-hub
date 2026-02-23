@@ -27,7 +27,7 @@ const OrderDetail = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
-        .select("*, profiles:created_by(full_name, email), entities(name, code, requires_approval), tenants(name, slug)")
+        .select("*, profiles:created_by(full_name, email), entities(name, code, requires_approval), shipping_entity:entities!orders_shipping_entity_id_fkey(name, code), tenants(name, slug)")
         .eq("id", orderId!)
         .single();
       if (error) throw error;
@@ -104,6 +104,7 @@ const OrderDetail = () => {
 
   const profile = order.profiles as any;
   const entity = order.entities as any;
+  const shippingEntity = (order as any).shipping_entity as any;
   const tenant = (order as any).tenants as any;
   const isPending = order.status === "pending_approval" || order.status === "pending";
   const totalItems = items?.reduce((s, it) => s + it.qty, 0) || 0;
@@ -174,11 +175,11 @@ const OrderDetail = () => {
           </div>
 
           <div className="bg-card rounded-lg border border-border p-5 space-y-3">
-            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2"><Building2 className="w-4 h-4 text-primary" /> Boutique & Entité</h3>
+            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2"><Building2 className="w-4 h-4 text-primary" /> Boutique & Entités</h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between"><span className="text-muted-foreground">Boutique</span><span className="text-foreground">{tenant?.name || "—"}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Entité</span><span className="text-foreground">{entity?.name || "—"}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Code</span><span className="font-mono text-xs text-foreground">{entity?.code || "—"}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Facturation</span><span className="text-foreground">{entity?.name || "—"} {entity?.code ? `(${entity.code})` : ""}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Livraison</span><span className="text-foreground">{shippingEntity?.name || entity?.name || "—"} {shippingEntity?.code ? `(${shippingEntity.code})` : entity?.code ? `(${entity.code})` : ""}</span></div>
               {entity?.requires_approval && (
                 <div className="flex justify-between"><span className="text-muted-foreground">Approbation</span><span className="text-xs text-warning font-medium">Requise</span></div>
               )}
