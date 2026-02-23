@@ -62,20 +62,43 @@ async function authenticate(url: string, db: string, login: string, apiKey: stri
   return uid;
 }
 
-async function renderReport(url: string, db: string, uid: number, apiKey: string, reportName: string, ids: number[]): Promise<Uint8Array> {
-  const body = xmlRpcCall("render_report", [
+async function execute(url: string, db: string, uid: number, apiKey: string, model: string, method: string, args: string[], kwargs: string = struct({})): Promise<string> {
+  const body = xmlRpcCall("execute_kw", [
     param(str(db)),
     param(int(uid)),
     param(str(apiKey)),
-    param(str(reportName)),
-    param(array(ids.map(id => int(id)))),
+    param(str(model)),
+    param(str(method)),
+    param(array(args)),
+    param(kwargs),
   ]);
-  const xml = await xmlRpcPost(`${url}/xmlrpc/2/report`, body);
+  const xml = await xmlRpcPost(`${url}/xmlrpc/2/object`, body);
   checkFault(xml);
-  const b64 = extractBase64(xml);
+  return xml;
+}
+
+function extractInts(xml: string): number[] {
+  const matches = [...xml.matchAll(/<(?:int|i4)>(\d+)<\/(?:int|i4)>/g)];
+  return matches.map(m => parseInt(m[1], 10));
+}
+
+async function getInvoicePdf(url: string, db: string, uid: number, apiKey: string, invoiceId: number): Promise<Uint8Array> {
+  // Step 1: Find the report action ID for account.report_invoice
+  const domain = array([array([str("report_name"), str("="), str("account.report_invoice")])]);
+  const searchXml = await execute(url, db, uid, apiKey, "ir.actions.report", "search", [domain], struct({ limit: int(1) }));
+  const reportIds = extractInts(searchXml);
+  
+  if (reportIds.length === 0) {
+    throw new Error("Report 'account.report_invoice' not found in Odoo");
+  }
+
+  // Step 2: Call _render_qweb_pdf on the report action
+  const reportArgs = array([int(reportIds[0]), array([int(invoiceId)])]);
+  const pdfXml = await execute(url, db, uid, apiKey, "ir.actions.report", "_render_qweb_pdf", [reportArgs]);
+  
+  const b64 = extractBase64(pdfXml);
   if (!b64) throw new Error("No PDF data returned from Odoo report");
 
-  // Decode base64 to Uint8Array
   const binaryString = atob(b64);
   const bytes = new Uint8Array(binaryString.length);
   for (let i = 0; i < binaryString.length; i++) {
@@ -134,9 +157,9 @@ Deno.serve(async (req) => {
       throw new Error("Invoice not found or not synced with Odoo");
     }
 
-    // Authenticate and fetch PDF via XML-RPC report service
+    // Authenticate and fetch PDF via XML-RPC object endpoint (Odoo 17+)
     const uid = await authenticate(ODOO_URL, ODOO_DB, ODOO_LOGIN, ODOO_API_KEY);
-    const pdfBytes = await renderReport(ODOO_URL, ODOO_DB, uid, ODOO_API_KEY, "account.report_invoice", [invoice.odoo_invoice_id]);
+    const pdfBytes = await getInvoicePdf(ODOO_URL, ODOO_DB, uid, ODOO_API_KEY, invoice.odoo_invoice_id);
 
     return new Response(pdfBytes, {
       status: 200,
