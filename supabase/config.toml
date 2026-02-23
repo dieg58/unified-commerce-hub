@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.get-users-last-signin]
 verify_jwt = false
+
+[functions.notify-shipment]
+verify_jwt = false

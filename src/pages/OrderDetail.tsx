@@ -11,6 +11,7 @@ import {
   CheckCircle, XCircle, Truck, Calendar
 } from "lucide-react";
 import { toast } from "sonner";
+import ShipmentSection from "@/components/ShipmentSection";
 
 const OrderDetail = () => {
   const { orderId } = useParams<{ orderId: string }>();
@@ -273,6 +274,9 @@ const OrderDetail = () => {
             </div>
           </div>
         </div>
+
+        {/* Shipments */}
+        <ShipmentSection orderId={order.id} tenantId={order.tenant_id} />
       </div>
     </>
   );

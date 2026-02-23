@@ -1,10 +1,11 @@
+import { useNavigate } from "react-router-dom";
 import TopBar from "@/components/TopBar";
 import { StatusBadge } from "@/components/DashboardWidgets";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Loader2, CheckCircle, XCircle, Package } from "lucide-react";
+import { MoreHorizontal, Loader2, CheckCircle, XCircle, Package, Eye } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -12,6 +13,7 @@ import { formatCurrency } from "@/lib/mock-data";
 import { toast } from "sonner";
 
 const TenantOrders = () => {
+  const navigate = useNavigate();
   const { profile, isShopManager } = useAuth();
   const qc = useQueryClient();
   const tenantId = profile?.tenant_id;
@@ -85,21 +87,26 @@ const TenantOrders = () => {
                 <TableCell className="text-muted-foreground text-xs">{new Date(order.created_at).toLocaleDateString("fr-FR")}</TableCell>
                 {isShopManager && (
                   <TableCell>
-                    {canAction && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0"><MoreHorizontal className="w-4 h-4" /></Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => updateStatus.mutate({ id: order.id, status: "approved" })}>
-                            <CheckCircle className="w-4 h-4 mr-2 text-success" /> Approuver
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => updateStatus.mutate({ id: order.id, status: "rejected" })}>
-                            <XCircle className="w-4 h-4 mr-2 text-destructive" /> Rejeter
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0"><MoreHorizontal className="w-4 h-4" /></Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => navigate(`/orders/${order.id}`)}>
+                          <Eye className="w-4 h-4 mr-2" /> Voir détail
+                        </DropdownMenuItem>
+                        {canAction && (
+                          <>
+                            <DropdownMenuItem onClick={() => updateStatus.mutate({ id: order.id, status: "approved" })}>
+                              <CheckCircle className="w-4 h-4 mr-2 text-success" /> Approuver
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => updateStatus.mutate({ id: order.id, status: "rejected" })}>
+                              <XCircle className="w-4 h-4 mr-2 text-destructive" /> Rejeter
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 )}
               </TableRow>
