@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import TopBar from "@/components/TopBar";
 import { SectionHeader } from "@/components/DashboardWidgets";
 import { Button } from "@/components/ui/button";
@@ -7,12 +9,17 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Globe, Mail, Settings, Shield, Save, Loader2, ExternalLink, Copy, Check } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Globe, Mail, Settings, Shield, Save, Loader2, ExternalLink, Copy, Check, Pencil, Eye } from "lucide-react";
 import { toast } from "sonner";
 
 const SettingsPage = () => {
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [editTemplate, setEditTemplate] = useState<any>(null);
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const qc = useQueryClient();
 
   // General
   const [platformName, setPlatformName] = useState("Inkoo B2B");
@@ -165,58 +172,12 @@ const SettingsPage = () => {
 
           {/* EMAILS */}
           <TabsContent value="email">
-            <div className="bg-card rounded-lg border border-border shadow-card animate-fade-in p-6 space-y-6">
-              <SectionHeader title="Configuration des emails" />
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Nom de l'expéditeur</Label>
-                  <Input value={senderName} onChange={(e) => setSenderName(e.target.value)} className="h-9" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Email de l'expéditeur</Label>
-                  <Input value={senderEmail} onChange={(e) => setSenderEmail(e.target.value)} className="h-9" />
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className="space-y-1">
-                <h4 className="text-sm font-semibold text-foreground">Notifications email</h4>
-                <p className="text-xs text-muted-foreground">Activez ou désactivez les emails automatiques envoyés aux utilisateurs.</p>
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between rounded-md border border-border p-3">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Email de bienvenue</p>
-                    <p className="text-xs text-muted-foreground">Envoyé à chaque nouvel utilisateur inscrit</p>
-                  </div>
-                  <Switch checked={welcomeEnabled} onCheckedChange={setWelcomeEnabled} />
-                </div>
-                <div className="flex items-center justify-between rounded-md border border-border p-3">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Notification de commande</p>
-                    <p className="text-xs text-muted-foreground">Envoyé au gestionnaire de boutique à chaque nouvelle commande</p>
-                  </div>
-                  <Switch checked={orderNotif} onCheckedChange={setOrderNotif} />
-                </div>
-                <div className="flex items-center justify-between rounded-md border border-border p-3">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Alerte budget dépassé</p>
-                    <p className="text-xs text-muted-foreground">Envoyé quand un département dépasse 90% de son budget</p>
-                  </div>
-                  <Switch checked={budgetAlert} onCheckedChange={setBudgetAlert} />
-                </div>
-              </div>
-
-              <Separator />
-              <div className="flex justify-end">
-                <Button onClick={handleSave} disabled={saving} className="gap-1.5">
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  Enregistrer
-                </Button>
-              </div>
-            </div>
+            <EmailTemplatesTab
+              editTemplate={editTemplate}
+              setEditTemplate={setEditTemplate}
+              previewHtml={previewHtml}
+              setPreviewHtml={setPreviewHtml}
+            />
           </TabsContent>
 
           {/* SECURITY */}
@@ -266,3 +227,189 @@ const SettingsPage = () => {
 };
 
 export default SettingsPage;
+
+/* ─── Email Templates Management Tab ─── */
+const EmailTemplatesTab = ({
+  editTemplate, setEditTemplate, previewHtml, setPreviewHtml,
+}: {
+  editTemplate: any; setEditTemplate: (t: any) => void;
+  previewHtml: string | null; setPreviewHtml: (h: string | null) => void;
+}) => {
+  const qc = useQueryClient();
+
+  const { data: templates, isLoading } = useQuery({
+    queryKey: ["email-templates"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("email_templates").select("*").order("event_type");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: async ({ id, enabled }: { id: string; enabled: boolean }) => {
+      const { error } = await supabase.from("email_templates").update({ enabled, updated_at: new Date().toISOString() }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["email-templates"] });
+      toast.success("Template mis à jour");
+    },
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async (t: { id: string; subject: string; body_html: string }) => {
+      const { error } = await supabase.from("email_templates").update({
+        subject: t.subject, body_html: t.body_html, updated_at: new Date().toISOString(),
+      }).eq("id", t.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["email-templates"] });
+      setEditTemplate(null);
+      toast.success("Template enregistré");
+    },
+  });
+
+  const sampleVars: Record<string, string> = {
+    order_ref: "A1B2C3D4",
+    order_total: "149.90",
+    customer_name: "Jean Dupont",
+    entity_name: "Marketing",
+    tenant_name: "BeVet",
+    carrier: "Colissimo",
+    tracking_number: "6X123456789",
+    tracking_url: "https://www.laposte.fr/outils/suivre-vos-envois?code=6X123456789",
+  };
+
+  const renderPreview = (html: string) => {
+    let result = html;
+    for (const [key, value] of Object.entries(sampleVars)) {
+      result = result.split(`{{${key}}}`).join(value);
+    }
+    result = result.replace(/\{\{#(\w+)\}\}([\s\S]*?)\{\{\/\1\}\}/g, (_, key, content) => {
+      return sampleVars[key] ? content : "";
+    });
+    return result;
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="bg-card rounded-lg border border-border shadow-card animate-fade-in p-6 space-y-6">
+        <SectionHeader title="Templates de notifications email" />
+        <p className="text-xs text-muted-foreground -mt-4">
+          Activez/désactivez et personnalisez les emails envoyés automatiquement lors des événements de commande.
+          Variables disponibles : <code className="text-primary">{"{{order_ref}}"}</code>, <code className="text-primary">{"{{customer_name}}"}</code>,
+          <code className="text-primary">{"{{order_total}}"}</code>, <code className="text-primary">{"{{tenant_name}}"}</code>,
+          <code className="text-primary">{"{{entity_name}}"}</code>, <code className="text-primary">{"{{carrier}}"}</code>,
+          <code className="text-primary">{"{{tracking_number}}"}</code>, <code className="text-primary">{"{{tracking_url}}"}</code>
+        </p>
+
+        <div className="space-y-3">
+          {templates?.map((t) => (
+            <div key={t.id} className="flex items-center justify-between rounded-lg border border-border p-4">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium text-foreground">{t.label}</p>
+                  <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{t.event_type}</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5 truncate">Objet : {t.subject}</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 ml-4">
+                <Button
+                  variant="ghost" size="sm" className="h-8 w-8 p-0"
+                  onClick={() => setPreviewHtml(renderPreview(t.body_html))}
+                >
+                  <Eye className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost" size="sm" className="h-8 w-8 p-0"
+                  onClick={() => setEditTemplate({ ...t })}
+                >
+                  <Pencil className="w-4 h-4" />
+                </Button>
+                <Switch
+                  checked={t.enabled}
+                  onCheckedChange={(v) => toggleMutation.mutate({ id: t.id, enabled: v })}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Edit dialog */}
+      <Dialog open={!!editTemplate} onOpenChange={(v) => { if (!v) setEditTemplate(null); }}>
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Modifier le template : {editTemplate?.label}</DialogTitle>
+          </DialogHeader>
+          {editTemplate && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Objet de l'email</Label>
+                <Input
+                  value={editTemplate.subject}
+                  onChange={(e) => setEditTemplate({ ...editTemplate, subject: e.target.value })}
+                  className="h-9"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Corps HTML</Label>
+                <Textarea
+                  value={editTemplate.body_html}
+                  onChange={(e) => setEditTemplate({ ...editTemplate, body_html: e.target.value })}
+                  className="min-h-[250px] font-mono text-xs"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline" size="sm"
+                  onClick={() => setPreviewHtml(renderPreview(editTemplate.body_html))}
+                  className="gap-1.5"
+                >
+                  <Eye className="w-4 h-4" /> Prévisualiser
+                </Button>
+              </div>
+              <Separator />
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setEditTemplate(null)}>Annuler</Button>
+                <Button
+                  onClick={() => saveMutation.mutate(editTemplate)}
+                  disabled={saveMutation.isPending}
+                  className="gap-1.5"
+                >
+                  {saveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Enregistrer
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Preview dialog */}
+      <Dialog open={!!previewHtml} onOpenChange={(v) => { if (!v) setPreviewHtml(null); }}>
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Prévisualisation</DialogTitle>
+          </DialogHeader>
+          {previewHtml && (
+            <div
+              className="border border-border rounded-lg p-6 bg-white text-foreground"
+              dangerouslySetInnerHTML={{ __html: previewHtml }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+};

@@ -35,6 +35,10 @@ const TenantApprovals = () => {
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       const { error } = await supabase.from("orders").update({ status }).eq("id", id);
       if (error) throw error;
+      // Send email notification (fire and forget)
+      const emailEvent = status === "approved" ? "order_confirmed" : "order_rejected";
+      supabase.functions.invoke("send-order-email", { body: { order_id: id, event_type: emailEvent } })
+        .catch((e) => console.warn("Email send failed:", e));
     },
     onSuccess: (_, { status }) => {
       toast.success(`Commande ${status === "approved" ? "approuvée" : "rejetée"}`);

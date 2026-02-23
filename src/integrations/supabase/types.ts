@@ -298,6 +298,87 @@ export type Database = {
           },
         ]
       }
+      email_logs: {
+        Row: {
+          created_at: string
+          error: string | null
+          event_type: string
+          id: string
+          order_id: string | null
+          recipient_email: string
+          status: string
+          subject: string
+          tenant_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          event_type: string
+          id?: string
+          order_id?: string | null
+          recipient_email: string
+          status?: string
+          subject: string
+          tenant_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          event_type?: string
+          id?: string
+          order_id?: string | null
+          recipient_email?: string
+          status?: string
+          subject?: string
+          tenant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_logs_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_logs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_templates: {
+        Row: {
+          body_html: string
+          enabled: boolean
+          event_type: string
+          id: string
+          label: string
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          body_html: string
+          enabled?: boolean
+          event_type: string
+          id?: string
+          label: string
+          subject: string
+          updated_at?: string
+        }
+        Update: {
+          body_html?: string
+          enabled?: boolean
+          event_type?: string
+          id?: string
+          label?: string
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       entities: {
         Row: {
           code: string

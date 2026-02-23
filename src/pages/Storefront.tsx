@@ -173,6 +173,10 @@ const Storefront = () => {
       }));
       const { error: iErr } = await supabase.from("order_items").insert(orderItems);
       if (iErr) throw iErr;
+      // Send email notification (fire and forget)
+      const emailEvent = needsApproval ? "approval_required" : "order_confirmed";
+      supabase.functions.invoke("send-order-email", { body: { order_id: order.id, event_type: emailEvent } })
+        .catch((e) => console.warn("Email send failed:", e));
       toast.success(needsApproval ? "Commande soumise pour approbation" : "Commande confirmée !");
       clear(); setCheckoutOpen(false);
     } catch (err: any) {
