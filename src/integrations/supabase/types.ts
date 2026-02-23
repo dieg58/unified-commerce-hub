@@ -644,6 +644,7 @@ export type Database = {
           id: string
           image_url: string | null
           location: string | null
+          low_stock_threshold: number
           min_bulk_qty: number
           name: string
           no_billing_bulk: boolean
@@ -662,6 +663,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           location?: string | null
+          low_stock_threshold?: number
           min_bulk_qty?: number
           name: string
           no_billing_bulk?: boolean
@@ -680,6 +682,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           location?: string | null
+          low_stock_threshold?: number
           min_bulk_qty?: number
           name?: string
           no_billing_bulk?: boolean
