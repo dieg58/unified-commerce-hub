@@ -25,6 +25,7 @@ const Storefront = () => {
   const [storeType, setStoreType] = useState<"staff" | "bulk">("bulk");
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("Tous");
+  const [sortBy, setSortBy] = useState<"name" | "price_asc" | "price_desc">("name");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [entityId, setEntityId] = useState<string>("");
@@ -95,24 +96,45 @@ const Storefront = () => {
     return storeType === "bulk" ? !!product.no_billing_bulk : !!product.no_billing_staff;
   };
 
-  // Categories from products
+  // Categories from products — use product_categories if available, fallback to product.category field
+  const { data: tenantCategories } = useQuery({
+    queryKey: ["store-categories", tenantId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("product_categories").select("*").eq("tenant_id", tenantId!).order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!tenantId,
+  });
+
   const categories = useMemo(() => {
+    if (tenantCategories?.length) {
+      return ["Tous", ...tenantCategories.map((c) => c.name)];
+    }
     if (!products) return ["Tous"];
     const cats = [...new Set(products.map((p) => p.category || "general"))];
     return ["Tous", ...cats.map((c) => c.charAt(0).toUpperCase() + c.slice(1))];
-  }, [products]);
+  }, [products, tenantCategories]);
 
   const filteredProducts = useMemo(() => {
-    return products?.filter((p) => {
+    const filtered = products?.filter((p) => {
       const isActiveForStore = storeType === "bulk" ? p.active_bulk : p.active_staff;
       if (!isActiveForStore) return false;
       const prices = p.product_prices as any[];
       const hasPrice = prices?.some((pr: any) => pr.store_type === storeType);
-      const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.toLowerCase().includes(search.toLowerCase());
+      const q = search.toLowerCase();
+      const matchesSearch = !q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || (p.description || "").toLowerCase().includes(q);
       const matchesCategory = activeCategory === "Tous" || (p.category || "general").toLowerCase() === activeCategory.toLowerCase();
       return hasPrice && matchesSearch && matchesCategory;
     }) || [];
-  }, [products, storeType, search, activeCategory]);
+
+    // Sort
+    return [...filtered].sort((a, b) => {
+      if (sortBy === "price_asc") return getPrice(a) - getPrice(b);
+      if (sortBy === "price_desc") return getPrice(b) - getPrice(a);
+      return a.name.localeCompare(b.name);
+    });
+  }, [products, storeType, search, activeCategory, sortBy]);
 
   const getPrice = (product: any) => {
     const prices = product.product_prices as any[];
@@ -313,9 +335,21 @@ const Storefront = () => {
             </button>
           ))}
         </div>
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Rechercher un produit..." className="pl-9 h-9 text-sm" />
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="relative flex-1 sm:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Rechercher un produit..." className="pl-9 h-9 text-sm" />
+          </div>
+          <Select value={sortBy} onValueChange={(v) => setSortBy(v as any)}>
+            <SelectTrigger className="w-[140px] h-9 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="name">Nom A-Z</SelectItem>
+              <SelectItem value="price_asc">Prix croissant</SelectItem>
+              <SelectItem value="price_desc">Prix décroissant</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
