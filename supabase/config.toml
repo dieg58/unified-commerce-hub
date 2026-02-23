@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.odoo-get-invoice-pdf]
 verify_jwt = false
+
+[functions.poll-odoo-updates]
+verify_jwt = false
