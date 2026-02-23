@@ -1348,6 +1348,44 @@ export type Database = {
           },
         ]
       }
+      tenant_shipping: {
+        Row: {
+          bulk_fee: number
+          fixed_amount: number
+          mode: string
+          staff_fee: number
+          tenant_id: string
+          threshold_amount: number
+          threshold_fee: number
+        }
+        Insert: {
+          bulk_fee?: number
+          fixed_amount?: number
+          mode?: string
+          staff_fee?: number
+          tenant_id: string
+          threshold_amount?: number
+          threshold_fee?: number
+        }
+        Update: {
+          bulk_fee?: number
+          fixed_amount?: number
+          mode?: string
+          staff_fee?: number
+          tenant_id?: string
+          threshold_amount?: number
+          threshold_fee?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_shipping_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenants: {
         Row: {
           created_at: string
