@@ -6,6 +6,15 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+function sanitizeHtml(s: string): string {
+  return s.replace(/[<>"'&]/g, (c) => {
+    const map: Record<string, string> = { '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#x27;', '&': '&amp;' };
+    return map[c] || c;
+  });
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -17,7 +26,12 @@ serve(async (req) => {
       throw new Error("RESEND_API_KEY is not configured");
     }
 
-    const { full_name, email, company, phone, message } = await req.json();
+    const body = await req.json();
+    const full_name = typeof body.full_name === "string" ? body.full_name.trim().slice(0, 100) : "";
+    const email = typeof body.email === "string" ? body.email.trim().slice(0, 255) : "";
+    const company = typeof body.company === "string" ? body.company.trim().slice(0, 200) : "";
+    const phone = typeof body.phone === "string" ? body.phone.trim().slice(0, 50) : "";
+    const message = typeof body.message === "string" ? body.message.trim().slice(0, 2000) : "";
 
     if (!full_name || !email || !company) {
       return new Response(
@@ -26,14 +40,21 @@ serve(async (req) => {
       );
     }
 
+    if (!EMAIL_RE.test(email)) {
+      return new Response(
+        JSON.stringify({ error: "Format d'email invalide" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const htmlBody = `
       <h2>Nouvelle demande de démo — Inkoo</h2>
       <table style="border-collapse:collapse;width:100%">
-        <tr><td style="padding:8px;font-weight:bold">Nom</td><td style="padding:8px">${full_name}</td></tr>
-        <tr><td style="padding:8px;font-weight:bold">Email</td><td style="padding:8px">${email}</td></tr>
-        <tr><td style="padding:8px;font-weight:bold">Entreprise</td><td style="padding:8px">${company}</td></tr>
-        <tr><td style="padding:8px;font-weight:bold">Téléphone</td><td style="padding:8px">${phone || "—"}</td></tr>
-        <tr><td style="padding:8px;font-weight:bold">Message</td><td style="padding:8px">${message || "—"}</td></tr>
+        <tr><td style="padding:8px;font-weight:bold">Nom</td><td style="padding:8px">${sanitizeHtml(full_name)}</td></tr>
+        <tr><td style="padding:8px;font-weight:bold">Email</td><td style="padding:8px">${sanitizeHtml(email)}</td></tr>
+        <tr><td style="padding:8px;font-weight:bold">Entreprise</td><td style="padding:8px">${sanitizeHtml(company)}</td></tr>
+        <tr><td style="padding:8px;font-weight:bold">Téléphone</td><td style="padding:8px">${sanitizeHtml(phone || "—")}</td></tr>
+        <tr><td style="padding:8px;font-weight:bold">Message</td><td style="padding:8px">${sanitizeHtml(message || "—")}</td></tr>
       </table>
     `;
 
@@ -46,14 +67,15 @@ serve(async (req) => {
       body: JSON.stringify({
         from: "Inkoo <onboarding@resend.dev>",
         to: ["diego@inkoo.eu"],
-        subject: `Demande de démo — ${company}`,
+        subject: `Demande de démo — ${sanitizeHtml(company)}`,
         html: htmlBody,
       }),
     });
 
     const data = await res.json();
     if (!res.ok) {
-      throw new Error(`Resend API error [${res.status}]: ${JSON.stringify(data)}`);
+      console.error("Resend API error:", data);
+      throw new Error("Failed to send email");
     }
 
     return new Response(JSON.stringify({ success: true }), {
@@ -62,8 +84,7 @@ serve(async (req) => {
     });
   } catch (error: unknown) {
     console.error("Error sending demo request:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    return new Response(JSON.stringify({ error: "An error occurred. Please try again." }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

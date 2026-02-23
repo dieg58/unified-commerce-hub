@@ -20,7 +20,6 @@ function param(inner: string): string {
 }
 function str(v: string): string { return `<string>${escapeXml(v)}</string>`; }
 function int(v: number): string { return `<int>${v}</int>`; }
-function bool(v: boolean): string { return `<boolean>${v ? 1 : 0}</boolean>`; }
 
 function escapeXml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -50,25 +49,16 @@ async function xmlRpcPost(url: string, body: string): Promise<string> {
   return res.text();
 }
 
-// Extract first <int> or <i4> value from XML-RPC response
 function extractInt(xml: string): number | null {
   const m = xml.match(/<(?:int|i4)>(\d+)<\/(?:int|i4)>/);
   return m ? parseInt(m[1], 10) : null;
 }
 
-// Extract all <int>/<i4> values
 function extractInts(xml: string): number[] {
   const matches = [...xml.matchAll(/<(?:int|i4)>(\d+)<\/(?:int|i4)>/g)];
   return matches.map(m => parseInt(m[1], 10));
 }
 
-// Extract boolean
-function extractBool(xml: string): boolean {
-  const m = xml.match(/<boolean>([01])<\/boolean>/);
-  return m ? m[1] === "1" : false;
-}
-
-// Check for fault
 function checkFault(xml: string): void {
   if (xml.includes("<fault>")) {
     const faultString = xml.match(/<name>faultString<\/name>\s*<value>\s*<string>([\s\S]*?)<\/string>/);
@@ -110,14 +100,12 @@ async function execute(url: string, db: string, uid: number, apiKey: string, mod
 // ── Business logic ──
 
 async function ensureProduct(url: string, db: string, uid: number, apiKey: string, name: string, sku: string, price: number): Promise<number> {
-  // Search by default_code (SKU)
   const domain = array([array([str("default_code"), str("="), str(sku)])]);
   const searchXml = await execute(url, db, uid, apiKey, "product.product", "search", [domain],
     struct({ limit: int(1) }));
   const ids = extractInts(searchXml);
   if (ids.length > 0) return ids[0];
 
-  // Create product
   const vals = struct({
     name: str(name),
     default_code: str(sku),
@@ -131,7 +119,6 @@ async function ensureProduct(url: string, db: string, uid: number, apiKey: strin
 }
 
 async function ensurePartner(url: string, db: string, uid: number, apiKey: string, profile: any): Promise<number> {
-  // Search by email
   const domain = array([array([str("email"), str("="), str(profile.email)])]);
   const searchXml = await execute(url, db, uid, apiKey, "res.partner", "search", [domain],
     struct({ limit: int(1) }));
@@ -139,7 +126,6 @@ async function ensurePartner(url: string, db: string, uid: number, apiKey: strin
   const ids = extractInts(searchXml);
   if (ids.length > 0) return ids[0];
 
-  // Create partner
   const vals = struct({
     name: str(profile.full_name || profile.email),
     email: str(profile.email),
@@ -159,11 +145,9 @@ async function createSaleOrder(url: string, db: string, uid: number, apiKey: str
     const productPrice = Number(item.unit_price);
     const productId = item.products?.id;
 
-    // Use cached odoo_product_id if available
     let odooProductId = item.products?.odoo_product_id;
     if (!odooProductId) {
       odooProductId = await ensureProduct(url, db, uid, apiKey, productName, productSku, productPrice);
-      // Cache the mapping in DB
       if (productId) {
         await supabase.from("products").update({ odoo_product_id: odooProductId }).eq("id", productId);
       }
@@ -191,6 +175,8 @@ async function createSaleOrder(url: string, db: string, uid: number, apiKey: str
   return newId;
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -203,15 +189,43 @@ Deno.serve(async (req) => {
     const ODOO_API_KEY = Deno.env.get("ODOO_API_KEY");
 
     if (!ODOO_URL || !ODOO_DB || !ODOO_LOGIN || !ODOO_API_KEY) {
-      throw new Error("Odoo credentials not configured. Set ODOO_URL, ODOO_DB, ODOO_LOGIN, ODOO_API_KEY.");
+      throw new Error("Odoo credentials not configured.");
+    }
+
+    // Auth check
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    const callerClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: { user: caller }, error: authErr } = await callerClient.auth.getUser();
+    if (authErr || !caller) {
+      return new Response(JSON.stringify({ error: "Invalid token" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    const { order_id } = await req.json();
-    if (!order_id) throw new Error("order_id is required");
+    const body = await req.json();
+    const order_id = typeof body.order_id === "string" ? body.order_id.trim() : "";
+    if (!order_id || !UUID_RE.test(order_id)) {
+      return new Response(JSON.stringify({ error: "Valid order_id is required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Authenticate with Odoo
     const uid = await authenticate(ODOO_URL, ODOO_DB, ODOO_LOGIN, ODOO_API_KEY);
@@ -223,19 +237,17 @@ Deno.serve(async (req) => {
       .select("*, profiles:created_by(id, full_name, email, odoo_partner_id), order_items(qty, unit_price, products(id, name, sku, odoo_product_id)), entities(name, code)")
       .eq("id", order_id)
       .single();
-    if (orderErr || !order) throw new Error(`Order not found: ${orderErr?.message}`);
+    if (orderErr || !order) throw new Error("Order not found");
 
     const profile = (order as any).profiles;
     const items = (order as any).order_items || [];
 
-    // 1. Ensure partner exists in Odoo
     let partnerId = profile?.odoo_partner_id;
     if (!partnerId) {
       partnerId = await ensurePartner(ODOO_URL, ODOO_DB, uid, ODOO_API_KEY, profile);
       await supabase.from("profiles").update({ odoo_partner_id: partnerId }).eq("id", profile.id);
     }
 
-    // Log sync attempt
     const logEntry = {
       tenant_id: order.tenant_id,
       order_id: order_id,
@@ -245,7 +257,6 @@ Deno.serve(async (req) => {
       request_payload: { partner_id: partnerId, items_count: items.length },
     };
 
-    // 2. Create sale order in Odoo
     let odooOrderId: number;
     try {
       odooOrderId = await createSaleOrder(ODOO_URL, ODOO_DB, uid, ODOO_API_KEY, partnerId, order, items, supabase);
@@ -253,19 +264,17 @@ Deno.serve(async (req) => {
       await supabase.from("odoo_sync_log").insert({
         ...logEntry,
         status: "error",
-        error_message: e.message,
+        error_message: (e as Error).message,
       });
       throw e;
     }
 
-    // 3. Update order with Odoo info
     await supabase.from("orders").update({
       odoo_order_id: odooOrderId,
       odoo_order_status: "draft",
       odoo_synced_at: new Date().toISOString(),
     }).eq("id", order_id);
 
-    // 4. Log success
     await supabase.from("odoo_sync_log").insert({
       ...logEntry,
       status: "success",
@@ -283,8 +292,7 @@ Deno.serve(async (req) => {
     });
   } catch (error: unknown) {
     console.error("Odoo sync error:", error);
-    const msg = error instanceof Error ? error.message : "Unknown error";
-    return new Response(JSON.stringify({ success: false, error: msg }), {
+    return new Response(JSON.stringify({ success: false, error: "Sync failed. Please try again." }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
