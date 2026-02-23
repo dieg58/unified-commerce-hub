@@ -222,7 +222,7 @@ const Storefront = () => {
         .from("orders")
         .insert({
           tenant_id: tenantId, entity_id: billingEntityId, shipping_entity_id: shippingEntityId, created_by: profile.id,
-          store_type: storeType, total: orderTotal, status: needsApproval ? "pending_approval" : "pending",
+          store_type: storeType, total: orderTotal, shipping_fee: shippingFee, status: needsApproval ? "pending_approval" : "pending",
           billing_address_id: billingAddressId || null, shipping_address_id: shippingAddressId || null,
         })
         .select().single();
