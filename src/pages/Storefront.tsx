@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import VariantMatrixDialog from "@/components/VariantMatrixDialog";
 import { useAuth } from "@/hooks/useAuth";
@@ -32,6 +32,18 @@ const Storefront = () => {
   const [sortBy, setSortBy] = useState<"name" | "price_asc" | "price_desc">("name");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
+  const cartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const openCartBriefly = useCallback(() => {
+    if (cartTimerRef.current) clearTimeout(cartTimerRef.current);
+    setCartOpen(true);
+    cartTimerRef.current = setTimeout(() => setCartOpen(false), 3000);
+  }, []);
+
+  const handleCartOpenChange = useCallback((open: boolean) => {
+    if (cartTimerRef.current) clearTimeout(cartTimerRef.current);
+    setCartOpen(open);
+  }, []);
   const [placing, setPlacing] = useState(false);
   const [billingEntityId, setBillingEntityId] = useState<string>("");
   const [shippingEntityId, setShippingEntityId] = useState<string>("");
@@ -259,7 +271,7 @@ const Storefront = () => {
             >
               Merch Employé
             </button>
-            <Sheet open={cartOpen} onOpenChange={setCartOpen}>
+            <Sheet open={cartOpen} onOpenChange={handleCartOpenChange}>
               <SheetTrigger asChild>
                 <button className="relative p-2 rounded-md hover:bg-muted transition-colors ml-2">
                   <ShoppingCart className="w-5 h-5 text-foreground" />
@@ -510,7 +522,7 @@ const Storefront = () => {
                             size="sm"
                             className="gap-1.5 text-white rounded-lg"
                             style={{ backgroundColor: primaryColor }}
-                            onClick={() => { addItem({ productId: product.id, name: product.name, sku: product.sku, price, storeType }, storeType === "bulk" ? Math.max(1, product.min_bulk_qty) : 1); setCartOpen(true); }}
+                            onClick={() => { addItem({ productId: product.id, name: product.name, sku: product.sku, price, storeType }, storeType === "bulk" ? Math.max(1, product.min_bulk_qty) : 1); openCartBriefly(); }}
                           >
                             <Plus className="w-3.5 h-3.5" /> Ajouter
                           </Button>
@@ -669,7 +681,7 @@ const Storefront = () => {
                 storeType,
               }, sel.qty);
             }
-            setCartOpen(true);
+            openCartBriefly();
           }}
         />
       )}
