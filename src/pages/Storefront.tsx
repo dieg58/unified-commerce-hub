@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
+import VariantMatrixDialog from "@/components/VariantMatrixDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useCart } from "@/hooks/useCart";
 import { useQuery } from "@tanstack/react-query";
@@ -31,6 +32,7 @@ const Storefront = () => {
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [entityId, setEntityId] = useState<string>("");
+  const [variantMatrixProduct, setVariantMatrixProduct] = useState<any | null>(null);
 
   const { tenantId: paramTenantId } = useParams<{ tenantId: string }>();
   const { tenantSlug } = useSubdomain();
@@ -57,7 +59,7 @@ const Storefront = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("*, product_prices(*)")
+        .select("*, product_prices(*), product_variants(*)")
         .eq("tenant_id", tenantId!)
         .order("name");
       if (error) throw error;
@@ -370,7 +372,12 @@ const Storefront = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {filteredProducts.map((product) => {
               const price = getPrice(product);
-              const inCart = items.find((i) => i.productId === product.id);
+              const productVariants = (product as any).product_variants as any[] || [];
+              const activeVariants = productVariants.filter((v: any) => v.active);
+              const hasVariants = activeVariants.length > 0;
+              const inCart = items.find((i) => i.productId === product.id && !i.variantId);
+              const variantItemsInCart = items.filter((i) => i.productId === product.id && i.variantId);
+              const totalInCart = (inCart?.qty || 0) + variantItemsInCart.reduce((s, i) => s + i.qty, 0);
               const imageUrl = product.image_url;
               return (
                 <div key={product.id} className="group bg-card rounded-xl border border-border shadow-card hover:shadow-card-hover transition-all duration-300 overflow-hidden flex flex-col">
@@ -419,7 +426,30 @@ const Storefront = () => {
                           </span>
                         ) : formatCurrency(price)}
                       </p>
-                      {inCart ? (
+                      {hasVariants ? (
+                        totalInCart > 0 ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-medium text-muted-foreground">{totalInCart} dans le panier</span>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="gap-1 text-xs rounded-lg"
+                              onClick={() => setVariantMatrixProduct(product)}
+                            >
+                              <Plus className="w-3 h-3" /> Modifier
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            size="sm"
+                            className="gap-1.5 text-white rounded-lg"
+                            style={{ backgroundColor: primaryColor }}
+                            onClick={() => setVariantMatrixProduct(product)}
+                          >
+                            <Plus className="w-3.5 h-3.5" /> Choisir
+                          </Button>
+                        )
+                      ) : inCart ? (
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() => updateQty(product.id, inCart.qty - 1)}
@@ -498,8 +528,8 @@ const Storefront = () => {
               {items.map((item) => {
                 const isFree = freeProductIds.has(item.productId);
                 return (
-                  <div key={item.productId} className="flex justify-between text-xs text-muted-foreground">
-                    <span>{item.name} × {item.qty}</span>
+                  <div key={`${item.productId}__${item.variantId || ''}`} className="flex justify-between text-xs text-muted-foreground">
+                    <span>{item.name}{item.variantLabel ? ` (${item.variantLabel})` : ""} × {item.qty}</span>
                     <span>{isFree ? <><span className="line-through">{formatCurrency(item.price * item.qty)}</span> <span className="text-primary font-medium">Offert</span></> : formatCurrency(item.price * item.qty)}</span>
                   </div>
                 );
@@ -524,6 +554,31 @@ const Storefront = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ─── Variant Matrix Dialog ─── */}
+      {variantMatrixProduct && (
+        <VariantMatrixDialog
+          open={!!variantMatrixProduct}
+          onOpenChange={(v) => { if (!v) setVariantMatrixProduct(null); }}
+          product={variantMatrixProduct}
+          variants={((variantMatrixProduct as any).product_variants as any[]) || []}
+          basePrice={getPrice(variantMatrixProduct)}
+          primaryColor={primaryColor}
+          onConfirm={(selections) => {
+            for (const sel of selections) {
+              addItem({
+                productId: variantMatrixProduct.id,
+                variantId: sel.variantId,
+                variantLabel: sel.variantValue,
+                name: variantMatrixProduct.name,
+                sku: variantMatrixProduct.sku,
+                price: getPrice(variantMatrixProduct),
+                storeType,
+              }, sel.qty);
+            }
+          }}
+        />
+      )}
     </div>
   );
 };
@@ -532,8 +587,8 @@ const Storefront = () => {
 function CartPanel({
   items, updateQty, removeItem, total, onCheckout, primaryColor, freeProductIds = new Set(),
 }: {
-  items: any[]; updateQty: (id: string, qty: number) => void;
-  removeItem: (id: string) => void; total: number;
+  items: any[]; updateQty: (id: string, qty: number, variantId?: string) => void;
+  removeItem: (id: string, variantId?: string) => void; total: number;
   onCheckout: () => void; primaryColor: string; freeProductIds?: Set<string>;
 }) {
   const hasAnyFree = items.some((i) => freeProductIds.has(i.productId));
@@ -555,25 +610,28 @@ function CartPanel({
           items.map((item: any) => {
             const isFree = freeProductIds.has(item.productId);
             return (
-            <div key={item.productId} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card">
+            <div key={`${item.productId}__${item.variantId || ''}`} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card">
               <div className="w-12 h-12 rounded-md bg-muted/50 flex items-center justify-center shrink-0">
                 <Package className="w-5 h-5 text-muted-foreground/30" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
+                {item.variantLabel && (
+                  <p className="text-[11px] text-primary font-medium truncate">{item.variantLabel}</p>
+                )}
                 <p className="text-xs text-muted-foreground">
                   {isFree ? (<><span className="line-through">{formatCurrency(item.price)}</span> <span className="text-primary font-medium">Offert</span> × {item.qty}</>) : (<>{formatCurrency(item.price)} × {item.qty}</>)}
                 </p>
               </div>
               <div className="flex items-center gap-1">
-                <button onClick={() => updateQty(item.productId, item.qty - 1)} className="w-7 h-7 rounded border border-border flex items-center justify-center hover:bg-muted">
+                <button onClick={() => updateQty(item.productId, item.qty - 1, item.variantId)} className="w-7 h-7 rounded border border-border flex items-center justify-center hover:bg-muted">
                   <Minus className="w-3 h-3" />
                 </button>
                 <span className="text-sm font-medium w-6 text-center">{item.qty}</span>
-                <button onClick={() => updateQty(item.productId, item.qty + 1)} className="w-7 h-7 rounded border border-border flex items-center justify-center hover:bg-muted">
+                <button onClick={() => updateQty(item.productId, item.qty + 1, item.variantId)} className="w-7 h-7 rounded border border-border flex items-center justify-center hover:bg-muted">
                   <Plus className="w-3 h-3" />
                 </button>
-                <button onClick={() => removeItem(item.productId)} className="w-7 h-7 rounded flex items-center justify-center text-destructive hover:bg-destructive/10">
+                <button onClick={() => removeItem(item.productId, item.variantId)} className="w-7 h-7 rounded flex items-center justify-center text-destructive hover:bg-destructive/10">
                   <Trash2 className="w-3 h-3" />
                 </button>
               </div>
