@@ -1,6 +1,6 @@
 import { Outlet } from "react-router-dom";
 import { NavLink, useLocation } from "react-router-dom";
-import { Store, ShoppingCart, User, LogOut, ChevronLeft, ChevronRight } from "lucide-react";
+import { Store, ShoppingCart, User, LogOut, ChevronLeft, ChevronRight, Heart } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
@@ -9,6 +9,7 @@ import { useTenantBySlug } from "@/hooks/useTenantBySlug";
 
 const navItems = [
   { to: "/shop", icon: Store, label: "Boutique" },
+  { to: "/shop/wishlist", icon: Heart, label: "Mes favoris" },
   { to: "/shop/orders", icon: ShoppingCart, label: "Mes commandes" },
   { to: "/shop/profile", icon: User, label: "Mon profil" },
 ];

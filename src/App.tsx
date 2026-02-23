@@ -29,6 +29,7 @@ import Storefront from "./pages/Storefront";
 import Orders from "./pages/Orders";
 import OrderDetail from "./pages/OrderDetail";
 import MyOrders from "./pages/shop/MyOrders";
+import MyWishlist from "./pages/shop/MyWishlist";
 import MyProfile from "./pages/shop/MyProfile";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
@@ -51,6 +52,7 @@ const SubdomainAwareRoutes = () => {
         <Route element={<RequireTenantUser><StorefrontLayout /></RequireTenantUser>}>
           <Route path="/" element={<Storefront />} />
           <Route path="/shop" element={<Storefront />} />
+          <Route path="/shop/wishlist" element={<MyWishlist />} />
           <Route path="/shop/orders" element={<MyOrders />} />
           <Route path="/shop/profile" element={<MyProfile />} />
         </Route>
@@ -96,11 +98,12 @@ const SubdomainAwareRoutes = () => {
       </Route>
 
       {/* Employee storefront routes – shop_managers & dept_managers are redirected to /tenant */}
-      <Route element={<RequireEmployee><StorefrontLayout /></RequireEmployee>}>
-        <Route path="/shop" element={<Storefront />} />
-        <Route path="/shop/orders" element={<MyOrders />} />
-        <Route path="/shop/profile" element={<MyProfile />} />
-        <Route path="/store" element={<Storefront />} />
+        <Route element={<RequireEmployee><StorefrontLayout /></RequireEmployee>}>
+          <Route path="/shop" element={<Storefront />} />
+          <Route path="/shop/wishlist" element={<MyWishlist />} />
+          <Route path="/shop/orders" element={<MyOrders />} />
+          <Route path="/shop/profile" element={<MyProfile />} />
+          <Route path="/store" element={<Storefront />} />
       </Route>
 
       <Route path="*" element={<NotFound />} />
