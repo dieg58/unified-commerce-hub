@@ -62,7 +62,7 @@ async function authenticate(url: string, db: string, login: string, apiKey: stri
   return uid;
 }
 
-async function getSessionCookie(url: string, db: string, login: string, password: string): Promise<string> {
+async function getSessionId(url: string, db: string, login: string, password: string): Promise<string> {
   const res = await fetch(`${url}/web/session/authenticate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -71,17 +71,26 @@ async function getSessionCookie(url: string, db: string, login: string, password
       method: "call",
       params: { db, login, password },
     }),
-    redirect: "manual",
   });
+
+  // Try to get session_id from response body first (most reliable)
+  const body = await res.json();
+  if (body?.result?.session_id) {
+    return body.result.session_id;
+  }
+
+  // Fallback: try set-cookie header
   const setCookie = res.headers.get("set-cookie");
-  if (!setCookie) throw new Error("No session cookie returned from Odoo");
-  const sessionMatch = setCookie.match(/session_id=([^;]+)/);
-  if (!sessionMatch) throw new Error("session_id not found in cookie");
-  return sessionMatch[1];
+  if (setCookie) {
+    const sessionMatch = setCookie.match(/session_id=([^;]+)/);
+    if (sessionMatch) return sessionMatch[1];
+  }
+
+  throw new Error("Could not obtain session_id from Odoo authenticate response");
 }
 
 async function getInvoicePdf(url: string, db: string, login: string, apiKey: string, invoiceId: number): Promise<Uint8Array> {
-  const sessionId = await getSessionCookie(url, db, login, apiKey);
+  const sessionId = await getSessionId(url, db, login, apiKey);
 
   const pdfUrl = `${url}/report/pdf/account.report_invoice/${invoiceId}`;
   const res = await fetch(pdfUrl, {
