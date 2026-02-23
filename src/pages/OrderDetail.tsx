@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   ArrowLeft, Loader2, User, Building2, Package,
-  CheckCircle, XCircle, Truck, Calendar
+  CheckCircle, XCircle, Truck, Calendar, MapPin
 } from "lucide-react";
 import { toast } from "sonner";
 import ShipmentSection from "@/components/ShipmentSection";
@@ -27,7 +27,7 @@ const OrderDetail = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
-        .select("*, profiles:created_by(full_name, email), entities(name, code, requires_approval), shipping_entity:entities!orders_shipping_entity_id_fkey(name, code), tenants(name, slug)")
+        .select("*, profiles:created_by(full_name, email), entities(name, code, requires_approval), shipping_entity:entities!orders_shipping_entity_id_fkey(name, code), tenants(name, slug), billing_address:addresses!orders_billing_address_id_fkey(label, address_line1, postal_code, city, country, contact_name), shipping_address:addresses!orders_shipping_address_id_fkey(label, address_line1, postal_code, city, country, contact_name)")
         .eq("id", orderId!)
         .single();
       if (error) throw error;
@@ -105,6 +105,8 @@ const OrderDetail = () => {
   const profile = order.profiles as any;
   const entity = order.entities as any;
   const shippingEntity = (order as any).shipping_entity as any;
+  const billingAddress = (order as any).billing_address as any;
+  const shippingAddress = (order as any).shipping_address as any;
   const tenant = (order as any).tenants as any;
   const isPending = order.status === "pending_approval" || order.status === "pending";
   const totalItems = items?.reduce((s, it) => s + it.qty, 0) || 0;
@@ -179,7 +181,19 @@ const OrderDetail = () => {
             <div className="space-y-2 text-sm">
               <div className="flex justify-between"><span className="text-muted-foreground">Boutique</span><span className="text-foreground">{tenant?.name || "—"}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">Facturation</span><span className="text-foreground">{entity?.name || "—"} {entity?.code ? `(${entity.code})` : ""}</span></div>
+              {billingAddress && (
+                <div className="flex items-start gap-1.5 text-xs text-muted-foreground ml-0 pl-0">
+                  <MapPin className="w-3 h-3 mt-0.5 shrink-0" />
+                  <span>{billingAddress.label} — {billingAddress.address_line1}, {billingAddress.postal_code} {billingAddress.city}</span>
+                </div>
+              )}
               <div className="flex justify-between"><span className="text-muted-foreground">Livraison</span><span className="text-foreground">{shippingEntity?.name || entity?.name || "—"} {shippingEntity?.code ? `(${shippingEntity.code})` : entity?.code ? `(${entity.code})` : ""}</span></div>
+              {shippingAddress && (
+                <div className="flex items-start gap-1.5 text-xs text-muted-foreground ml-0 pl-0">
+                  <MapPin className="w-3 h-3 mt-0.5 shrink-0" />
+                  <span>{shippingAddress.label} — {shippingAddress.address_line1}, {shippingAddress.postal_code} {shippingAddress.city}</span>
+                </div>
+              )}
               {entity?.requires_approval && (
                 <div className="flex justify-between"><span className="text-muted-foreground">Approbation</span><span className="text-xs text-warning font-medium">Requise</span></div>
               )}

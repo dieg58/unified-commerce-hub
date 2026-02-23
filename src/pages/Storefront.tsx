@@ -12,11 +12,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   ShoppingCart, Plus, Minus, Trash2, Loader2, Package, CheckCircle,
-  AlertTriangle, Search, Store, Users, Sparkles, Heart
+  AlertTriangle, Search, Store, Users, Sparkles, Heart, MapPin, Building2, Truck
 } from "lucide-react";
 import { useWishlist } from "@/hooks/useWishlist";
 import { toast } from "sonner";
@@ -34,6 +35,8 @@ const Storefront = () => {
   const [billingEntityId, setBillingEntityId] = useState<string>("");
   const [shippingEntityId, setShippingEntityId] = useState<string>("");
   const [variantMatrixProduct, setVariantMatrixProduct] = useState<any | null>(null);
+  const [billingAddressId, setBillingAddressId] = useState<string>("");
+  const [shippingAddressId, setShippingAddressId] = useState<string>("");
 
   const { tenantId: paramTenantId } = useParams<{ tenantId: string }>();
   const { tenantSlug } = useSubdomain();
@@ -87,6 +90,27 @@ const Storefront = () => {
       return data;
     },
     enabled: !!tenantId,
+  });
+
+  // Fetch addresses for selected entities
+  const { data: billingAddresses } = useQuery({
+    queryKey: ["store-addresses-billing", billingEntityId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("addresses").select("*").eq("entity_id", billingEntityId).eq("type", "billing").order("is_default", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!billingEntityId,
+  });
+
+  const { data: shippingAddresses } = useQuery({
+    queryKey: ["store-addresses-shipping", shippingEntityId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("addresses").select("*").eq("entity_id", shippingEntityId).eq("type", "shipping").order("is_default", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!shippingEntityId,
   });
 
   const branding = tenant?.tenant_branding as any;
@@ -167,6 +191,7 @@ const Storefront = () => {
         .insert({
           tenant_id: tenantId, entity_id: billingEntityId, shipping_entity_id: shippingEntityId, created_by: profile.id,
           store_type: storeType, total: effectiveTotal, status: needsApproval ? "pending_approval" : "pending",
+          billing_address_id: billingAddressId || null, shipping_address_id: shippingAddressId || null,
         })
         .select().single();
       if (oErr) throw oErr;
@@ -502,30 +527,69 @@ const Storefront = () => {
 
       {/* ─── Checkout Dialog ─── */}
       <Dialog open={checkoutOpen} onOpenChange={setCheckoutOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-auto">
           <DialogHeader><DialogTitle>Finaliser la commande</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Entité de facturation *</label>
-              <Select value={billingEntityId} onValueChange={setBillingEntityId}>
-                <SelectTrigger><SelectValue placeholder="Sélectionner l'entité à facturer" /></SelectTrigger>
-                <SelectContent>
-                  {entities?.map((e) => (
-                    <SelectItem key={e.id} value={e.id}>{e.name} ({e.code})</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {/* Billing entity + address */}
+            <div className="space-y-3">
+              <label className="text-sm font-semibold flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5 text-primary" /> Facturation</label>
+              <div className="space-y-2">
+                <Select value={billingEntityId} onValueChange={(v) => { setBillingEntityId(v); setBillingAddressId(""); }}>
+                  <SelectTrigger><SelectValue placeholder="Sélectionner l'entité à facturer" /></SelectTrigger>
+                  <SelectContent>
+                    {entities?.map((e) => (
+                      <SelectItem key={e.id} value={e.id}>{e.name} ({e.code})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {billingEntityId && billingAddresses && billingAddresses.length > 0 && (
+                  <Select value={billingAddressId} onValueChange={setBillingAddressId}>
+                    <SelectTrigger className="text-xs">
+                      <MapPin className="w-3 h-3 mr-1 shrink-0 text-muted-foreground" />
+                      <SelectValue placeholder="Adresse de facturation (optionnel)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {billingAddresses.map((a) => (
+                        <SelectItem key={a.id} value={a.id} className="text-xs">
+                          {a.label} — {a.address_line1}, {a.postal_code} {a.city}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Entité de livraison *</label>
-              <Select value={shippingEntityId} onValueChange={setShippingEntityId}>
-                <SelectTrigger><SelectValue placeholder="Sélectionner l'entité de livraison" /></SelectTrigger>
-                <SelectContent>
-                  {entities?.map((e) => (
-                    <SelectItem key={e.id} value={e.id}>{e.name} ({e.code})</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+
+            <Separator />
+
+            {/* Shipping entity + address */}
+            <div className="space-y-3">
+              <label className="text-sm font-semibold flex items-center gap-1.5"><Truck className="w-3.5 h-3.5 text-primary" /> Livraison</label>
+              <div className="space-y-2">
+                <Select value={shippingEntityId} onValueChange={(v) => { setShippingEntityId(v); setShippingAddressId(""); }}>
+                  <SelectTrigger><SelectValue placeholder="Sélectionner l'entité de livraison" /></SelectTrigger>
+                  <SelectContent>
+                    {entities?.map((e) => (
+                      <SelectItem key={e.id} value={e.id}>{e.name} ({e.code})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {shippingEntityId && shippingAddresses && shippingAddresses.length > 0 && (
+                  <Select value={shippingAddressId} onValueChange={setShippingAddressId}>
+                    <SelectTrigger className="text-xs">
+                      <MapPin className="w-3 h-3 mr-1 shrink-0 text-muted-foreground" />
+                      <SelectValue placeholder="Adresse de livraison (optionnel)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {shippingAddresses.map((a) => (
+                        <SelectItem key={a.id} value={a.id} className="text-xs">
+                          {a.label} — {a.address_line1}, {a.postal_code} {a.city}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
             </div>
             {billingEntityId && storeType === "staff" && budgetRemaining !== null && (
               <div className={`rounded-lg border p-3 ${isBudgetExceeded ? "border-warning bg-warning/5" : "border-border bg-muted/30"}`}>
