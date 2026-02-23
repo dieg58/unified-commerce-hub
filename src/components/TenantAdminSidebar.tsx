@@ -14,6 +14,7 @@ import {
   Package,
   Wallet,
   ExternalLink,
+  ClipboardCheck,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,7 @@ const shopManagerNav: NavItem[] = [
   { separator: "Commerce" },
   { to: "/tenant/products", icon: Package, label: "Produits" },
   { to: "/tenant/orders", icon: ShoppingCart, label: "Commandes" },
+  { to: "/tenant/approvals", icon: ClipboardCheck, label: "Approbations" },
   { to: "/tenant/discounts", icon: Tag, label: "Codes promo" },
   { separator: "Analyse" },
   { to: "/tenant/stats", icon: BarChart3, label: "Statistiques" },
@@ -43,6 +45,7 @@ const deptManagerNav: NavItem[] = [
   { to: "/tenant", icon: LayoutDashboard, label: "Tableau de bord" },
   { separator: "Commerce" },
   { to: "/tenant/orders", icon: ShoppingCart, label: "Commandes" },
+  { to: "/tenant/approvals", icon: ClipboardCheck, label: "Approbations" },
   { separator: "Analyse" },
   { to: "/tenant/stats", icon: BarChart3, label: "Statistiques" },
 ];

@@ -22,6 +22,7 @@ import TenantSettings from "./pages/tenant/TenantSettings";
 import TenantEntities from "./pages/tenant/TenantEntities";
 import TenantEntityForm from "./pages/tenant/TenantEntityForm";
 import TenantDiscountCodes from "./pages/tenant/TenantDiscountCodes";
+import TenantApprovals from "./pages/tenant/TenantApprovals";
 import TenantProducts from "./pages/tenant/TenantProducts";
 import TenantBudgets from "./pages/tenant/TenantBudgets";
 import Storefront from "./pages/Storefront";
@@ -82,6 +83,7 @@ const SubdomainAwareRoutes = () => {
       <Route element={<RequireTenantUser><TenantAdminLayout /></RequireTenantUser>}>
         <Route path="/tenant" element={<TenantDashboard />} />
         <Route path="/tenant/orders" element={<TenantOrders />} />
+        <Route path="/tenant/approvals" element={<TenantApprovals />} />
         <Route path="/tenant/stats" element={<TenantStats />} />
         <Route path="/tenant/users" element={<TenantUsers />} />
         <Route path="/tenant/settings" element={<TenantSettings />} />
