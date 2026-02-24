@@ -494,66 +494,86 @@ const TenantProductRequests = () => {
           if (!v) { setDetailProduct(null); setNote(""); }
         }}
       >
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
           {detailProduct && (() => {
             const existing = requestMap.get(detailProduct.id);
             const isRequested = !!existing;
             const st = existing ? statusConfig[existing.status] : null;
+            const categoryParts = detailProduct.category?.split(">").map((s: string) => s.trim()).filter(Boolean) || [];
             return (
               <>
                 <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
-                    {detailProduct.is_new && <Sparkles className="w-4 h-4 text-warning" />}
-                    {detailProduct.name}
+                  <DialogTitle className="flex items-center gap-2 text-base">
+                    {detailProduct.is_new && <Sparkles className="w-4 h-4 text-warning shrink-0" />}
+                    <span className="line-clamp-2">{detailProduct.name}</span>
                   </DialogTitle>
-                  <DialogDescription className="capitalize">{detailProduct.category}</DialogDescription>
+                  <DialogDescription className="sr-only">{detailProduct.category}</DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4">
+                <div className="space-y-3">
+                  {/* Image */}
                   {detailProduct.image_url ? (
-                    <img src={detailProduct.image_url} alt={detailProduct.name} className="w-full h-56 object-contain rounded-xl bg-muted" />
+                    <img src={detailProduct.image_url} alt={detailProduct.name} className="w-full h-40 object-contain rounded-lg bg-muted" />
                   ) : (
-                    <div className="w-full h-56 rounded-xl bg-muted flex items-center justify-center">
-                      <Package className="w-16 h-16 text-muted-foreground/20" />
+                    <div className="w-full h-40 rounded-lg bg-muted flex items-center justify-center">
+                      <Package className="w-12 h-12 text-muted-foreground/20" />
                     </div>
                   )}
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="bg-secondary/50 rounded-lg p-3">
-                      <p className="text-[11px] text-muted-foreground">Référence</p>
-                      <p className="font-mono text-sm font-medium text-foreground mt-0.5">{detailProduct.sku}</p>
+
+                  {/* Category breadcrumb */}
+                  {categoryParts.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {categoryParts.map((part: string, idx: number) => (
+                        <span key={idx} className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                          {idx > 0 && <span className="text-border">›</span>}
+                          <span className={idx === categoryParts.length - 1 ? "font-medium text-foreground" : ""}>{part}</span>
+                        </span>
+                      ))}
                     </div>
-                    <div className="bg-secondary/50 rounded-lg p-3">
-                      <p className="text-[11px] text-muted-foreground">Prix indicatif</p>
-                      <p className="text-sm font-semibold text-primary mt-0.5">{formatCurrency(Number(detailProduct.base_price))}</p>
+                  )}
+
+                  {/* Key info grid */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="bg-secondary/50 rounded-lg p-2.5">
+                      <p className="text-[10px] text-muted-foreground">Réf.</p>
+                      <p className="font-mono text-xs font-medium text-foreground mt-0.5">{detailProduct.sku}</p>
                     </div>
-                    <div className="bg-secondary/50 rounded-lg p-3">
-                      <p className="text-[11px] text-muted-foreground">Stock</p>
-                      <p className="text-sm font-medium text-foreground mt-0.5">{detailProduct.stock_qty}</p>
+                    <div className="bg-secondary/50 rounded-lg p-2.5">
+                      <p className="text-[10px] text-muted-foreground">Prix indicatif</p>
+                      <p className="text-xs font-semibold text-primary mt-0.5">{formatCurrency(Number(detailProduct.base_price))}</p>
+                    </div>
+                    <div className="bg-secondary/50 rounded-lg p-2.5">
+                      <p className="text-[10px] text-muted-foreground">Stock</p>
+                      <p className="text-xs font-medium text-foreground mt-0.5">{detailProduct.stock_qty}</p>
                     </div>
                   </div>
+
+                  {/* Description */}
                   {detailProduct.description && (
                     <div>
-                      <p className="text-xs text-muted-foreground mb-1">Description</p>
-                      <p className="text-sm text-foreground leading-relaxed">{detailProduct.description}</p>
+                      <p className="text-[11px] font-medium text-muted-foreground mb-1">Description</p>
+                      <p className="text-xs text-foreground leading-relaxed">{detailProduct.description}</p>
                     </div>
                   )}
+
+                  {/* Request status or form */}
                   {isRequested && st ? (
-                    <div className={`rounded-lg border p-4 ${st.className}`}>
+                    <div className={`rounded-lg border p-3 ${st.className}`}>
                       <div className="flex items-center gap-2">
                         <st.icon className="w-4 h-4" />
                         <span className="text-sm font-medium">Demande {st.label.toLowerCase()}</span>
                       </div>
-                      {existing.admin_note && <p className="text-sm mt-2 opacity-80">💬 {existing.admin_note}</p>}
-                      <Button variant="outline" size="sm" className="mt-3 gap-1.5" onClick={() => { setDetailProduct(null); setViewRequest(existing); }}>
+                      {existing.admin_note && <p className="text-xs mt-2 opacity-80">💬 {existing.admin_note}</p>}
+                      <Button variant="outline" size="sm" className="mt-2 gap-1.5 h-8 text-xs" onClick={() => { setDetailProduct(null); setViewRequest(existing); }}>
                         <Eye className="w-3.5 h-3.5" /> Voir ma demande
                       </Button>
                     </div>
                   ) : (
                     <>
                       <div>
-                        <label className="text-sm font-medium mb-1.5 block">Note pour l'équipe INKOO (optionnel)</label>
-                        <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Précisez vos besoins : couleurs, quantités, emplacement du logo…" rows={3} />
+                        <label className="text-xs font-medium mb-1 block">Note pour l'équipe INKOO (optionnel)</label>
+                        <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Précisez vos besoins : couleurs, quantités, emplacement du logo…" rows={2} className="text-sm" />
                       </div>
-                      <Button className="w-full gap-2" onClick={() => submitRequest.mutate()} disabled={submitRequest.isPending}>
+                      <Button className="w-full gap-2" size="sm" onClick={() => submitRequest.mutate()} disabled={submitRequest.isPending}>
                         {submitRequest.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                         Demander l'ajout à ma boutique
                       </Button>
