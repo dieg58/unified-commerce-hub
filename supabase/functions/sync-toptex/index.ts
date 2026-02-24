@@ -8,43 +8,38 @@ const corsHeaders = {
 
 const TOPTEX_BASE = "https://api.toptex.io";
 
-async function toptexAuth(): Promise<string> {
-  const apiKey = Deno.env.get("TOPTEX_API_KEY")!;
-  const username = Deno.env.get("TOPTEX_USERNAME")!;
-  const password = Deno.env.get("TOPTEX_PASSWORD")!;
+// ── Helpers ──
 
+function ml(obj: unknown, fallback = ""): { fr: string; en: string; nl: string } {
+  if (!obj || typeof obj !== "object") return { fr: String(obj || fallback), en: "", nl: "" };
+  const o = obj as Record<string, string>;
+  return { fr: o.fr || fallback, en: o.en || "", nl: o.nl || "" };
+}
+
+async function toptexAuth(): Promise<string> {
   const res = await fetch(`${TOPTEX_BASE}/v3/authenticate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-api-key": apiKey },
-    body: JSON.stringify({ username, password }),
+    headers: { "Content-Type": "application/json", "x-api-key": Deno.env.get("TOPTEX_API_KEY")! },
+    body: JSON.stringify({ username: Deno.env.get("TOPTEX_USERNAME")!, password: Deno.env.get("TOPTEX_PASSWORD")! }),
   });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`TopTex auth failed [${res.status}]: ${body.substring(0, 200)}`);
-  }
-
-  const data = await res.json();
-  return data.token;
+  if (!res.ok) throw new Error(`TopTex auth failed [${res.status}]`);
+  return (await res.json()).token;
 }
 
-function toptexHeaders(token: string): Record<string, string> {
-  return {
-    "x-api-key": Deno.env.get("TOPTEX_API_KEY")!,
-    "x-toptex-authorization": token,
-    "Accept": "application/json",
-  };
+function hdrs(token: string): Record<string, string> {
+  return { "x-api-key": Deno.env.get("TOPTEX_API_KEY")!, "x-toptex-authorization": token };
 }
+
+// ── Main ──
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
 
     // Auth check
     const authHeader = req.headers.get("authorization");
@@ -67,165 +62,186 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Parse request body
     const body = await req.json().catch(() => ({}));
     const action = body.action || "sync";
-
-    // Authenticate with TopTex
     const token = await toptexAuth();
 
-    // Action: list brands
+    // ── Action: list brands ──
     if (action === "brands") {
-      const res = await fetch(`${TOPTEX_BASE}/v3/attributes?attributes=brand`, {
-        headers: toptexHeaders(token),
-      });
+      const res = await fetch(`${TOPTEX_BASE}/v3/attributes?attributes=brand`, { headers: hdrs(token) });
       if (!res.ok) throw new Error(`Brands fetch failed [${res.status}]`);
       const data = await res.json();
-      const brands = data?.items?.[0]?.brand || [];
-      return new Response(JSON.stringify({ brands }), {
+      return new Response(JSON.stringify({ brands: data?.items?.[0]?.brand || [] }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Action: sync specific brands
+    // ── Action: sync brands ──
     const brands: string[] = body.brands;
-    if (!brands || !Array.isArray(brands) || brands.length === 0) {
-      return new Response(JSON.stringify({ error: "brands[] required for sync" }), {
+    if (!brands?.length) {
+      return new Response(JSON.stringify({ error: "brands[] required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    let totalCreated = 0;
-    let totalUpdated = 0;
-    let totalErrors = 0;
+    let totalCreated = 0, totalUpdated = 0, totalErrors = 0;
     const now = new Date().toISOString();
 
     for (const brand of brands) {
       console.log(`Syncing brand: ${brand}`);
 
-      // Fetch catalog + prices for this brand
-      const [catalogRes, priceRes] = await Promise.all([
-        fetch(`${TOPTEX_BASE}/v3/products/all?brand=${encodeURIComponent(brand)}&usage_right=b2b_uniquement`, {
-          headers: toptexHeaders(token),
-        }),
-        fetch(`${TOPTEX_BASE}/v3/products/price?brand=${encodeURIComponent(brand)}`, {
-          headers: toptexHeaders(token),
-        }),
-      ]);
+      try {
+        // Paginate catalog: fetch all pages
+        let page = 1;
+        const PAGE_SIZE = 50;
+        const allProducts: any[] = [];
 
-      if (!catalogRes.ok) {
-        console.error(`Catalog fetch failed for brand ${brand}: ${catalogRes.status}`);
-        totalErrors++;
-        continue;
-      }
+        while (true) {
+          const url = `${TOPTEX_BASE}/v3/products/all?brand=${encodeURIComponent(brand)}&usage_right=b2b_uniquement&page_number=${page}&page_size=${PAGE_SIZE}`;
+          const res = await fetch(url, { headers: hdrs(token) });
+          if (!res.ok) {
+            console.error(`Catalog page ${page} failed for ${brand}: ${res.status}`);
+            break;
+          }
+          const data = await res.json();
+          const items = data?.items || (Array.isArray(data) ? data : [data]);
+          if (!items.length) break;
+          allProducts.push(...items);
+          
+          const totalCount = data?.total_count || items.length;
+          if (page * PAGE_SIZE >= totalCount) break;
+          page++;
+        }
 
-      const catalogData = await catalogRes.json();
-      const products = Array.isArray(catalogData) ? catalogData : catalogData?.items || [catalogData];
+        console.log(`Brand ${brand}: ${allProducts.length} products fetched`);
 
-      // Build price map
-      const priceMap = new Map<string, number>();
-      if (priceRes.ok) {
-        const priceData = await priceRes.json();
-        const priceList = Array.isArray(priceData) ? priceData : priceData?.items || [priceData];
-        for (const p of priceList) {
-          if (p?.catalogReference && p?.prices?.length) {
-            // Use first tier price (qty 1)
-            const firstPrice = p.prices.find((pr: any) => pr.quantity === "1") || p.prices[0];
-            if (firstPrice) {
-              const ref = p.catalogReference;
-              const existing = priceMap.get(ref);
-              if (!existing || firstPrice.price < existing) {
-                priceMap.set(ref, firstPrice.price);
-              }
+        // Build price map from price endpoint (paginated)
+        const priceMap = new Map<string, number>();
+        let pricePage = 1;
+        while (true) {
+          const url = `${TOPTEX_BASE}/v3/products/price?brand=${encodeURIComponent(brand)}&page_number=${pricePage}&page_size=1000`;
+          const res = await fetch(url, { headers: hdrs(token) });
+          if (!res.ok) break;
+          const data = await res.json();
+          const items = Array.isArray(data) ? data : data?.items || [];
+          if (!items.length) break;
+
+          for (const p of items) {
+            if (!p?.catalogReference || !p?.prices?.length) continue;
+            const ref = p.catalogReference;
+            // Use qty=1 price tier
+            const tier = p.prices.find((t: any) => t.quantity === 1 || t.quantity === "1") || p.prices[0];
+            const price = parseFloat(String(tier.price));
+            if (!priceMap.has(ref) || price < priceMap.get(ref)!) {
+              priceMap.set(ref, price);
             }
           }
+
+          const totalCount = data?.total_count || items.length;
+          if (pricePage * 1000 >= totalCount) break;
+          pricePage++;
         }
-      }
 
-      // Group by catalogReference to aggregate at product level
-      const productsByRef = new Map<string, any>();
-      for (const item of products) {
-        if (!item?.catalogReference) continue;
-        const ref = item.catalogReference;
-        if (!productsByRef.has(ref)) {
-          productsByRef.set(ref, {
-            catalogReference: ref,
-            designation: item.designation || ref,
-            brand: item.brand || brand,
-            family: item.family || "",
-            subfamily: item.subfamily || "",
-            description: item.description || item.composition || null,
-            image: item.mainImage || item.imageUrl || null,
-            variants: [],
-          });
+        // Group products by catalogReference (deduplicate SKU-level entries)
+        const byRef = new Map<string, any>();
+        for (const item of allProducts) {
+          const ref = item.catalogReference;
+          if (!ref || byRef.has(ref)) continue;
+          byRef.set(ref, item);
         }
-        productsByRef.get(ref)!.variants.push(item);
-      }
 
-      console.log(`Brand ${brand}: ${productsByRef.size} unique products`);
+        for (const [ref, product] of byRef) {
+          try {
+            // ── Name (multilingual) ──
+            const designation = ml(product.designation, ref);
 
-      for (const [ref, product] of productsByRef) {
-        try {
-          const category = [product.family, product.subfamily].filter(Boolean).join(" > ") || "Textile";
-          const name = product.designation || ref;
-          const imageUrl = product.image || product.variants[0]?.mainImage || null;
-          const price = priceMap.get(ref) || 0;
+            // ── Category: family > sub_family ──
+            const family = ml(product.family);
+            const subfamily = ml(product.sub_family || product.subfamily);
+            const categoryParts = [family.fr, subfamily.fr].filter(Boolean);
+            const category = categoryParts.join(" > ") || "Textile";
 
-          // Description from first variant with a description
-          let description: string | null = null;
-          for (const v of product.variants) {
-            const d = v.description?.fr || v.description?.en || v.composition?.fr || v.composition?.en;
-            if (d) { description = typeof d === "string" ? d : JSON.stringify(d); break; }
+            // ── Description (multilingual) ──
+            const desc = ml(product.description);
+
+            // ── Image: images[0].url_image or packshot from first color ──
+            let imageUrl: string | null = null;
+            if (product.images?.length) {
+              imageUrl = product.images[0].url_image || product.images[0].url || null;
+            }
+            if (!imageUrl && product.colors?.length) {
+              const firstColor = product.colors[0];
+              const packshot = firstColor?.packshots?.FACE;
+              imageUrl = packshot?.url_packshot || packshot?.url || null;
+            }
+
+            // ── Price ──
+            const price = priceMap.get(ref) || 0;
+
+            // ── Stock: sum across all color/size variants ──
+            // (stock not fetched per-brand; would require per-SKU calls — set 0 for now)
+
+            // ── Novelty: check isNew on sizes or createdDate ──
+            let isNew = false;
+            const created = product.createdDate;
+            if (created) {
+              const sixMonthsAgo = new Date();
+              sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+              isNew = new Date(created) >= sixMonthsAgo;
+            }
+
+            const toptexId = `TT-${ref}`;
+
+            const { data: existing } = await supabase
+              .from("catalog_products")
+              .select("id")
+              .eq("midocean_id", toptexId)
+              .maybeSingle();
+
+            const payload = {
+              name: designation.fr || designation.en || ref,
+              name_en: designation.en || null,
+              name_nl: designation.nl || null,
+              sku: ref,
+              category,
+              description: desc.fr || null,
+              description_en: desc.en || null,
+              description_nl: desc.nl || null,
+              image_url: imageUrl,
+              base_price: price,
+              stock_qty: 0,
+              is_new: isNew,
+              release_date: created || null,
+              last_synced_at: now,
+            };
+
+            if (existing) {
+              await supabase.from("catalog_products").update(payload).eq("id", existing.id);
+              totalUpdated++;
+            } else {
+              await supabase.from("catalog_products").insert({ ...payload, midocean_id: toptexId, active: true });
+              totalCreated++;
+            }
+          } catch (e) {
+            console.error(`Error processing ${ref}:`, e);
+            totalErrors++;
           }
-
-          const toptexId = `TT-${ref}`;
-
-          const { data: existing } = await supabase
-            .from("catalog_products")
-            .select("id")
-            .eq("midocean_id", toptexId)
-            .maybeSingle();
-
-          const payload = {
-            name,
-            sku: ref,
-            category,
-            description,
-            image_url: imageUrl,
-            base_price: price,
-            stock_qty: 0, // Stock fetched separately if needed
-            is_new: false,
-            last_synced_at: now,
-          };
-
-          if (existing) {
-            await supabase.from("catalog_products").update(payload).eq("id", existing.id);
-            totalUpdated++;
-          } else {
-            await supabase.from("catalog_products").insert({
-              ...payload,
-              midocean_id: toptexId,
-              active: true,
-            });
-            totalCreated++;
-          }
-        } catch (e) {
-          console.error(`Error processing ${ref}:`, e);
-          totalErrors++;
         }
+      } catch (e) {
+        console.error(`Error syncing brand ${brand}:`, e);
+        totalErrors++;
       }
     }
 
-    console.log(`TopTex sync complete: ${totalCreated} created, ${totalUpdated} updated, ${totalErrors} errors`);
+    console.log(`TopTex sync: ${totalCreated} created, ${totalUpdated} updated, ${totalErrors} errors`);
 
     return new Response(
       JSON.stringify({ success: true, created: totalCreated, updated: totalUpdated, errors: totalErrors }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error: unknown) {
     console.error("TopTex sync error:", error);
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return new Response(JSON.stringify({ error: message }), {
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Unknown" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
