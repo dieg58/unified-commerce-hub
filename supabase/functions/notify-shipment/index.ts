@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
       method: "POST",
       headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: "Inkoo <noreply@inkoo.eu>",
+        from: "Inkoo <noreply@inkoo.be>",
         to: [email],
         subject: `Commande #${order.id.slice(0, 8)} — ${statusLabel}`,
         html,
