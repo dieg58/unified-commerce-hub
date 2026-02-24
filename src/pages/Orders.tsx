@@ -12,31 +12,33 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/mock-data";
 import { toast } from "sonner";
-
-const statusOptions = [
-  { value: "all", label: "Tous les statuts" },
-  { value: "pending", label: "En attente" },
-  { value: "pending_approval", label: "Approbation requise" },
-  { value: "approved", label: "Approuvé" },
-  { value: "processing", label: "En traitement" },
-  { value: "shipped", label: "Expédié" },
-  { value: "delivered", label: "Livré" },
-  { value: "rejected", label: "Rejeté" },
-];
-
-const storeTypeOptions = [
-  { value: "all", label: "Tous les types" },
-  { value: "bulk", label: "Bulk" },
-  { value: "staff", label: "Staff" },
-];
+import { useTranslation } from "react-i18next";
 
 const Orders = () => {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [tenantFilter, setTenantFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [storeTypeFilter, setStoreTypeFilter] = useState("all");
   const [search, setSearch] = useState("");
+
+  const statusOptions = [
+    { value: "all", label: t("orders.allStatuses") },
+    { value: "pending", label: t("status.pending") },
+    { value: "pending_approval", label: t("status.pending_approval") },
+    { value: "approved", label: t("status.approved") },
+    { value: "processing", label: t("status.processing") },
+    { value: "shipped", label: t("status.shipped") },
+    { value: "delivered", label: t("status.delivered") },
+    { value: "rejected", label: t("status.rejected") },
+  ];
+
+  const storeTypeOptions = [
+    { value: "all", label: t("orders.allTypes") },
+    { value: "bulk", label: "Bulk" },
+    { value: "staff", label: "Staff" },
+  ];
 
   const { data: tenants } = useQuery({
     queryKey: ["all-tenants-filter"],
@@ -65,7 +67,7 @@ const Orders = () => {
       if (error) throw error;
     },
     onSuccess: (_, { status }) => {
-      toast.success(`Commande ${status === "approved" ? "approuvée" : status === "rejected" ? "rejetée" : status}`);
+      toast.success(`${t("common.order")} ${status === "approved" ? t("common.approved") : status === "rejected" ? t("common.rejected") : status}`);
       qc.invalidateQueries({ queryKey: ["orders"] });
     },
     onError: (err: any) => toast.error(err.message),
@@ -87,66 +89,52 @@ const Orders = () => {
 
   return (
     <>
-      <TopBar title="Commandes" subtitle={`${filtered.length} commande${filtered.length > 1 ? "s" : ""}`} />
+      <TopBar title={t("orders.title")} subtitle={t("orders.subtitle", { count: filtered.length })} />
       <div className="p-6 space-y-4 overflow-auto">
-        {/* Filters */}
         <div className="flex items-center gap-3 flex-wrap">
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Rechercher (ID, nom, email)…" className="pl-9 h-9 text-sm" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("orders.searchPlaceholder")} className="pl-9 h-9 text-sm" />
           </div>
           <Select value={tenantFilter} onValueChange={setTenantFilter}>
-            <SelectTrigger className="w-[200px] h-9 text-xs">
-              <SelectValue placeholder="Boutique" />
-            </SelectTrigger>
+            <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue placeholder={t("nav.shop")} /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Toutes les boutiques</SelectItem>
-              {tenants?.map((t) => (
-                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-              ))}
+              <SelectItem value="all">{t("orders.allShops")}</SelectItem>
+              {tenants?.map((t) => (<SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>))}
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[180px] h-9 text-xs">
-              <SelectValue placeholder="Statut" />
-            </SelectTrigger>
+            <SelectTrigger className="w-[180px] h-9 text-xs"><SelectValue placeholder={t("common.status")} /></SelectTrigger>
             <SelectContent>
-              {statusOptions.map((s) => (
-                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-              ))}
+              {statusOptions.map((s) => (<SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>))}
             </SelectContent>
           </Select>
           <Select value={storeTypeFilter} onValueChange={setStoreTypeFilter}>
-            <SelectTrigger className="w-[150px] h-9 text-xs">
-              <SelectValue placeholder="Type" />
-            </SelectTrigger>
+            <SelectTrigger className="w-[150px] h-9 text-xs"><SelectValue placeholder={t("common.type")} /></SelectTrigger>
             <SelectContent>
-              {storeTypeOptions.map((s) => (
-                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-              ))}
+              {storeTypeOptions.map((s) => (<SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>))}
             </SelectContent>
           </Select>
         </div>
 
-        {/* Table */}
         <div className="bg-card rounded-lg border border-border shadow-card animate-fade-in">
           {isLoading ? (
             <div className="flex items-center justify-center p-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
           ) : !filtered.length ? (
-            <p className="p-12 text-center text-sm text-muted-foreground">Aucune commande trouvée</p>
+            <p className="p-12 text-center text-sm text-muted-foreground">{t("orders.noOrders")}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-xs">ID</TableHead>
-                  <TableHead className="text-xs">Utilisateur</TableHead>
-                  <TableHead className="text-xs">Boutique</TableHead>
-                  <TableHead className="text-xs">Entité</TableHead>
-                  <TableHead className="text-xs">Type</TableHead>
-                  <TableHead className="text-xs">Articles</TableHead>
-                  <TableHead className="text-xs">Total</TableHead>
-                  <TableHead className="text-xs">Statut</TableHead>
-                  <TableHead className="text-xs">Date</TableHead>
+                  <TableHead className="text-xs">{t("common.id")}</TableHead>
+                  <TableHead className="text-xs">{t("common.user")}</TableHead>
+                  <TableHead className="text-xs">{t("nav.shop")}</TableHead>
+                  <TableHead className="text-xs">{t("orders.entity")}</TableHead>
+                  <TableHead className="text-xs">{t("common.type")}</TableHead>
+                  <TableHead className="text-xs">{t("orders.articles")}</TableHead>
+                  <TableHead className="text-xs">{t("common.total")}</TableHead>
+                  <TableHead className="text-xs">{t("common.status")}</TableHead>
+                  <TableHead className="text-xs">{t("common.date")}</TableHead>
                   <TableHead className="text-xs w-10"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -158,12 +146,7 @@ const Orders = () => {
                   const itemsCount = (order.order_items as any[])?.reduce((s, it) => s + it.qty, 0) || 0;
                   const isPending = order.status === "pending_approval" || order.status === "pending";
                   return (
-                    <TableRow
-                      key={order.id}
-                      className={`text-sm animate-fade-in cursor-pointer hover:bg-muted/50 ${isPending ? "bg-warning/5" : ""}`}
-                      style={{ animationDelay: `${i * 30}ms` }}
-                      onClick={() => navigate(`/orders/${order.id}`)}
-                    >
+                    <TableRow key={order.id} className={`text-sm animate-fade-in cursor-pointer hover:bg-muted/50 ${isPending ? "bg-warning/5" : ""}`} style={{ animationDelay: `${i * 30}ms` }} onClick={() => navigate(`/orders/${order.id}`)}>
                       <TableCell className="font-mono text-xs">{order.id.slice(0, 8)}</TableCell>
                       <TableCell className="font-medium">{profile?.full_name || profile?.email || "—"}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{tenant?.name || "—"}</TableCell>
@@ -180,34 +163,32 @@ const Orders = () => {
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}>
-                              <MoreHorizontal className="w-4 h-4" />
-                            </Button>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}><MoreHorizontal className="w-4 h-4" /></Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             {isPending && (
                               <>
                                 <DropdownMenuItem onClick={(e) => { e.stopPropagation(); updateStatus.mutate({ id: order.id, status: "approved" }); }}>
-                                  <CheckCircle className="w-4 h-4 mr-2 text-success" /> Approuver
+                                  <CheckCircle className="w-4 h-4 mr-2 text-success" /> {t("common.approve")}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={(e) => { e.stopPropagation(); updateStatus.mutate({ id: order.id, status: "rejected" }); }}>
-                                  <XCircle className="w-4 h-4 mr-2 text-destructive" /> Rejeter
+                                  <XCircle className="w-4 h-4 mr-2 text-destructive" /> {t("common.reject")}
                                 </DropdownMenuItem>
                               </>
                             )}
                             {order.status === "approved" && (
                               <DropdownMenuItem onClick={(e) => { e.stopPropagation(); updateStatus.mutate({ id: order.id, status: "processing" }); }}>
-                                <Package className="w-4 h-4 mr-2" /> En traitement
+                                <Package className="w-4 h-4 mr-2" /> {t("orders.processing")}
                               </DropdownMenuItem>
                             )}
                             {order.status === "processing" && (
                               <DropdownMenuItem onClick={(e) => { e.stopPropagation(); updateStatus.mutate({ id: order.id, status: "shipped" }); }}>
-                                <Truck className="w-4 h-4 mr-2" /> Expédié
+                                <Truck className="w-4 h-4 mr-2" /> {t("orders.markShipped")}
                               </DropdownMenuItem>
                             )}
                             {order.status === "shipped" && (
                               <DropdownMenuItem onClick={(e) => { e.stopPropagation(); updateStatus.mutate({ id: order.id, status: "delivered" }); }}>
-                                <CheckCircle className="w-4 h-4 mr-2" /> Livré
+                                <CheckCircle className="w-4 h-4 mr-2" /> {t("orders.markDelivered")}
                               </DropdownMenuItem>
                             )}
                           </DropdownMenuContent>

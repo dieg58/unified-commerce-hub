@@ -12,10 +12,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import CreateTenantWizard from "@/components/tenants/CreateTenantWizard";
 import EditTenantDialog from "@/components/tenants/EditTenantDialog";
+import { useTranslation } from "react-i18next";
 
 const Tenants = () => {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { t } = useTranslation();
   const [wizardOpen, setWizardOpen] = useState(false);
   const [editTenant, setEditTenant] = useState<any>(null);
   const [search, setSearch] = useState("");
@@ -40,7 +42,7 @@ const Tenants = () => {
       return next;
     },
     onSuccess: (next) => {
-      toast.success(`Boutique ${next === "active" ? "activée" : "suspendue"}`);
+      toast.success(next === "active" ? t("tenants.shopActivated") : t("tenants.shopSuspended"));
       qc.invalidateQueries({ queryKey: ["tenants"] });
     },
     onError: (err: any) => toast.error(err.message),
@@ -56,9 +58,8 @@ const Tenants = () => {
 
   return (
     <>
-      <TopBar title="Boutiques" subtitle="Gérez toutes les boutiques partenaires" />
+      <TopBar title={t("tenants.title")} subtitle={t("tenants.subtitle")} />
       <div className="p-6 space-y-6 overflow-auto">
-        {/* Summary cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-card rounded-lg border border-border p-4 flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -66,7 +67,7 @@ const Tenants = () => {
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">{totalCount}</p>
-              <p className="text-xs text-muted-foreground">Boutiques au total</p>
+              <p className="text-xs text-muted-foreground">{t("tenants.totalShops")}</p>
             </div>
           </div>
           <div className="bg-card rounded-lg border border-border p-4 flex items-center gap-3">
@@ -75,7 +76,7 @@ const Tenants = () => {
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">{activeCount}</p>
-              <p className="text-xs text-muted-foreground">Actives</p>
+              <p className="text-xs text-muted-foreground">{t("tenants.activeShops")}</p>
             </div>
           </div>
           <div className="bg-card rounded-lg border border-border p-4 flex items-center gap-3">
@@ -84,29 +85,23 @@ const Tenants = () => {
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">{totalCount - activeCount}</p>
-              <p className="text-xs text-muted-foreground">Inactives / Suspendues</p>
+              <p className="text-xs text-muted-foreground">{t("tenants.inactiveSuspended")}</p>
             </div>
           </div>
         </div>
 
-        {/* Main table card */}
         <div className="bg-card rounded-lg border border-border shadow-card animate-fade-in">
           <div className="p-5 border-b border-border">
             <SectionHeader
-              title={`Toutes les Boutiques (${filtered?.length || 0})`}
+              title={`${t("tenants.allShops")} (${filtered?.length || 0})`}
               action={
                 <div className="flex items-center gap-2">
                   <div className="relative">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                    <Input
-                      placeholder="Rechercher…"
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      className="pl-8 h-8 w-48 text-sm"
-                    />
+                    <Input placeholder={t("common.search")} value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-8 w-48 text-sm" />
                   </div>
                   <Button size="sm" className="gap-1.5" onClick={() => setWizardOpen(true)}>
-                    <Plus className="w-4 h-4" /> Nouvelle Boutique
+                    <Plus className="w-4 h-4" /> {t("tenants.newShop")}
                   </Button>
                 </div>
               }
@@ -116,17 +111,17 @@ const Tenants = () => {
             <div className="flex items-center justify-center p-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
           ) : !filtered?.length ? (
             <p className="p-12 text-center text-sm text-muted-foreground">
-              {search ? "Aucune boutique trouvée" : "Aucune boutique. Créez-en une pour commencer."}
+              {search ? t("tenants.noShopFound") : t("tenants.noShopCreate")}
             </p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-xs">Boutique</TableHead>
-                  <TableHead className="text-xs">Sous-domaine</TableHead>
-                  <TableHead className="text-xs">Statut</TableHead>
-                  <TableHead className="text-xs">Branding</TableHead>
-                  <TableHead className="text-xs">Créée le</TableHead>
+                  <TableHead className="text-xs">{t("nav.shop")}</TableHead>
+                  <TableHead className="text-xs">{t("tenants.subdomain")}</TableHead>
+                  <TableHead className="text-xs">{t("common.status")}</TableHead>
+                  <TableHead className="text-xs">{t("tenants.branding")}</TableHead>
+                  <TableHead className="text-xs">{t("common.createdOn")}</TableHead>
                   <TableHead className="text-xs w-10"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -136,12 +131,7 @@ const Tenants = () => {
                   const color = branding?.primary_color || "#0ea5e9";
                   const accent = branding?.accent_color || "#10b981";
                   return (
-                    <TableRow
-                      key={tenant.id}
-                      className="text-sm animate-fade-in cursor-pointer hover:bg-muted/50"
-                      style={{ animationDelay: `${i * 40}ms` }}
-                      onClick={() => navigate(`/tenants/${tenant.id}`)}
-                    >
+                    <TableRow key={tenant.id} className="text-sm animate-fade-in cursor-pointer hover:bg-muted/50" style={{ animationDelay: `${i * 40}ms` }} onClick={() => navigate(`/tenants/${tenant.id}`)}>
                       <TableCell>
                         <div className="flex items-center gap-3">
                           {branding?.logo_url ? (
@@ -158,15 +148,13 @@ const Tenants = () => {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <span className="font-mono text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded">
-                          {tenant.slug}.domain.com
-                        </span>
+                        <span className="font-mono text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded">{tenant.slug}.domain.com</span>
                       </TableCell>
                       <TableCell><StatusBadge status={tenant.status} /></TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1.5">
-                          <div className="w-4 h-4 rounded-full border border-border/50" style={{ backgroundColor: color }} title={`Primary: ${color}`} />
-                          <div className="w-4 h-4 rounded-full border border-border/50" style={{ backgroundColor: accent }} title={`Accent: ${accent}`} />
+                          <div className="w-4 h-4 rounded-full border border-border/50" style={{ backgroundColor: color }} />
+                          <div className="w-4 h-4 rounded-full border border-border/50" style={{ backgroundColor: accent }} />
                         </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground text-xs">{new Date(tenant.created_at).toLocaleDateString("fr-FR")}</TableCell>
@@ -177,16 +165,16 @@ const Tenants = () => {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/tenants/${tenant.id}`); }}>
-                              <ExternalLink className="w-4 h-4 mr-2" /> Voir détails
+                              <ExternalLink className="w-4 h-4 mr-2" /> {t("tenants.viewDetails")}
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/store/${tenant.id}`); }}>
-                              <Store className="w-4 h-4 mr-2" /> Voir la boutique
+                              <Store className="w-4 h-4 mr-2" /> {t("tenants.viewShop")}
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setEditTenant(tenant); }}>
-                              <Pencil className="w-4 h-4 mr-2" /> Modifier
+                              <Pencil className="w-4 h-4 mr-2" /> {t("common.edit")}
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={(e) => { e.stopPropagation(); toggleStatus.mutate({ id: tenant.id, current: tenant.status }); }}>
-                              {tenant.status === "active" ? <><PowerOff className="w-4 h-4 mr-2" /> Suspendre</> : <><Power className="w-4 h-4 mr-2" /> Activer</>}
+                              {tenant.status === "active" ? <><PowerOff className="w-4 h-4 mr-2" /> {t("tenants.suspend")}</> : <><Power className="w-4 h-4 mr-2" /> {t("tenants.activate")}</>}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>

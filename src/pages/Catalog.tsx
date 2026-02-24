@@ -7,9 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/mock-data";
+import { useTranslation } from "react-i18next";
 
 const Catalog = () => {
   const [search, setSearch] = useState("");
+  const { t } = useTranslation();
 
   const { data: products, isLoading } = useQuery({
     queryKey: ["products"],
@@ -28,16 +30,16 @@ const Catalog = () => {
 
   return (
     <>
-      <TopBar title="Catalogue" subtitle="Tous les produits de la plateforme" />
+      <TopBar title={t("catalog.title")} subtitle={t("catalog.subtitle")} />
       <div className="p-6 space-y-6 overflow-auto">
         <div className="bg-card rounded-lg border border-border shadow-card animate-fade-in">
           <div className="p-5 border-b border-border">
             <SectionHeader
-              title={`Produits (${filtered?.length || 0})`}
+              title={`${t("common.products")} (${filtered?.length || 0})`}
               action={
                 <div className="relative">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                  <Input placeholder="Rechercher…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-8 w-52 text-sm" />
+                  <Input placeholder={t("common.search")} value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-8 w-52 text-sm" />
                 </div>
               }
             />
@@ -45,7 +47,7 @@ const Catalog = () => {
           {isLoading ? (
             <div className="flex items-center justify-center p-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
           ) : !filtered?.length ? (
-            <p className="p-12 text-center text-sm text-muted-foreground">{search ? "Aucun produit trouvé" : "Aucun produit"}</p>
+            <p className="p-12 text-center text-sm text-muted-foreground">{search ? t("catalog.noProductFound") : t("catalog.noProduct")}</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-5">
               {filtered.map((product, i) => {
@@ -54,11 +56,7 @@ const Catalog = () => {
                 const staffPrice = prices?.find((p: any) => p.store_type === "staff");
                 const bulkPrice = prices?.find((p: any) => p.store_type === "bulk");
                 return (
-                  <div
-                    key={product.id}
-                    className="border border-border rounded-lg overflow-hidden hover:shadow-card-hover transition-shadow cursor-pointer animate-fade-in"
-                    style={{ animationDelay: `${i * 40}ms` }}
-                  >
+                  <div key={product.id} className="border border-border rounded-lg overflow-hidden hover:shadow-card-hover transition-shadow cursor-pointer animate-fade-in" style={{ animationDelay: `${i * 40}ms` }}>
                     <div className="w-full h-28 bg-secondary flex items-center justify-center">
                       {product.image_url ? (
                         <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
@@ -72,7 +70,7 @@ const Catalog = () => {
                         <p className="text-xs text-muted-foreground font-mono">{product.sku}</p>
                       </div>
                       <div className="flex items-center justify-between">
-                        <Badge variant="outline" className="text-[10px] capitalize">{product.category || "général"}</Badge>
+                        <Badge variant="outline" className="text-[10px] capitalize">{product.category || t("catalog.general")}</Badge>
                         <div className="flex gap-1">
                           {product.active_bulk && <Badge variant="secondary" className="text-[9px] px-1">B</Badge>}
                           {product.active_staff && <Badge variant="secondary" className="text-[9px] px-1">S</Badge>}
