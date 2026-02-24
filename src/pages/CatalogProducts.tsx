@@ -63,7 +63,7 @@ const CatalogProducts = () => {
   const qc = useQueryClient();
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
-  const [activeTab, setActiveTab] = useState<"goodies" | "textile">("goodies");
+  const [activeTab, setActiveTab] = useState<"goodies" | "textile" | "toptex">("goodies");
   const [filterGroup, setFilterGroup] = useState<string>("all");
   const [filterSubCategory, setFilterSubCategory] = useState<string>("all");
   
@@ -120,9 +120,12 @@ const CatalogProducts = () => {
   const tabProducts = useMemo(() => {
     if (!products) return [];
     if (activeTab === "goodies") {
-      return products.filter((p) => !p.midocean_id?.startsWith("SS-"));
+      return products.filter((p) => !p.midocean_id?.startsWith("SS-") && !p.midocean_id?.startsWith("TT-"));
     }
-    return products.filter((p) => !!p.midocean_id?.startsWith("SS-"));
+    if (activeTab === "textile") {
+      return products.filter((p) => !!p.midocean_id?.startsWith("SS-"));
+    }
+    return products.filter((p) => !!p.midocean_id?.startsWith("TT-"));
   }, [products, activeTab]);
 
   // Parent categories with counts
@@ -241,8 +244,9 @@ const CatalogProducts = () => {
   });
 
   const activeCount = tabProducts.filter((p) => p.active).length;
-  const goodiesCount = products?.filter((p) => !p.midocean_id?.startsWith("SS-")).length || 0;
+  const goodiesCount = products?.filter((p) => !p.midocean_id?.startsWith("SS-") && !p.midocean_id?.startsWith("TT-")).length || 0;
   const textileCount = products?.filter((p) => !!p.midocean_id?.startsWith("SS-")).length || 0;
+  const toptexCount = products?.filter((p) => !!p.midocean_id?.startsWith("TT-")).length || 0;
 
   const syncMidocean = useMutation({
     mutationFn: async () => {
@@ -272,13 +276,54 @@ const CatalogProducts = () => {
     onError: (err: any) => toast.error(`Erreur sync Stanley/Stella : ${err.message}`),
   });
 
+  // TopTex
+  const [toptexBrandDialogOpen, setToptexBrandDialogOpen] = useState(false);
+  const [toptexBrands, setToptexBrands] = useState<string[]>([]);
+  const [toptexSelectedBrands, setToptexSelectedBrands] = useState<Set<string>>(new Set());
+  const [toptexLoadingBrands, setToptexLoadingBrands] = useState(false);
+
+  const loadToptexBrands = async () => {
+    setToptexLoadingBrands(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("sync-toptex", {
+        body: { action: "brands" },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setToptexBrands(data.brands || []);
+      setToptexBrandDialogOpen(true);
+    } catch (err: any) {
+      toast.error(`Erreur chargement marques TopTex : ${err.message}`);
+    } finally {
+      setToptexLoadingBrands(false);
+    }
+  };
+
+  const syncToptex = useMutation({
+    mutationFn: async () => {
+      const brands = Array.from(toptexSelectedBrands);
+      const { data, error } = await supabase.functions.invoke("sync-toptex", {
+        body: { action: "sync", brands },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success(`TopTex : ${data.created} créés, ${data.updated} mis à jour`);
+      qc.invalidateQueries({ queryKey: ["catalog-products"] });
+      setToptexBrandDialogOpen(false);
+    },
+    onError: (err: any) => toast.error(`Erreur sync TopTex : ${err.message}`),
+  });
+
   return (
     <>
       <TopBar title={t("catalogAdmin.title")} subtitle={t("catalogAdmin.subtitle")} />
       <div className="p-6 space-y-6 overflow-auto">
         {/* Stats */}
         {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as "goodies" | "textile"); setFilterGroup("all"); setFilterSubCategory("all"); setSearch(""); }}>
+        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as "goodies" | "textile" | "toptex"); setFilterGroup("all"); setFilterSubCategory("all"); setSearch(""); }}>
           <div className="flex items-center justify-between">
             <TabsList>
               <TabsTrigger value="goodies" className="gap-1.5">
@@ -288,6 +333,10 @@ const CatalogProducts = () => {
               <TabsTrigger value="textile" className="gap-1.5">
                 <Shirt className="w-4 h-4" />
                 Textile ({textileCount})
+              </TabsTrigger>
+              <TabsTrigger value="toptex" className="gap-1.5">
+                <Package className="w-4 h-4" />
+                TopTex ({toptexCount})
               </TabsTrigger>
             </TabsList>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -391,15 +440,22 @@ const CatalogProducts = () => {
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                     <Input placeholder={t("common.search")} value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-8 w-52 text-sm" />
                   </div>
-                  {activeTab === "goodies" ? (
+                  {activeTab === "goodies" && (
                     <Button size="sm" variant="outline" className="gap-1.5" onClick={() => syncMidocean.mutate()} disabled={syncMidocean.isPending}>
                       {syncMidocean.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                       Sync Midocean
                     </Button>
-                  ) : (
+                  )}
+                  {activeTab === "textile" && (
                     <Button size="sm" variant="outline" className="gap-1.5" onClick={() => syncStanleyStella.mutate()} disabled={syncStanleyStella.isPending}>
                       {syncStanleyStella.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                       Sync Stanley/Stella
+                    </Button>
+                  )}
+                  {activeTab === "toptex" && (
+                    <Button size="sm" variant="outline" className="gap-1.5" onClick={loadToptexBrands} disabled={toptexLoadingBrands || syncToptex.isPending}>
+                      {(toptexLoadingBrands || syncToptex.isPending) ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                      Sync TopTex
                     </Button>
                   )}
                   <Button size="sm" className="gap-1.5" onClick={openCreate}>
@@ -624,6 +680,66 @@ const CatalogProducts = () => {
                 {editing ? t("common.update") : t("common.create")}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* TopTex Brand Selection Dialog */}
+      <Dialog open={toptexBrandDialogOpen} onOpenChange={setToptexBrandDialogOpen}>
+        <DialogContent className="max-w-lg max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Sélectionner les marques TopTex à importer</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs"
+                onClick={() => setToptexSelectedBrands(new Set(toptexBrands))}
+              >
+                Tout sélectionner
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs"
+                onClick={() => setToptexSelectedBrands(new Set())}
+              >
+                Tout désélectionner
+              </Button>
+              <span className="text-xs text-muted-foreground ml-auto">
+                {toptexSelectedBrands.size} / {toptexBrands.length} marques
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5 max-h-[50vh] overflow-y-auto pr-2">
+              {toptexBrands.map((brand) => (
+                <label
+                  key={brand}
+                  className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer text-sm"
+                >
+                  <Checkbox
+                    checked={toptexSelectedBrands.has(brand)}
+                    onCheckedChange={(checked) => {
+                      setToptexSelectedBrands((prev) => {
+                        const next = new Set(prev);
+                        if (checked) next.add(brand); else next.delete(brand);
+                        return next;
+                      });
+                    }}
+                  />
+                  {brand}
+                </label>
+              ))}
+            </div>
+            <Button
+              className="w-full gap-1.5"
+              disabled={toptexSelectedBrands.size === 0 || syncToptex.isPending}
+              onClick={() => syncToptex.mutate()}
+            >
+              {syncToptex.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              Importer {toptexSelectedBrands.size} marque(s)
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
