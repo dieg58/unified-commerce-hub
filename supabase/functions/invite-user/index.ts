@@ -252,7 +252,7 @@ Deno.serve(async (req) => {
           Authorization: `Bearer ${resendKey}`,
         },
         body: JSON.stringify({
-          from: "Inkoo <onboarding@resend.dev>",
+          from: "Inkoo <noreply@inkoo.eu>",
           to: [email],
           subject,
           html: emailHtml,
