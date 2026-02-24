@@ -12,7 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Plus, Search, Loader2, MoreHorizontal, Pencil, Trash2, Package, Upload, Eye, RefreshCw, Filter } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Plus, Search, Loader2, MoreHorizontal, Pencil, Trash2, Package, Upload, Eye, RefreshCw, Filter, Gift, Shirt } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/mock-data";
@@ -48,8 +49,9 @@ const CatalogProducts = () => {
   const qc = useQueryClient();
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
+  const [activeTab, setActiveTab] = useState<"goodies" | "textile">("goodies");
   const [filterCategory, setFilterCategory] = useState<string>("all");
-  const [filterSource, setFilterSource] = useState<string>("all");
+  
   const [filterActive, setFilterActive] = useState<boolean | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<CatalogProduct | null>(null);
@@ -68,24 +70,26 @@ const CatalogProducts = () => {
     },
   });
 
-  const categories = useMemo(() => {
+  const tabProducts = useMemo(() => {
     if (!products) return [];
-    return [...new Set(products.map((p) => p.category))].sort();
-  }, [products]);
+    if (activeTab === "goodies") {
+      return products.filter((p) => !p.midocean_id?.startsWith("SS-"));
+    }
+    return products.filter((p) => !!p.midocean_id?.startsWith("SS-"));
+  }, [products, activeTab]);
 
-  const filtered = products?.filter((p) => {
+  const categories = useMemo(() => {
+    return [...new Set(tabProducts.map((p) => p.category))].sort();
+  }, [tabProducts]);
+
+  const filtered = tabProducts.filter((p) => {
     const matchesSearch =
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.sku.toLowerCase().includes(search.toLowerCase()) ||
       p.category.toLowerCase().includes(search.toLowerCase());
     const matchesCategory = filterCategory === "all" || p.category === filterCategory;
-    const matchesSource =
-      filterSource === "all" ||
-      (filterSource === "midocean" && !!p.midocean_id && !p.midocean_id.startsWith("SS-")) ||
-      (filterSource === "stanleystella" && !!p.midocean_id && p.midocean_id.startsWith("SS-")) ||
-      (filterSource === "manual" && !p.midocean_id);
     const matchesActive = filterActive === null || p.active === filterActive;
-    return matchesSearch && matchesCategory && matchesSource && matchesActive;
+    return matchesSearch && matchesCategory && matchesActive;
   });
 
   const openCreate = () => {
@@ -166,8 +170,9 @@ const CatalogProducts = () => {
     onError: (err: any) => toast.error(err.message),
   });
 
-  const activeCount = products?.filter((p) => p.active).length || 0;
-  const syncedCount = products?.filter((p) => p.midocean_id).length || 0;
+  const activeCount = tabProducts.filter((p) => p.active).length;
+  const goodiesCount = products?.filter((p) => !p.midocean_id?.startsWith("SS-")).length || 0;
+  const textileCount = products?.filter((p) => !!p.midocean_id?.startsWith("SS-")).length || 0;
 
   const syncMidocean = useMutation({
     mutationFn: async () => {
@@ -202,62 +207,32 @@ const CatalogProducts = () => {
       <TopBar title={t("catalogAdmin.title")} subtitle={t("catalogAdmin.subtitle")} />
       <div className="p-6 space-y-6 overflow-auto">
         {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-          <div className="bg-card rounded-lg border border-border p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Package className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-foreground">{products?.length || 0}</p>
-              <p className="text-xs text-muted-foreground">{t("catalogAdmin.totalProducts")}</p>
-            </div>
-          </div>
-          <div className="bg-card rounded-lg border border-border p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-success/10 flex items-center justify-center">
-              <Eye className="w-5 h-5 text-success" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-foreground">{activeCount}</p>
-              <p className="text-xs text-muted-foreground">{t("catalogAdmin.activeProducts")}</p>
-            </div>
-          </div>
-          <div className="bg-card rounded-lg border border-border p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
-              <Package className="w-5 h-5 text-muted-foreground" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-foreground">{(products?.length || 0) - activeCount}</p>
-              <p className="text-xs text-muted-foreground">{t("catalogAdmin.inactiveProducts")}</p>
+        {/* Tabs */}
+        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as "goodies" | "textile"); setFilterCategory("all"); setSearch(""); }}>
+          <div className="flex items-center justify-between">
+            <TabsList>
+              <TabsTrigger value="goodies" className="gap-1.5">
+                <Gift className="w-4 h-4" />
+                Goodies ({goodiesCount})
+              </TabsTrigger>
+              <TabsTrigger value="textile" className="gap-1.5">
+                <Shirt className="w-4 h-4" />
+                Textile ({textileCount})
+              </TabsTrigger>
+            </TabsList>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>{tabProducts.length} produits</span>
+              <span>·</span>
+              <span>{activeCount} actifs</span>
             </div>
           </div>
-          <div className="bg-card rounded-lg border border-border p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
-              <RefreshCw className="w-5 h-5 text-accent-foreground" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-foreground">{syncedCount}</p>
-              <p className="text-xs text-muted-foreground">Midocean</p>
-            </div>
-          </div>
-        </div>
+        </Tabs>
 
-        {/* Filters */}
         <div className="bg-card rounded-lg border border-border p-4 flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <Filter className="w-4 h-4" />
             Filtres
           </div>
-          <Select value={filterSource} onValueChange={setFilterSource}>
-            <SelectTrigger className="h-8 w-40 text-sm">
-              <SelectValue placeholder="Fournisseur" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tous les fournisseurs</SelectItem>
-              <SelectItem value="midocean">Midocean</SelectItem>
-              <SelectItem value="stanleystella">Stanley/Stella</SelectItem>
-              <SelectItem value="manual">Manuel</SelectItem>
-            </SelectContent>
-          </Select>
           <Select value={filterCategory} onValueChange={setFilterCategory}>
             <SelectTrigger className="h-8 w-52 text-sm">
               <SelectValue placeholder="Catégorie" />
@@ -298,14 +273,17 @@ const CatalogProducts = () => {
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                     <Input placeholder={t("common.search")} value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-8 w-52 text-sm" />
                   </div>
-                  <Button size="sm" variant="outline" className="gap-1.5" onClick={() => syncMidocean.mutate()} disabled={syncMidocean.isPending}>
-                    {syncMidocean.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                    Sync Midocean
-                  </Button>
-                  <Button size="sm" variant="outline" className="gap-1.5" onClick={() => syncStanleyStella.mutate()} disabled={syncStanleyStella.isPending}>
-                    {syncStanleyStella.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                    Sync Stanley/Stella
-                  </Button>
+                  {activeTab === "goodies" ? (
+                    <Button size="sm" variant="outline" className="gap-1.5" onClick={() => syncMidocean.mutate()} disabled={syncMidocean.isPending}>
+                      {syncMidocean.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                      Sync Midocean
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="outline" className="gap-1.5" onClick={() => syncStanleyStella.mutate()} disabled={syncStanleyStella.isPending}>
+                      {syncStanleyStella.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                      Sync Stanley/Stella
+                    </Button>
+                  )}
                   <Button size="sm" className="gap-1.5" onClick={openCreate}>
                     <Plus className="w-4 h-4" /> {t("catalogAdmin.addProduct")}
                   </Button>
@@ -330,7 +308,7 @@ const CatalogProducts = () => {
                   <TableHead className="text-xs">{t("catalogAdmin.basePrice")}</TableHead>
                   <TableHead className="text-xs">Stock</TableHead>
                   <TableHead className="text-xs">{t("common.status")}</TableHead>
-                  <TableHead className="text-xs">Source</TableHead>
+                  <TableHead className="text-xs w-10"></TableHead>
                   <TableHead className="text-xs w-10"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -362,17 +340,6 @@ const CatalogProducts = () => {
                       <Badge variant="outline" className={`text-[10px] ${product.active ? "bg-success/10 text-success border-success/20" : "bg-muted text-muted-foreground"}`}>
                         {product.active ? t("common.active") : t("common.inactive")}
                       </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {product.midocean_id ? (
-                        product.midocean_id.startsWith("SS-") ? (
-                          <Badge variant="secondary" className="text-[9px]">Stanley/Stella</Badge>
-                        ) : (
-                          <Badge variant="secondary" className="text-[9px]">Midocean</Badge>
-                        )
-                      ) : (
-                        <span className="text-xs text-muted-foreground">Manuel</span>
-                      )}
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
