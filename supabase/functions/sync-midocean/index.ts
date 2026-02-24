@@ -155,6 +155,15 @@ Deno.serve(async (req) => {
 
         const description = product.long_description || product.description || null;
 
+        // Release date & novelty detection
+        const releaseDate = product.release_date || firstVariant?.release_date || null;
+        let isNew = false;
+        if (releaseDate) {
+          const sixMonthsAgo = new Date();
+          sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+          isNew = new Date(releaseDate) >= sixMonthsAgo;
+        }
+
         // Upsert by midocean_id
         const { data: existing } = await supabase
           .from("catalog_products")
@@ -170,6 +179,8 @@ Deno.serve(async (req) => {
           image_url: imageUrl,
           stock_qty: totalStock,
           base_price: finalPrice,
+          is_new: isNew,
+          release_date: releaseDate,
           last_synced_at: now,
         };
 

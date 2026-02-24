@@ -52,6 +52,10 @@ interface SSVariant {
   Weight: number;
   CompositionList: string;
   Published: number;
+  SKU_Start_Date: string | null;
+  NewItem: number;
+  NewColor: number;
+  NewSize: number;
   [key: string]: unknown;
 }
 
@@ -71,6 +75,9 @@ interface SSProduct {
   Segment: string;
   MainPicture: Array<{ HTMLPath: string; ColorCode: string }>;
   Variants: SSVariant[];
+  NewProduct: number;
+  NewStyle: number;
+  StylePublishedNewCollection: number;
   [key: string]: unknown;
 }
 
@@ -194,6 +201,10 @@ Deno.serve(async (req) => {
 
         const description = descParts.join("\n\n") + (meta.length ? "\n\n" + meta.join(" | ") : "");
 
+        // Novelty: use NewProduct or NewStyle flags, and SKU_Start_Date from first variant
+        const isNew = !!(product.NewProduct || product.NewStyle || (product as Record<string, unknown>).StylePublishedNewCollection);
+        const firstVariantStartDate = variants[0]?.SKU_Start_Date || null;
+
         const { error: upsertError } = await supabase
           .from("catalog_products")
           .upsert({
@@ -210,6 +221,8 @@ Deno.serve(async (req) => {
             stock_qty: totalStock,
             image_url: imageUrl,
             active: true,
+            is_new: isNew,
+            release_date: firstVariantStartDate,
             last_synced_at: new Date().toISOString(),
           }, { onConflict: "sku" });
 
