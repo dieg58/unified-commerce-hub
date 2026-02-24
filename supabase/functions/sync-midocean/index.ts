@@ -15,6 +15,51 @@ function parseEuroPrice(val: unknown): number {
   return 0;
 }
 
+const imageExts = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
+const isImageUrl = (url: string) => {
+  const lower = url.toLowerCase();
+  return imageExts.some((ext) => lower.includes(ext)) && lower.includes("/image/");
+};
+
+function findImageUrl(product: any): string | null {
+  if (product.variants) {
+    for (const v of product.variants) {
+      if (v.digital_assets) {
+        for (const a of v.digital_assets) {
+          if (a.url && isImageUrl(a.url)) return a.url;
+        }
+      }
+      if (v.main_picture && isImageUrl(v.main_picture)) return v.main_picture;
+    }
+  }
+  if (product.main_picture && imageExts.some((e) => product.main_picture.toLowerCase().includes(e))) {
+    return product.main_picture;
+  }
+  return null;
+}
+
+function extractVariantInfo(product: any): { colors: any[]; sizes: string[] } {
+  const colorMap = new Map<string, { color: string; hex: string | null; image_url: string | null }>();
+  const sizeSet = new Set<string>();
+  if (!product.variants) return { colors: [], sizes: [] };
+  for (const v of product.variants) {
+    const colorName = v.color_group || v.color_description || v.color || null;
+    if (colorName && !colorMap.has(colorName)) {
+      let variantImage: string | null = null;
+      if (v.digital_assets) {
+        for (const a of v.digital_assets) {
+          if (a.url && isImageUrl(a.url)) { variantImage = a.url; break; }
+        }
+      }
+      if (!variantImage && v.main_picture && isImageUrl(v.main_picture)) variantImage = v.main_picture;
+      colorMap.set(colorName, { color: colorName, hex: v.color_hex || v.color_code || null, image_url: variantImage });
+    }
+    const size = v.size || v.size_description || null;
+    if (size) sizeSet.add(size);
+  }
+  return { colors: Array.from(colorMap.values()), sizes: Array.from(sizeSet) };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -56,6 +101,12 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Parse optional batch params (must read body before it's consumed)
+    let body: any = {};
+    try { body = await req.json(); } catch (_) { /* no body */ }
+    const BATCH_SIZE = body.batch_size || 500;
+    const offset = body.offset || 0;
+
     const MIDOCEAN_API_KEY = Deno.env.get("MIDOCEAN_API_KEY");
     if (!MIDOCEAN_API_KEY) {
       return new Response(JSON.stringify({ error: "MIDOCEAN_API_KEY not configured" }), {
@@ -69,7 +120,6 @@ Deno.serve(async (req) => {
       "Accept": "application/json",
     };
 
-    // Fetch products, stock, and prices in parallel
     console.log("Fetching Midocean data...");
     const [productsRes, stockRes, pricesRes] = await Promise.all([
       fetch(`${MIDOCEAN_BASE}/products/2.0?language=en`, { headers }),
@@ -85,7 +135,6 @@ Deno.serve(async (req) => {
     const stockData = await stockRes.json();
     const pricesData = await pricesRes.json();
 
-    // Build stock map: variant sku -> qty
     const stockMap = new Map<string, number>();
     const stockList = Array.isArray(stockData) ? stockData : stockData?.stock || [];
     for (const s of stockList) {
@@ -94,7 +143,6 @@ Deno.serve(async (req) => {
       stockMap.set(sku, (stockMap.get(sku) || 0) + Number(s.qty ?? s.quantity ?? 0));
     }
 
-    // Build price map: variant sku -> price (parsed from comma format)
     const priceMap = new Map<string, number>();
     const priceList = Array.isArray(pricesData) ? pricesData : pricesData?.price || pricesData?.prices || [];
     for (const p of priceList) {
@@ -103,9 +151,12 @@ Deno.serve(async (req) => {
       priceMap.set(sku, parseEuroPrice(p.price));
     }
 
-    // Process products
     const products = Array.isArray(productsData) ? productsData : productsData?.products || [];
-    console.log(`Processing ${products.length} products...`);
+
+    const slice = products.slice(offset, offset + BATCH_SIZE);
+    const hasMore = offset + BATCH_SIZE < products.length;
+
+    console.log(`Processing batch ${offset}–${offset + slice.length} of ${products.length} products...`);
 
     let created = 0;
     let updated = 0;
@@ -113,80 +164,30 @@ Deno.serve(async (req) => {
     let errors = 0;
     const now = new Date().toISOString();
 
-    const imageExts = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
-    const isImageUrl = (url: string) => {
-      const lower = url.toLowerCase();
-      return imageExts.some((ext) => lower.includes(ext)) && lower.includes("/image/");
-    };
+    // Pre-fetch existing midocean_ids for this batch to avoid N+1 queries
+    const batchMasterCodes = slice
+      .map((p: any) => p.master_code)
+      .filter(Boolean);
 
-    // Helper: find the best image URL from digital_assets (skip PDFs/docs)
-    function findImageUrl(product: any): string | null {
-      // Search across all variants for the best image
-      if (product.variants) {
-        for (const v of product.variants) {
-          if (v.digital_assets) {
-            for (const a of v.digital_assets) {
-              if (a.url && isImageUrl(a.url)) return a.url;
-            }
-          }
-          // Also check variant-level image fields
-          if (v.main_picture && isImageUrl(v.main_picture)) return v.main_picture;
+    const existingMap = new Map<string, string>();
+    // Fetch in chunks of 200 to avoid query limits
+    for (let i = 0; i < batchMasterCodes.length; i += 200) {
+      const chunk = batchMasterCodes.slice(i, i + 200);
+      const { data: existingRows } = await supabase
+        .from("catalog_products")
+        .select("id, midocean_id")
+        .in("midocean_id", chunk);
+      if (existingRows) {
+        for (const row of existingRows) {
+          if (row.midocean_id) existingMap.set(row.midocean_id, row.id);
         }
       }
-      // Check product-level fields
-      if (product.main_picture && imageExts.some((e) => product.main_picture.toLowerCase().includes(e))) {
-        return product.main_picture;
-      }
-      return null;
     }
 
-    // Helper: extract variant colors with images and sizes
-    function extractVariantInfo(product: any): { colors: any[]; sizes: string[] } {
-      const colorMap = new Map<string, { color: string; hex: string | null; image_url: string | null }>();
-      const sizeSet = new Set<string>();
+    // Build upsert payloads
+    const upsertRows: any[] = [];
 
-      if (!product.variants) return { colors: [], sizes: [] };
-
-      for (const v of product.variants) {
-        // Extract color
-        const colorName = v.color_group || v.color_description || v.color || null;
-        if (colorName && !colorMap.has(colorName)) {
-          // Find image for this color variant
-          let variantImage: string | null = null;
-          if (v.digital_assets) {
-            for (const a of v.digital_assets) {
-              if (a.url && isImageUrl(a.url)) {
-                variantImage = a.url;
-                break;
-              }
-            }
-          }
-          if (!variantImage && v.main_picture && isImageUrl(v.main_picture)) {
-            variantImage = v.main_picture;
-          }
-
-          // Try to get hex from color_hex or color_code
-          const hex = v.color_hex || v.color_code || null;
-
-          colorMap.set(colorName, {
-            color: colorName,
-            hex,
-            image_url: variantImage,
-          });
-        }
-
-        // Extract size
-        const size = v.size || v.size_description || null;
-        if (size) sizeSet.add(size);
-      }
-
-      return {
-        colors: Array.from(colorMap.values()),
-        sizes: Array.from(sizeSet),
-      };
-    }
-
-    for (const product of products) {
+    for (const product of slice) {
       try {
         const masterCode = product.master_code;
         if (!masterCode) continue;
@@ -199,7 +200,6 @@ Deno.serve(async (req) => {
         const name = product.product_name || product.short_description || masterCode;
         const sku = masterCode;
 
-        // Extract category from first variant
         const firstVariant = product.variants[0];
         const catParts = [
           firstVariant?.category_level1,
@@ -209,13 +209,9 @@ Deno.serve(async (req) => {
         const rawCategory = catParts.join(" > ") || "general";
         const category = /^\d/.test(rawCategory) ? "general" : rawCategory;
 
-        // Find a real image URL
         const imageUrl = findImageUrl(product);
-
-        // Extract variant colors and sizes
         const { colors, sizes } = extractVariantInfo(product);
 
-        // Aggregate stock across all variant SKUs
         let totalStock = 0;
         const variantSkus: string[] = [];
         if (product.variants) {
@@ -227,7 +223,6 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Best price across variants (lowest) * multiplier
         let bestPrice = 0;
         for (const vSku of variantSkus) {
           const p = priceMap.get(vSku);
@@ -239,7 +234,6 @@ Deno.serve(async (req) => {
 
         const description = product.long_description || product.description || null;
 
-        // Release date & novelty detection
         const releaseDate = product.release_date || firstVariant?.release_date || null;
         let isNew = false;
         if (releaseDate) {
@@ -248,14 +242,8 @@ Deno.serve(async (req) => {
           isNew = new Date(releaseDate) >= sixMonthsAgo;
         }
 
-        // Upsert by midocean_id
-        const { data: existing } = await supabase
-          .from("catalog_products")
-          .select("id")
-          .eq("midocean_id", masterCode)
-          .maybeSingle();
-
-        const payload = {
+        const existingId = existingMap.get(masterCode);
+        const payload: any = {
           name,
           sku,
           category,
@@ -268,29 +256,51 @@ Deno.serve(async (req) => {
           last_synced_at: now,
           variant_colors: colors,
           variant_sizes: sizes,
+          midocean_id: masterCode,
+          active: true,
         };
 
-        if (existing) {
-          await supabase.from("catalog_products").update(payload).eq("id", existing.id);
+        if (existingId) {
+          payload.id = existingId;
           updated++;
         } else {
-          await supabase.from("catalog_products").insert({
-            ...payload,
-            midocean_id: masterCode,
-            active: true,
-          });
           created++;
         }
+
+        upsertRows.push(payload);
       } catch (e) {
         console.error("Error processing product:", e);
         errors++;
       }
     }
 
-    console.log(`Sync complete: ${created} created, ${updated} updated, ${skipped} skipped, ${errors} errors`);
+    // Upsert in chunks of 200
+    for (let i = 0; i < upsertRows.length; i += 200) {
+      const chunk = upsertRows.slice(i, i + 200);
+      const { error: upsertError } = await supabase
+        .from("catalog_products")
+        .upsert(chunk, { onConflict: "midocean_id" });
+      if (upsertError) {
+        console.error(`Upsert error batch ${i}:`, upsertError.message);
+        errors += chunk.length;
+      }
+    }
+
+    console.log(`Batch done: ${created} created, ${updated} updated, ${skipped} skipped, ${errors} errors`);
 
     return new Response(
-      JSON.stringify({ success: true, total: products.length, created, updated, skipped, errors }),
+      JSON.stringify({
+        success: true,
+        total: products.length,
+        batch_offset: offset,
+        batch_size: slice.length,
+        has_more: hasMore,
+        next_offset: hasMore ? offset + BATCH_SIZE : null,
+        created,
+        updated,
+        skipped,
+        errors,
+      }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {
