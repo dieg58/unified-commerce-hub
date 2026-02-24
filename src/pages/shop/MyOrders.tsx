@@ -21,7 +21,7 @@ const MyOrders = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
-        .select("*, order_items(qty, unit_price, products(name, image_url)), entities(name), shipments(id, status, carrier, tracking_number, shipped_at, delivered_at)")
+        .select("*, order_items(qty, unit_price, variant_label, products(name, image_url)), entities(name), shipments(id, status, carrier, tracking_number, shipped_at, delivered_at)")
         .eq("created_by", profile!.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -150,7 +150,11 @@ const MyOrders = () => {
                 <div className="space-y-2">
                   {(viewOrder.order_items as any[])?.map((item: any, i: number) => (
                     <div key={i} className="flex justify-between items-center p-2 rounded bg-secondary/50 text-sm">
-                      <span>{item.products?.name || "Produit"} × {item.qty}</span>
+                      <span>
+                        {item.products?.name || "Produit"}
+                        {item.variant_label ? <span className="text-muted-foreground text-xs ml-1">({item.variant_label})</span> : null}
+                        {" "}× {item.qty}
+                      </span>
                       <span className="font-medium">{formatCurrency(Number(item.unit_price) * item.qty)}</span>
                     </div>
                   ))}
