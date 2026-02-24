@@ -41,3 +41,6 @@ verify_jwt = false
 
 [functions.sync-stanleystella]
 verify_jwt = false
+
+[functions.inspect-toptex]
+verify_jwt = false
