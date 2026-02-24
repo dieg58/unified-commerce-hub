@@ -262,16 +262,9 @@ Deno.serve(async (req) => {
       console.warn("Stock feed error:", err);
     }
 
-    // Fail-fast: don't process huge product feed when upstream price/stock feeds are unavailable
+    // Note: price/stock feeds may be unavailable but product feed can still work
     if (priceMap.size === 0 && stockMap.size === 0) {
-      return new Response(
-        JSON.stringify({
-          error: "PF Concept feeds unavailable (price/stock both empty). Check credentials and feed activation.",
-          pricesLoaded: priceMap.size,
-          stocksLoaded: stockMap.size,
-        }),
-        { status: 424, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      console.warn("Price and stock feeds returned no data — products will sync with price=0, stock=0");
     }
 
     // ── 3. Stream and process product feed ──
