@@ -13,7 +13,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Plus, Search, Loader2, MoreHorizontal, Pencil, Trash2, Package, Upload, Eye, RefreshCw, Filter, Gift, Shirt } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Plus, Search, Loader2, MoreHorizontal, Pencil, Trash2, Package, Upload, Eye, RefreshCw, Filter, Gift, Shirt, CheckCircle, XCircle } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/mock-data";
@@ -57,6 +58,37 @@ const CatalogProducts = () => {
   const [editing, setEditing] = useState<CatalogProduct | null>(null);
   const [form, setForm] = useState(emptyCp);
   const [uploading, setUploading] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const toggleSelect = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selected.size === filtered.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(filtered.map((p) => p.id)));
+    }
+  };
+
+  const bulkActivateMutation = useMutation({
+    mutationFn: async (activate: boolean) => {
+      const ids = Array.from(selected);
+      const { error } = await supabase.from("catalog_products").update({ active: activate }).in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: (_, activate) => {
+      toast.success(`${selected.size} produit(s) ${activate ? "activé(s)" : "désactivé(s)"}`);
+      setSelected(new Set());
+      qc.invalidateQueries({ queryKey: ["catalog-products"] });
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
 
   const { data: products, isLoading } = useQuery({
     queryKey: ["catalog-products"],
@@ -310,67 +342,92 @@ const CatalogProducts = () => {
               <p className="text-sm text-muted-foreground">{search ? t("catalogAdmin.noProductFound") : t("catalogAdmin.noProduct")}</p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-xs">{t("common.product")}</TableHead>
-                  <TableHead className="text-xs">SKU</TableHead>
-                  <TableHead className="text-xs">{t("common.category")}</TableHead>
-                  <TableHead className="text-xs">{t("catalogAdmin.basePrice")}</TableHead>
-                  <TableHead className="text-xs">Stock</TableHead>
-                  <TableHead className="text-xs">{t("common.status")}</TableHead>
-                  <TableHead className="text-xs w-10"></TableHead>
-                  <TableHead className="text-xs w-10"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((product, i) => (
-                  <TableRow key={product.id} className="text-sm animate-fade-in" style={{ animationDelay: `${i * 30}ms` }}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        {product.image_url ? (
-                          <img src={product.image_url} alt={product.name} className="w-10 h-10 rounded-md object-cover border border-border" />
-                        ) : (
-                          <div className="w-10 h-10 rounded-md bg-secondary flex items-center justify-center">
-                            <Package className="w-4 h-4 text-muted-foreground/30" />
-                          </div>
-                        )}
-                        <div>
-                          <p className="font-medium text-foreground">{product.name}</p>
-                          {product.description && <p className="text-[11px] text-muted-foreground truncate max-w-[200px]">{product.description}</p>}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">{product.sku}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-[10px] capitalize">{product.category}</Badge>
-                    </TableCell>
-                    <TableCell className="font-medium">{formatCurrency(product.base_price)}</TableCell>
-                    <TableCell className="text-xs font-medium">{product.stock_qty}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={`text-[10px] ${product.active ? "bg-success/10 text-success border-success/20" : "bg-muted text-muted-foreground"}`}>
-                        {product.active ? t("common.active") : t("common.inactive")}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0"><MoreHorizontal className="w-4 h-4" /></Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => openEdit(product)}>
-                            <Pencil className="w-4 h-4 mr-2" /> {t("common.edit")}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive" onClick={() => deleteMutation.mutate(product.id)}>
-                            <Trash2 className="w-4 h-4 mr-2" /> {t("common.delete")}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
+            <>
+              {selected.size > 0 && (
+                <div className="flex items-center gap-2 px-4 py-2 bg-muted/50 border-b border-border">
+                  <span className="text-sm font-medium">{selected.size} sélectionné(s)</span>
+                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => bulkActivateMutation.mutate(true)} disabled={bulkActivateMutation.isPending}>
+                    <CheckCircle className="w-3.5 h-3.5" /> Activer
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => bulkActivateMutation.mutate(false)} disabled={bulkActivateMutation.isPending}>
+                    <XCircle className="w-3.5 h-3.5" /> Désactiver
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setSelected(new Set())}>Annuler</Button>
+                </div>
+              )}
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={filtered.length > 0 && selected.size === filtered.length}
+                        onCheckedChange={toggleSelectAll}
+                      />
+                    </TableHead>
+                    <TableHead className="text-xs">{t("common.product")}</TableHead>
+                    <TableHead className="text-xs">SKU</TableHead>
+                    <TableHead className="text-xs">{t("common.category")}</TableHead>
+                    <TableHead className="text-xs">{t("catalogAdmin.basePrice")}</TableHead>
+                    <TableHead className="text-xs">Stock</TableHead>
+                    <TableHead className="text-xs">{t("common.status")}</TableHead>
+                    <TableHead className="text-xs w-10"></TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((product, i) => (
+                    <TableRow key={product.id} className={`text-sm animate-fade-in ${selected.has(product.id) ? "bg-primary/5" : ""}`} style={{ animationDelay: `${i * 30}ms` }}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selected.has(product.id)}
+                          onCheckedChange={() => toggleSelect(product.id)}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          {product.image_url ? (
+                            <img src={product.image_url} alt={product.name} className="w-10 h-10 rounded-md object-cover border border-border" />
+                          ) : (
+                            <div className="w-10 h-10 rounded-md bg-secondary flex items-center justify-center">
+                              <Package className="w-4 h-4 text-muted-foreground/30" />
+                            </div>
+                          )}
+                          <div>
+                            <p className="font-medium text-foreground">{product.name}</p>
+                            {product.description && <p className="text-[11px] text-muted-foreground truncate max-w-[200px]">{product.description}</p>}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">{product.sku}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-[10px] capitalize">{product.category}</Badge>
+                      </TableCell>
+                      <TableCell className="font-medium">{formatCurrency(product.base_price)}</TableCell>
+                      <TableCell className="text-xs font-medium">{product.stock_qty}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={`text-[10px] ${product.active ? "bg-success/10 text-success border-success/20" : "bg-muted text-muted-foreground"}`}>
+                          {product.active ? t("common.active") : t("common.inactive")}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0"><MoreHorizontal className="w-4 h-4" /></Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openEdit(product)}>
+                              <Pencil className="w-4 h-4 mr-2" /> {t("common.edit")}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className="text-destructive" onClick={() => deleteMutation.mutate(product.id)}>
+                              <Trash2 className="w-4 h-4 mr-2" /> {t("common.delete")}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </>
           )}
         </div>
       </div>
