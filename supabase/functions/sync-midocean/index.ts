@@ -109,27 +109,65 @@ Deno.serve(async (req) => {
 
     let created = 0;
     let updated = 0;
+    let skipped = 0;
     let errors = 0;
     const now = new Date().toISOString();
+
+    // Helper: find the best image URL from digital_assets (skip PDFs/docs)
+    function findImageUrl(product: any): string | null {
+      const imageExts = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
+      const isImage = (url: string) => {
+        const lower = url.toLowerCase();
+        return imageExts.some((ext) => lower.includes(ext)) && lower.includes("/image/");
+      };
+
+      // Search across all variants for the best image
+      if (product.variants) {
+        for (const v of product.variants) {
+          if (v.digital_assets) {
+            for (const a of v.digital_assets) {
+              if (a.url && isImage(a.url)) return a.url;
+            }
+          }
+          // Also check variant-level image fields
+          if (v.main_picture && isImage(v.main_picture)) return v.main_picture;
+        }
+      }
+      // Check product-level fields
+      if (product.main_picture && imageExts.some((e) => product.main_picture.toLowerCase().includes(e))) {
+        return product.main_picture;
+      }
+      return null;
+    }
 
     for (const product of products) {
       try {
         const masterCode = product.master_code;
         if (!masterCode) continue;
 
+        // Skip non-product items: master codes starting with "4001" are typically catalogs/docs
+        // Also skip if no variants at all
+        if (!product.variants || product.variants.length === 0) {
+          skipped++;
+          continue;
+        }
+
         const name = product.product_name || product.short_description || masterCode;
         const sku = masterCode;
 
-        // Extract from first variant: categories, image, color
-        const firstVariant = product.variants?.[0];
-        const category = [
+        // Extract category from first variant — only use human-readable categories
+        const firstVariant = product.variants[0];
+        const catParts = [
           firstVariant?.category_level1,
           firstVariant?.category_level2,
           firstVariant?.category_level3,
-        ].filter(Boolean).join(" > ") || "general";
+        ].filter(Boolean);
+        // If category looks like a numeric HS code (e.g. "8215 2010"), skip or use "general"
+        const rawCategory = catParts.join(" > ") || "general";
+        const category = /^\d/.test(rawCategory) ? "general" : rawCategory;
 
-        // Image: first digital asset from first variant
-        const imageUrl = firstVariant?.digital_assets?.find((a: { url?: string }) => a.url)?.url || null;
+        // Find a real image URL (not PDF/document)
+        const imageUrl = findImageUrl(product);
 
         // Aggregate stock across all variant SKUs
         let totalStock = 0;
@@ -201,10 +239,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`Sync complete: ${created} created, ${updated} updated, ${errors} errors`);
+    console.log(`Sync complete: ${created} created, ${updated} updated, ${skipped} skipped, ${errors} errors`);
 
     return new Response(
-      JSON.stringify({ success: true, total: products.length, created, updated, errors }),
+      JSON.stringify({ success: true, total: products.length, created, updated, skipped, errors }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {
