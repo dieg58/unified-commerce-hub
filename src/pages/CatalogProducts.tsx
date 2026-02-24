@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import CatalogProductDetailDialog from "@/components/CatalogProductDetailDialog";
 import TopBar from "@/components/TopBar";
 import { SectionHeader } from "@/components/DashboardWidgets";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -88,6 +89,7 @@ const CatalogProducts = () => {
   const [form, setForm] = useState(emptyCp);
   const [uploading, setUploading] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [previewProduct, setPreviewProduct] = useState<any>(null);
 
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
@@ -723,6 +725,9 @@ const CatalogProducts = () => {
                             <Button variant="ghost" size="sm" className="h-8 w-8 p-0"><MoreHorizontal className="w-4 h-4" /></Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => setPreviewProduct(product)}>
+                              <Eye className="w-4 h-4 mr-2" /> Aperçu
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => openEdit(product)}>
                               <Pencil className="w-4 h-4 mr-2" /> {t("common.edit")}
                             </DropdownMenuItem>
@@ -907,6 +912,11 @@ const CatalogProducts = () => {
           </div>
         </DialogContent>
       </Dialog>
+      <CatalogProductDetailDialog
+        product={previewProduct}
+        open={!!previewProduct}
+        onOpenChange={(open) => !open && setPreviewProduct(null)}
+      />
     </>
   );
 };
