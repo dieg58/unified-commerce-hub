@@ -26,6 +26,8 @@ import TenantApprovals from "./pages/tenant/TenantApprovals";
 import TenantProducts from "./pages/tenant/TenantProducts";
 import TenantBudgets from "./pages/tenant/TenantBudgets";
 import Storefront from "./pages/Storefront";
+import ProductRequests from "./pages/ProductRequests";
+import TenantProductRequests from "./pages/tenant/TenantProductRequests";
 import Orders from "./pages/Orders";
 import OrderDetail from "./pages/OrderDetail";
 import MyOrders from "./pages/shop/MyOrders";
@@ -79,6 +81,7 @@ const SubdomainAwareRoutes = () => {
         <Route path="/orders/:orderId" element={<OrderDetail />} />
         <Route path="/store/:tenantId" element={<Storefront />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/product-requests" element={<ProductRequests />} />
       </Route>
 
       {/* Tenant admin routes (shop_manager, dept_manager) */}
@@ -95,6 +98,7 @@ const SubdomainAwareRoutes = () => {
         <Route path="/tenant/discounts" element={<TenantDiscountCodes />} />
         <Route path="/tenant/products" element={<TenantProducts />} />
         <Route path="/tenant/budgets" element={<TenantBudgets />} />
+        <Route path="/tenant/product-requests" element={<TenantProductRequests />} />
       </Route>
 
       {/* Employee storefront routes – shop_managers & dept_managers are redirected to /tenant */}

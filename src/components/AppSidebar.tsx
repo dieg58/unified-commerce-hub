@@ -8,6 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
+  Sparkles,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,7 @@ const AppSidebar = () => {
     { to: "/dashboard", icon: LayoutDashboard, label: t("nav.dashboard") },
     { to: "/tenants", icon: Building2, label: t("nav.shops") },
     { to: "/orders", icon: ShoppingCart, label: t("nav.orders") },
+    { to: "/product-requests", icon: Sparkles, label: "Demandes produits" },
     { to: "/settings", icon: Settings, label: t("nav.settings") },
   ];
 
@@ -47,7 +49,7 @@ const AppSidebar = () => {
         </div>
         {!collapsed && (
           <span className="text-sidebar-accent-foreground font-semibold text-sm tracking-tight truncate">
-            CommercePro
+            INKOO B2B
           </span>
         )}
       </div>
