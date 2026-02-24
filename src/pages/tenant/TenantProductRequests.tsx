@@ -82,6 +82,7 @@ const TenantProductRequests = () => {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showNewOnly, setShowNewOnly] = useState(false);
   const [detailProduct, setDetailProduct] = useState<any>(null);
+  const [selectedColor, setSelectedColor] = useState<{ color: string; hex: string | null; image_url: string | null } | null>(null);
   const [note, setNote] = useState("");
   const [viewRequest, setViewRequest] = useState<any>(null);
   const [requestSearch, setRequestSearch] = useState("");
@@ -491,39 +492,53 @@ const TenantProductRequests = () => {
       <Dialog
         open={!!detailProduct}
         onOpenChange={(v) => {
-          if (!v) { setDetailProduct(null); setNote(""); }
+          if (!v) { setDetailProduct(null); setNote(""); setSelectedColor(null); }
         }}
       >
-        <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl p-0 gap-0 max-h-[85vh] overflow-hidden">
           {detailProduct && (() => {
             const existing = requestMap.get(detailProduct.id);
             const isRequested = !!existing;
             const st = existing ? statusConfig[existing.status] : null;
             const categoryParts = detailProduct.category?.split(">").map((s: string) => s.trim()).filter(Boolean) || [];
+
+            // Parse variant data (JSONB arrays)
+            const colors: { color: string; hex: string | null; image_url: string | null }[] =
+              Array.isArray(detailProduct.variant_colors) ? detailProduct.variant_colors : [];
+            const sizes: string[] =
+              Array.isArray(detailProduct.variant_sizes) ? detailProduct.variant_sizes : [];
+
+            const displayImage = selectedColor?.image_url || detailProduct.image_url;
+
             return (
-              <>
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2 text-base">
-                    {detailProduct.is_new && <Sparkles className="w-4 h-4 text-warning shrink-0" />}
-                    <span className="line-clamp-2">{detailProduct.name}</span>
-                  </DialogTitle>
-                  <DialogDescription className="sr-only">{detailProduct.category}</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-3">
-                  {/* Image */}
-                  {detailProduct.image_url ? (
-                    <img src={detailProduct.image_url} alt={detailProduct.name} className="w-full h-40 object-contain rounded-lg bg-muted" />
+              <div className="flex flex-col sm:flex-row max-h-[85vh]">
+                {/* Left: Image */}
+                <div className="sm:w-1/2 bg-muted flex items-center justify-center shrink-0 relative min-h-[200px] sm:min-h-0">
+                  {displayImage ? (
+                    <img
+                      src={displayImage}
+                      alt={detailProduct.name}
+                      className="w-full h-full object-cover sm:absolute sm:inset-0"
+                    />
                   ) : (
-                    <div className="w-full h-40 rounded-lg bg-muted flex items-center justify-center">
-                      <Package className="w-12 h-12 text-muted-foreground/20" />
+                    <Package className="w-16 h-16 text-muted-foreground/20" />
+                  )}
+                  {detailProduct.is_new && (
+                    <div className="absolute top-3 left-3">
+                      <Badge className="bg-warning text-warning-foreground text-[10px] gap-1">
+                        <Sparkles className="w-3 h-3" /> Nouveau
+                      </Badge>
                     </div>
                   )}
+                </div>
 
+                {/* Right: Details */}
+                <div className="sm:w-1/2 overflow-y-auto p-5 space-y-4">
                   {/* Category breadcrumb */}
                   {categoryParts.length > 0 && (
                     <div className="flex flex-wrap gap-1">
                       {categoryParts.map((part: string, idx: number) => (
-                        <span key={idx} className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                        <span key={idx} className="flex items-center gap-1 text-[10px] text-muted-foreground">
                           {idx > 0 && <span className="text-border">›</span>}
                           <span className={idx === categoryParts.length - 1 ? "font-medium text-foreground" : ""}>{part}</span>
                         </span>
@@ -531,27 +546,68 @@ const TenantProductRequests = () => {
                     </div>
                   )}
 
-                  {/* Key info grid */}
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="bg-secondary/50 rounded-lg p-2.5">
-                      <p className="text-[10px] text-muted-foreground">Réf.</p>
-                      <p className="font-mono text-xs font-medium text-foreground mt-0.5">{detailProduct.sku}</p>
-                    </div>
-                    <div className="bg-secondary/50 rounded-lg p-2.5">
-                      <p className="text-[10px] text-muted-foreground">Prix indicatif</p>
-                      <p className="text-xs font-semibold text-primary mt-0.5">{formatCurrency(Number(detailProduct.base_price))}</p>
-                    </div>
-                    <div className="bg-secondary/50 rounded-lg p-2.5">
-                      <p className="text-[10px] text-muted-foreground">Stock</p>
-                      <p className="text-xs font-medium text-foreground mt-0.5">{detailProduct.stock_qty}</p>
-                    </div>
+                  {/* Name */}
+                  <div>
+                    <h3 className="text-base font-semibold text-foreground leading-tight">{detailProduct.name}</h3>
+                    <p className="text-xs text-muted-foreground font-mono mt-1">Réf. {detailProduct.sku}</p>
                   </div>
 
                   {/* Description */}
                   {detailProduct.description && (
+                    <p className="text-xs text-muted-foreground leading-relaxed">{detailProduct.description}</p>
+                  )}
+
+                  {/* Price & stock */}
+                  <div className="flex items-baseline gap-3">
+                    <span className="text-lg font-bold text-primary">{formatCurrency(Number(detailProduct.base_price))}</span>
+                    <span className="text-xs text-muted-foreground">Stock : {detailProduct.stock_qty}</span>
+                  </div>
+
+                  {/* Colors */}
+                  {colors.length > 0 && (
                     <div>
-                      <p className="text-[11px] font-medium text-muted-foreground mb-1">Description</p>
-                      <p className="text-xs text-foreground leading-relaxed">{detailProduct.description}</p>
+                      <p className="text-xs font-medium text-foreground mb-2">
+                        Couleurs disponibles
+                        {selectedColor && <span className="font-normal text-muted-foreground ml-1.5">— {selectedColor.color}</span>}
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {colors.map((c, idx) => {
+                          const isActive = selectedColor?.color === c.color;
+                          return (
+                            <button
+                              key={idx}
+                              title={c.color}
+                              onClick={() => setSelectedColor(isActive ? null : c)}
+                              className={`w-7 h-7 rounded-full border-2 transition-all flex items-center justify-center ${
+                                isActive ? "border-primary ring-2 ring-primary/30 scale-110" : "border-border hover:border-primary/50"
+                              }`}
+                            >
+                              {c.hex ? (
+                                <span
+                                  className="w-5 h-5 rounded-full block"
+                                  style={{ backgroundColor: c.hex.startsWith("#") ? c.hex : `#${c.hex}` }}
+                                />
+                              ) : (
+                                <span className="w-5 h-5 rounded-full bg-gradient-to-br from-muted to-muted-foreground/20 block" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Sizes */}
+                  {sizes.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-foreground mb-2">Tailles disponibles</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {sizes.map((s, idx) => (
+                          <span key={idx} className="px-2.5 py-1 text-[11px] font-medium bg-secondary text-foreground rounded-md border border-border">
+                            {s}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   )}
 
@@ -563,24 +619,24 @@ const TenantProductRequests = () => {
                         <span className="text-sm font-medium">Demande {st.label.toLowerCase()}</span>
                       </div>
                       {existing.admin_note && <p className="text-xs mt-2 opacity-80">💬 {existing.admin_note}</p>}
-                      <Button variant="outline" size="sm" className="mt-2 gap-1.5 h-8 text-xs" onClick={() => { setDetailProduct(null); setViewRequest(existing); }}>
+                      <Button variant="outline" size="sm" className="mt-2 gap-1.5 h-7 text-xs" onClick={() => { setDetailProduct(null); setViewRequest(existing); }}>
                         <Eye className="w-3.5 h-3.5" /> Voir ma demande
                       </Button>
                     </div>
                   ) : (
-                    <>
+                    <div className="space-y-3 pt-1">
                       <div>
-                        <label className="text-xs font-medium mb-1 block">Note pour l'équipe INKOO (optionnel)</label>
-                        <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Précisez vos besoins : couleurs, quantités, emplacement du logo…" rows={2} className="text-sm" />
+                        <label className="text-xs font-medium mb-1 block">Note (optionnel)</label>
+                        <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Couleurs souhaitées, quantités, emplacement du logo…" rows={2} className="text-xs" />
                       </div>
                       <Button className="w-full gap-2" size="sm" onClick={() => submitRequest.mutate()} disabled={submitRequest.isPending}>
                         {submitRequest.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                        Demander l'ajout à ma boutique
+                        Demander l'ajout
                       </Button>
-                    </>
+                    </div>
                   )}
                 </div>
-              </>
+              </div>
             );
           })()}
         </DialogContent>

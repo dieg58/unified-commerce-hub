@@ -113,24 +113,24 @@ Deno.serve(async (req) => {
     let errors = 0;
     const now = new Date().toISOString();
 
+    const imageExts = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
+    const isImageUrl = (url: string) => {
+      const lower = url.toLowerCase();
+      return imageExts.some((ext) => lower.includes(ext)) && lower.includes("/image/");
+    };
+
     // Helper: find the best image URL from digital_assets (skip PDFs/docs)
     function findImageUrl(product: any): string | null {
-      const imageExts = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
-      const isImage = (url: string) => {
-        const lower = url.toLowerCase();
-        return imageExts.some((ext) => lower.includes(ext)) && lower.includes("/image/");
-      };
-
       // Search across all variants for the best image
       if (product.variants) {
         for (const v of product.variants) {
           if (v.digital_assets) {
             for (const a of v.digital_assets) {
-              if (a.url && isImage(a.url)) return a.url;
+              if (a.url && isImageUrl(a.url)) return a.url;
             }
           }
           // Also check variant-level image fields
-          if (v.main_picture && isImage(v.main_picture)) return v.main_picture;
+          if (v.main_picture && isImageUrl(v.main_picture)) return v.main_picture;
         }
       }
       // Check product-level fields
@@ -140,13 +140,57 @@ Deno.serve(async (req) => {
       return null;
     }
 
+    // Helper: extract variant colors with images and sizes
+    function extractVariantInfo(product: any): { colors: any[]; sizes: string[] } {
+      const colorMap = new Map<string, { color: string; hex: string | null; image_url: string | null }>();
+      const sizeSet = new Set<string>();
+
+      if (!product.variants) return { colors: [], sizes: [] };
+
+      for (const v of product.variants) {
+        // Extract color
+        const colorName = v.color_group || v.color_description || v.color || null;
+        if (colorName && !colorMap.has(colorName)) {
+          // Find image for this color variant
+          let variantImage: string | null = null;
+          if (v.digital_assets) {
+            for (const a of v.digital_assets) {
+              if (a.url && isImageUrl(a.url)) {
+                variantImage = a.url;
+                break;
+              }
+            }
+          }
+          if (!variantImage && v.main_picture && isImageUrl(v.main_picture)) {
+            variantImage = v.main_picture;
+          }
+
+          // Try to get hex from color_hex or color_code
+          const hex = v.color_hex || v.color_code || null;
+
+          colorMap.set(colorName, {
+            color: colorName,
+            hex,
+            image_url: variantImage,
+          });
+        }
+
+        // Extract size
+        const size = v.size || v.size_description || null;
+        if (size) sizeSet.add(size);
+      }
+
+      return {
+        colors: Array.from(colorMap.values()),
+        sizes: Array.from(sizeSet),
+      };
+    }
+
     for (const product of products) {
       try {
         const masterCode = product.master_code;
         if (!masterCode) continue;
 
-        // Skip non-product items: master codes starting with "4001" are typically catalogs/docs
-        // Also skip if no variants at all
         if (!product.variants || product.variants.length === 0) {
           skipped++;
           continue;
@@ -155,19 +199,21 @@ Deno.serve(async (req) => {
         const name = product.product_name || product.short_description || masterCode;
         const sku = masterCode;
 
-        // Extract category from first variant — only use human-readable categories
+        // Extract category from first variant
         const firstVariant = product.variants[0];
         const catParts = [
           firstVariant?.category_level1,
           firstVariant?.category_level2,
           firstVariant?.category_level3,
         ].filter(Boolean);
-        // If category looks like a numeric HS code (e.g. "8215 2010"), skip or use "general"
         const rawCategory = catParts.join(" > ") || "general";
         const category = /^\d/.test(rawCategory) ? "general" : rawCategory;
 
-        // Find a real image URL (not PDF/document)
+        // Find a real image URL
         const imageUrl = findImageUrl(product);
+
+        // Extract variant colors and sizes
+        const { colors, sizes } = extractVariantInfo(product);
 
         // Aggregate stock across all variant SKUs
         let totalStock = 0;
@@ -220,6 +266,8 @@ Deno.serve(async (req) => {
           is_new: isNew,
           release_date: releaseDate,
           last_synced_at: now,
+          variant_colors: colors,
+          variant_sizes: sizes,
         };
 
         if (existing) {
