@@ -15,12 +15,18 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Search, Loader2, MoreHorizontal, Pencil, Trash2, Package, Upload, Eye, RefreshCw, Filter, Gift, Shirt, CheckCircle, XCircle, Sparkles, Printer } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Plus, Search, Loader2, MoreHorizontal, Pencil, Trash2, Package, Upload, Eye, RefreshCw, Filter, Gift, Shirt, CheckCircle, XCircle, Sparkles, Printer, ChevronDown, ChevronUp, Palette, Ruler } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/mock-data";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
+import { getSimplifiedCategory } from "@/lib/catalog-category-map";
+
+
+
+type VariantColor = { color: string; hex: string | null; image_url: string | null };
 
 type CatalogProduct = {
   id: string;
@@ -41,32 +47,11 @@ type CatalogProduct = {
   last_synced_at: string | null;
   is_new: boolean;
   release_date: string | null;
+  variant_colors?: VariantColor[] | null;
+  variant_sizes?: string[] | null;
 };
 
-// ── Parse hierarchical categories (uses ">" separator) ──
-function getParentCategory(category: string): string {
-  const parts = category.split(">").map((s) => s.trim());
-  const parent = parts[0] || category;
-  // For Print.com: "Print > clothing-textile,clothing,..." → use first comma segment as sub-parent
-  if (parent === "Print" && parts.length > 1) {
-    const subParts = parts[1].split(",").map(s => s.trim());
-    return `Print > ${subParts[0].replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase())}`;
-  }
-  return parent;
-}
 
-function getSubCategory(category: string): string | null {
-  const parts = category.split(">").map((s) => s.trim());
-  if (parts[0] === "Print" && parts.length > 1) {
-    const subParts = parts[1].split(",").map(s => s.trim());
-    if (subParts.length > 1) {
-      const last = subParts[subParts.length - 1];
-      return last.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-    }
-    return null;
-  }
-  return parts.length > 1 ? parts[1] : null;
-}
 
 const emptyCp = {
   name: "", name_en: "", name_nl: "", sku: "", category: "general",
@@ -80,8 +65,10 @@ const CatalogProducts = () => {
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<"goodies" | "textile" | "autre">("goodies");
   const [filterGroup, setFilterGroup] = useState<string>("all");
-  const [filterSubCategory, setFilterSubCategory] = useState<string>("all");
-  
+  const [filterColors, setFilterColors] = useState<Set<string>>(new Set());
+  const [filterSizes, setFilterSizes] = useState<Set<string>>(new Set());
+  const [showFilters, setShowFilters] = useState(false);
+
   const [filterActive, setFilterActive] = useState<boolean | null>(null);
   const [filterNew, setFilterNew] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -175,41 +162,80 @@ const CatalogProducts = () => {
     return tabProducts;
   }, [tabProducts, goodiesSupplier, autreSupplier, activeTab]);
 
-  // Parent categories with counts
-  const parentCategories = useMemo(() => {
+  // Simplified categories with counts
+  const simplifiedCategories = useMemo(() => {
     const counts: Record<string, number> = {};
     supplierFilteredProducts.forEach((p) => {
-      const parent = getParentCategory(p.category);
-      counts[parent] = (counts[parent] || 0) + 1;
+      const simplified = getSimplifiedCategory(p.category, activeTab);
+      counts[simplified] = (counts[simplified] || 0) + 1;
     });
     return Object.entries(counts).sort(([, a], [, b]) => b - a);
+  }, [supplierFilteredProducts, activeTab]);
+
+  // Available colors across current filtered products
+  const availableColors = useMemo(() => {
+    const colorMap = new Map<string, { color: string; hex: string | null; count: number }>();
+    supplierFilteredProducts.forEach((p) => {
+      const colors = p.variant_colors as VariantColor[] | null;
+      if (!Array.isArray(colors)) return;
+      colors.forEach((c) => {
+        const name = c.color;
+        if (!name) return;
+        const existing = colorMap.get(name);
+        if (existing) existing.count++;
+        else colorMap.set(name, { color: name, hex: c.hex, count: 1 });
+      });
+    });
+    return Array.from(colorMap.values()).sort((a, b) => b.count - a.count);
   }, [supplierFilteredProducts]);
 
-  // Sub-categories within selected parent
-  const subCategories = useMemo(() => {
-    if (filterGroup === "all") return [];
-    const subs: Record<string, number> = {};
-    supplierFilteredProducts
-      .filter((p) => getParentCategory(p.category) === filterGroup)
-      .forEach((p) => {
-        const sub = getSubCategory(p.category);
-        if (sub) subs[sub] = (subs[sub] || 0) + 1;
+  // Available sizes across current filtered products
+  const availableSizes = useMemo(() => {
+    const sizeMap = new Map<string, number>();
+    supplierFilteredProducts.forEach((p) => {
+      const sizes = p.variant_sizes as string[] | null;
+      if (!Array.isArray(sizes)) return;
+      sizes.forEach((s) => {
+        sizeMap.set(s, (sizeMap.get(s) || 0) + 1);
       });
-    return Object.entries(subs).sort(([a], [b]) => a.localeCompare(b));
-  }, [supplierFilteredProducts, filterGroup]);
+    });
+    // Sort sizes in a logical order (XS, S, M, L, XL, XXL, then numeric, then alphabetical)
+    const sizeOrder = ["XXS", "XS", "S", "M", "L", "XL", "XXL", "2XL", "3XL", "4XL", "5XL", "6XL"];
+    return Array.from(sizeMap.entries())
+      .sort(([a], [b]) => {
+        const ia = sizeOrder.indexOf(a.toUpperCase());
+        const ib = sizeOrder.indexOf(b.toUpperCase());
+        if (ia !== -1 && ib !== -1) return ia - ib;
+        if (ia !== -1) return -1;
+        if (ib !== -1) return 1;
+        return a.localeCompare(b, undefined, { numeric: true });
+      })
+      .map(([size, count]) => ({ size, count }));
+  }, [supplierFilteredProducts]);
 
-  const newCount = supplierFilteredProducts.filter((p) => (p as any).is_new).length;
+  const newCount = supplierFilteredProducts.filter((p) => p.is_new).length;
 
   const filtered = supplierFilteredProducts.filter((p) => {
     const matchesSearch =
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.sku.toLowerCase().includes(search.toLowerCase()) ||
       p.category.toLowerCase().includes(search.toLowerCase());
-    const matchesGroup = filterGroup === "all" || getParentCategory(p.category) === filterGroup;
-    const matchesSubCat = filterSubCategory === "all" || (getSubCategory(p.category) === filterSubCategory);
+    const matchesGroup = filterGroup === "all" || getSimplifiedCategory(p.category, activeTab) === filterGroup;
     const matchesActive = filterActive === null || p.active === filterActive;
-    const matchesNew = !filterNew || (p as any).is_new;
-    return matchesSearch && matchesGroup && matchesSubCat && matchesActive && matchesNew;
+    const matchesNew = !filterNew || p.is_new;
+    // Color filter
+    const matchesColor = filterColors.size === 0 || (() => {
+      const colors = p.variant_colors as VariantColor[] | null;
+      if (!Array.isArray(colors)) return false;
+      return colors.some((c) => filterColors.has(c.color));
+    })();
+    // Size filter
+    const matchesSize = filterSizes.size === 0 || (() => {
+      const sizes = p.variant_sizes as string[] | null;
+      if (!Array.isArray(sizes)) return false;
+      return sizes.some((s) => filterSizes.has(s));
+    })();
+    return matchesSearch && matchesGroup && matchesActive && matchesNew && matchesColor && matchesSize;
   });
 
   const openCreate = () => {
@@ -426,7 +452,7 @@ const CatalogProducts = () => {
       <div className="p-6 space-y-6 overflow-auto">
         {/* Stats */}
         {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as "goodies" | "textile" | "autre"); setFilterGroup("all"); setFilterSubCategory("all"); setSearch(""); }}>
+        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as "goodies" | "textile" | "autre"); setFilterGroup("all"); setFilterColors(new Set()); setFilterSizes(new Set()); setSearch(""); }}>
           <div className="flex items-center justify-between">
             <TabsList>
               <TabsTrigger value="goodies" className="gap-1.5">
@@ -465,7 +491,7 @@ const CatalogProducts = () => {
                 size="sm"
                 variant={goodiesSupplier === key ? "default" : "outline"}
                 className="h-7 text-xs rounded-full px-3"
-                onClick={() => { setGoodiesSupplier(key as any); setFilterGroup("all"); setFilterSubCategory("all"); }}
+                onClick={() => { setGoodiesSupplier(key as any); setFilterGroup("all"); }}
               >
                 {label} ({count})
               </Button>
@@ -487,7 +513,7 @@ const CatalogProducts = () => {
                 size="sm"
                 variant={autreSupplier === key ? "default" : "outline"}
                 className="h-7 text-xs rounded-full px-3"
-                onClick={() => { setAutreSupplier(key as any); setFilterGroup("all"); setFilterSubCategory("all"); }}
+                onClick={() => { setAutreSupplier(key as any); setFilterGroup("all"); }}
               >
                 {label} ({count})
               </Button>
@@ -495,58 +521,31 @@ const CatalogProducts = () => {
           </div>
         )}
 
-        {/* Parent category pills → click reveals sub-categories */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-1.5 flex-wrap">
+        {/* Simplified category pills */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <Button
+            size="sm"
+            variant={filterGroup === "all" ? "default" : "outline"}
+            className="h-7 text-xs rounded-full px-3"
+            onClick={() => setFilterGroup("all")}
+          >
+            Tout ({supplierFilteredProducts.length})
+          </Button>
+          {simplifiedCategories.map(([cat, count]) => (
             <Button
+              key={cat}
               size="sm"
-              variant={filterGroup === "all" ? "default" : "outline"}
+              variant={filterGroup === cat ? "default" : "outline"}
               className="h-7 text-xs rounded-full px-3"
-              onClick={() => { setFilterGroup("all"); setFilterSubCategory("all"); }}
+              onClick={() => setFilterGroup(cat)}
             >
-              Tout ({supplierFilteredProducts.length})
+              {cat} ({count})
             </Button>
-            {parentCategories.map(([parent, count]) => (
-              <Button
-                key={parent}
-                size="sm"
-                variant={filterGroup === parent ? "default" : "outline"}
-                className="h-7 text-xs rounded-full px-3"
-                onClick={() => { setFilterGroup(parent); setFilterSubCategory("all"); }}
-              >
-                {parent} ({count})
-              </Button>
-            ))}
-          </div>
-
-          {/* Sub-categories revealed on parent click */}
-          {filterGroup !== "all" && subCategories.length > 0 && (
-            <div className="flex items-center gap-1.5 flex-wrap pl-4 border-l-2 border-primary/30">
-              <Button
-                size="sm"
-                variant={filterSubCategory === "all" ? "secondary" : "ghost"}
-                className="h-6 text-[11px] rounded-full px-2.5"
-                onClick={() => setFilterSubCategory("all")}
-              >
-                Tout ({supplierFilteredProducts.filter((p) => getParentCategory(p.category) === filterGroup).length})
-              </Button>
-              {subCategories.map(([sub, count]) => (
-                <Button
-                  key={sub}
-                  size="sm"
-                  variant={filterSubCategory === sub ? "secondary" : "ghost"}
-                  className="h-6 text-[11px] rounded-full px-2.5"
-                  onClick={() => setFilterSubCategory(sub)}
-                >
-                  {sub} ({count})
-                </Button>
-              ))}
-            </div>
-          )}
+          ))}
         </div>
 
-        {/* Nouveautés + Active filter + reset */}
-        <div className="flex items-center gap-2">
+        {/* Nouveautés + Active filter + Filters toggle + reset */}
+        <div className="flex items-center gap-2 flex-wrap">
           <Button
             size="sm"
             variant={filterNew ? "default" : "outline"}
@@ -571,12 +570,124 @@ const CatalogProducts = () => {
             <ToggleGroupItem value="active" className="text-xs px-3 h-7">Actifs</ToggleGroupItem>
             <ToggleGroupItem value="inactive" className="text-xs px-3 h-7">Inactifs</ToggleGroupItem>
           </ToggleGroup>
-          {(filterGroup !== "all" || filterActive !== null || filterNew) && (
-            <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground" onClick={() => { setFilterGroup("all"); setFilterSubCategory("all"); setFilterActive(null); setFilterNew(false); }}>
+
+          {/* Color/Size filter toggle */}
+          {(availableColors.length > 0 || availableSizes.length > 0) && (
+            <Button
+              size="sm"
+              variant={showFilters ? "secondary" : "outline"}
+              className="h-7 text-xs rounded-full px-3 gap-1.5"
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              <Filter className="w-3.5 h-3.5" />
+              Filtres
+              {(filterColors.size + filterSizes.size) > 0 && (
+                <Badge className="ml-1 h-4 px-1.5 text-[9px] bg-primary text-primary-foreground">{filterColors.size + filterSizes.size}</Badge>
+              )}
+              {showFilters ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </Button>
+          )}
+
+          {(filterGroup !== "all" || filterActive !== null || filterNew || filterColors.size > 0 || filterSizes.size > 0) && (
+            <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground" onClick={() => { setFilterGroup("all"); setFilterActive(null); setFilterNew(false); setFilterColors(new Set()); setFilterSizes(new Set()); }}>
               Réinitialiser
             </Button>
           )}
         </div>
+
+        {/* Collapsible color/size filter panel */}
+        {showFilters && (
+          <div className="bg-card rounded-lg border border-border p-4 space-y-4 animate-fade-in">
+            {/* Colors */}
+            {availableColors.length > 0 && (
+              <div>
+                <div className="flex items-center gap-1.5 mb-2.5">
+                  <Palette className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-xs font-medium">Couleurs</span>
+                  {filterColors.size > 0 && (
+                    <button className="text-[10px] text-primary hover:underline ml-auto" onClick={() => setFilterColors(new Set())}>
+                      Effacer
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {availableColors.slice(0, 30).map((c) => {
+                    const isActive = filterColors.has(c.color);
+                    return (
+                      <button
+                        key={c.color}
+                        onClick={() => {
+                          setFilterColors((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(c.color)) next.delete(c.color); else next.add(c.color);
+                            return next;
+                          });
+                        }}
+                        className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full border text-[11px] transition-all ${
+                          isActive
+                            ? "border-primary bg-primary/10 text-primary font-medium"
+                            : "border-border hover:border-primary/50 text-muted-foreground"
+                        }`}
+                      >
+                        {c.hex && (
+                          <span
+                            className="w-3.5 h-3.5 rounded-full border border-border/50 shrink-0"
+                            style={{ backgroundColor: c.hex.startsWith("#") ? c.hex : `#${c.hex}` }}
+                          />
+                        )}
+                        <span className="truncate max-w-[100px]">{c.color}</span>
+                        <span className="text-[9px] text-muted-foreground">({c.count})</span>
+                      </button>
+                    );
+                  })}
+                  {availableColors.length > 30 && (
+                    <span className="text-[10px] text-muted-foreground self-center ml-1">+{availableColors.length - 30} autres</span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Sizes */}
+            {availableSizes.length > 0 && (
+              <div>
+                <div className="flex items-center gap-1.5 mb-2.5">
+                  <Ruler className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-xs font-medium">Tailles</span>
+                  {filterSizes.size > 0 && (
+                    <button className="text-[10px] text-primary hover:underline ml-auto" onClick={() => setFilterSizes(new Set())}>
+                      Effacer
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {availableSizes.map((s) => {
+                    const isActive = filterSizes.has(s.size);
+                    return (
+                      <button
+                        key={s.size}
+                        onClick={() => {
+                          setFilterSizes((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(s.size)) next.delete(s.size); else next.add(s.size);
+                            return next;
+                          });
+                        }}
+                        className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-md border text-[11px] transition-all ${
+                          isActive
+                            ? "border-primary bg-primary/10 text-primary font-medium"
+                            : "border-border hover:border-primary/50 text-muted-foreground"
+                        }`}
+                      >
+                        {s.size}
+                        <span className="text-[9px] text-muted-foreground">({s.count})</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="bg-card rounded-lg border border-border shadow-card animate-fade-in">
           <div className="p-5 border-b border-border">
@@ -704,7 +815,7 @@ const CatalogProducts = () => {
                       </TableCell>
                       <TableCell className="font-mono text-xs text-muted-foreground">{product.sku}</TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="text-[10px] capitalize">{product.category}</Badge>
+                        <Badge variant="outline" className="text-[10px] capitalize" title={product.category}>{getSimplifiedCategory(product.category, activeTab)}</Badge>
                       </TableCell>
                       <TableCell className="font-medium">{formatCurrency(product.base_price)}</TableCell>
                       <TableCell className="text-xs font-medium">{product.stock_qty}</TableCell>
