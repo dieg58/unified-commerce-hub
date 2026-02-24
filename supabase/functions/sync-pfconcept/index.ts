@@ -6,210 +6,135 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const BASE_URL = "https://www.pfconcept.com";
-const STORE = "en_nl";
+// ── Configuration ──
+// Data feed base URL (requires activation by PF Concept)
+const FEED_BASE = "https://www.pfconcept.com/portal/datafeed";
+// Belgium feed (CBE1), French language – adjust if needed
+const PRODUCT_FEED = `${FEED_BASE}/productfeed_fr_v3.json`;
+const PRICE_FEED   = `${FEED_BASE}/pricefeed_cbe1_v3.json`;
+const STOCK_FEED   = `${FEED_BASE}/stockfeed_cbe1_v3.json`;
+// Image CDN
+const IMAGE_BASE = "https://images.pfconcept.com/ProductImages_All/JPG/500x500";
+// Price multiplier (margin)
 const PRICE_MULTIPLIER = 1.65;
 
-// PF Concept product categories to scrape
-const CATEGORIES = [
-  { keyword: "bag", category: "Bags" },
-  { keyword: "backpack", category: "Bags" },
-  { keyword: "tote", category: "Bags" },
-  { keyword: "bottle", category: "Drinkware" },
-  { keyword: "mug", category: "Drinkware" },
-  { keyword: "tumbler", category: "Drinkware" },
-  { keyword: "thermos", category: "Drinkware" },
-  { keyword: "pen", category: "Writing" },
-  { keyword: "pencil", category: "Writing" },
-  { keyword: "notebook", category: "Writing" },
-  { keyword: "journal", category: "Writing" },
-  { keyword: "powerbank", category: "Technology" },
-  { keyword: "charger", category: "Technology" },
-  { keyword: "speaker", category: "Technology" },
-  { keyword: "earbuds", category: "Technology" },
-  { keyword: "headphone", category: "Technology" },
-  { keyword: "umbrella", category: "Accessories" },
-  { keyword: "lanyard", category: "Accessories" },
-  { keyword: "keychain", category: "Accessories" },
-  { keyword: "cap", category: "Accessories" },
-  { keyword: "hat", category: "Accessories" },
-  { keyword: "apron", category: "Accessories" },
-  { keyword: "towel", category: "Home & Living" },
-  { keyword: "blanket", category: "Home & Living" },
-  { keyword: "candle", category: "Home & Living" },
-  { keyword: "award", category: "Awards" },
-  { keyword: "trophy", category: "Awards" },
-  { keyword: "sport", category: "Sports & Outdoor" },
-  { keyword: "lunch", category: "Food & Kitchen" },
-  { keyword: "cutting board", category: "Food & Kitchen" },
-  { keyword: "wine", category: "Food & Kitchen" },
-  { keyword: "tool", category: "Tools" },
-  { keyword: "flashlight", category: "Tools" },
-  { keyword: "first aid", category: "Safety" },
-];
-
-interface ScrapedProduct {
-  sku: string;
-  name: string;
-  imageUrl: string | null;
-  price: number;
-  category: string;
-  isNew: boolean;
-  productUrl: string | null;
-}
-
-/**
- * Login to PF Concept Magento store and get session cookies
- */
-async function loginToPFConcept(email: string, password: string): Promise<string | null> {
-  try {
-    // Step 1: Get the login page to retrieve the form_key
-    const loginPageRes = await fetch(`${BASE_URL}/${STORE}/customer/account/login/`, {
-      headers: { "User-Agent": "Mozilla/5.0" },
-      redirect: "manual",
-    });
-    const loginHtml = await loginPageRes.text();
-
-    // Extract form_key
-    const formKeyMatch = loginHtml.match(/name="form_key"\s+.*?value="([^"]+)"/);
-    if (!formKeyMatch) {
-      console.error("Could not find form_key on login page");
-      return null;
-    }
-    const formKey = formKeyMatch[1];
-
-    // Extract cookies from login page
-    const setCookies = loginPageRes.headers.getSetCookie?.() || [];
-    const cookies = setCookies
-      .map((c: string) => c.split(";")[0])
-      .join("; ");
-
-    // Step 2: POST login
-    const formBody = new URLSearchParams({
-      "form_key": formKey,
-      "login[username]": email,
-      "login[password]": password,
-    });
-
-    const loginRes = await fetch(`${BASE_URL}/${STORE}/customer/account/loginPost/`, {
-      method: "POST",
-      headers: {
-        "User-Agent": "Mozilla/5.0",
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Cookie": cookies,
-        "Referer": `${BASE_URL}/${STORE}/customer/account/login/`,
-      },
-      body: formBody.toString(),
-      redirect: "manual",
-    });
-
-    // Collect all cookies from the login response
-    const loginCookies = loginRes.headers.getSetCookie?.() || [];
-    const allCookies = [...setCookies, ...loginCookies]
-      .map((c: string) => c.split(";")[0])
-      .join("; ");
-
-    // Check if login succeeded (redirect to account page)
-    const location = loginRes.headers.get("location") || "";
-    if (location.includes("account") || loginRes.status === 302) {
-      console.log("PF Concept login successful");
-      return allCookies;
-    }
-
-    console.error("PF Concept login failed, status:", loginRes.status);
-    return null;
-  } catch (err) {
-    console.error("Login error:", err);
-    return null;
-  }
-}
-
-/**
- * Scrape a single search results page from PF Concept
- */
-async function scrapeSearchPage(
-  keyword: string,
-  category: string,
-  page: number,
-  cookies: string | null,
-): Promise<{ products: ScrapedProduct[]; hasMore: boolean }> {
-  const url = `${BASE_URL}/${STORE}/catalogsearch/result/?q=${encodeURIComponent(keyword)}&product_list_limit=96&p=${page}`;
-
-  const headers: Record<string, string> = {
-    "User-Agent": "Mozilla/5.0 (compatible; InkooBot/1.0)",
-    "Accept": "text/html",
+// ── Types ──
+interface FeedModel {
+  model?: {
+    modelCode: string;
+    description?: string;
+    extDesc?: string;
+    items?: Array<{
+      numberOfItems?: number;
+      item?: Array<{
+        itemCode: string;
+        color?: string;
+        colorDesc?: string;
+        baseColor?: string;
+        images?: { image?: string[] };
+        mainImage?: string;
+      }>;
+    }>;
   };
-  if (cookies) headers["Cookie"] = cookies;
+  // Alternative flat structure
+  modelCode?: string;
+  description?: string;
+  extDesc?: string;
+  items?: Array<any>;
+}
 
+interface PriceModel {
+  modelcode?: string;
+  items?: Array<{
+    numberOfItems?: number;
+    item?: Array<{
+      itemcode?: string;
+      currency?: string;
+      scales?: Array<{
+        priceBar?: string | number;
+        nettPrice?: string | number;
+        type?: string;
+      }>;
+    }>;
+  }>;
+}
+
+interface StockModel {
+  modelCode?: string;
+  items?: Array<{
+    item?: Array<{
+      itemCode?: string;
+      stockDirect?: number;
+      stockNextPo?: number;
+    }>;
+  }>;
+}
+
+/**
+ * Fetch a JSON data feed, optionally with basic auth
+ */
+async function fetchFeed(url: string, email?: string, password?: string): Promise<any> {
+  const headers: Record<string, string> = {
+    "Accept": "application/json",
+    "User-Agent": "InkooBot/2.0",
+  };
+
+  if (email && password) {
+    headers["Authorization"] = "Basic " + btoa(`${email}:${password}`);
+  }
+
+  console.log(`Fetching feed: ${url}`);
   const res = await fetch(url, { headers });
+
   if (!res.ok) {
-    console.error(`Search page fetch failed for "${keyword}" p${page}: ${res.status}`);
-    return { products: [], hasMore: false };
+    throw new Error(`Feed fetch failed: ${res.status} ${res.statusText} for ${url}`);
   }
 
-  const html = await res.text();
-  const products: ScrapedProduct[] = [];
+  return res.json();
+}
 
-  // Parse product items from search result HTML
-  // PF Concept Magento uses product-item containers
-  const productPattern = /<li[^>]*class="[^"]*product-item[^"]*"[^>]*>([\s\S]*?)<\/li>/gi;
-  let match;
-  const seen = new Set<string>();
-
-  while ((match = productPattern.exec(html)) !== null) {
-    const block = match[1];
-
-    // Extract SKU from data attributes or text
-    const skuMatch = block.match(/data-product-sku="([^"]+)"/) ||
-      block.match(/<div[^>]*class="[^"]*product-item-sku[^"]*"[^>]*>\s*([A-Z0-9]+)\s*</) ||
-      block.match(/>(\d{5,8}[A-Z]?\d*)</);
-
-    // Extract product name
-    const nameMatch = block.match(/class="[^"]*product-item-link[^"]*"[^>]*>([^<]+)</) ||
-      block.match(/title="([^"]+)"/);
-
-    // Extract image URL
-    const imgMatch = block.match(/src="(https:\/\/www\.pfconcept\.com\/media\/[^"]+\.(jpg|jpeg|png|webp)[^"]*)"/i);
-
-    // Extract price
-    const priceMatch = block.match(/(?:From:\s*\*?\*?)?(?:US?\$|€)\s*([\d,.]+)/);
-
-    // Extract product URL
-    const urlMatch = block.match(/href="(https:\/\/www\.pfconcept\.com\/[^"]+\.html[^"]*)"/);
-
-    // Check if marked as new
-    const isNew = /(?:Just arrived|New)/i.test(block);
-
-    if (!skuMatch && !nameMatch) continue;
-
-    const sku = skuMatch?.[1]?.trim() || "";
-    const name = nameMatch?.[1]?.trim() || "";
-    if (!sku && !name) continue;
-
-    const productKey = sku || name;
-    if (seen.has(productKey)) continue;
-    seen.add(productKey);
-
-    let price = 0;
-    if (priceMatch) {
-      price = parseFloat(priceMatch[1].replace(",", ".")) || 0;
+/**
+ * Extract the first product image name from a model/item
+ */
+function extractImageName(model: any, item: any): string | null {
+  // Try item-level images first
+  if (item?.images?.image) {
+    const imgs = Array.isArray(item.images.image) ? item.images.image : [item.images.image];
+    for (const img of imgs) {
+      if (typeof img === "string" && img.endsWith(".jpg")) return img;
     }
-
-    products.push({
-      sku,
-      name,
-      imageUrl: imgMatch?.[1] || null,
-      price: Math.round(price * PRICE_MULTIPLIER * 100) / 100,
-      category,
-      isNew,
-      productUrl: urlMatch?.[1] || null,
-    });
   }
+  if (item?.mainImage && typeof item.mainImage === "string") return item.mainImage;
 
-  // Check if there's a next page
-  const hasMore = html.includes(`p=${page + 1}`);
+  // Try model-level
+  if (model?.images?.image) {
+    const imgs = Array.isArray(model.images.image) ? model.images.image : [model.images.image];
+    for (const img of imgs) {
+      if (typeof img === "string" && img.endsWith(".jpg")) return img;
+    }
+  }
+  if (model?.mainImage && typeof model.mainImage === "string") return model.mainImage;
 
-  return { products, hasMore };
+  // Construct from itemCode: PF Concept uses {itemCode}_1.jpg as main image
+  const code = item?.itemCode || item?.itemcode;
+  if (code) return `${code}_1.jpg`;
+
+  return null;
+}
+
+/**
+ * Map PF Concept group descriptions to clean categories
+ */
+function mapCategory(model: any): string {
+  const groupDesc = model?.groupDesc || model?.model?.groupDesc || "";
+  const catDesc = model?.categoryDesc || model?.model?.categoryDesc || "";
+  const desc = (groupDesc || catDesc || "").toLowerCase();
+
+  if (!desc || desc === "undefined") return "General";
+
+  // Clean up and capitalize
+  const cleaned = (groupDesc || catDesc || "General").trim();
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
 }
 
 Deno.serve(async (req) => {
@@ -255,76 +180,150 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Try to login for better price access
+    // Credentials for data feed access
     const pfEmail = Deno.env.get("PF_CONCEPT_EMAIL");
     const pfPassword = Deno.env.get("PF_CONCEPT_PASSWORD");
 
-    let cookies: string | null = null;
-    if (pfEmail && pfPassword) {
-      console.log("Attempting PF Concept login...");
-      cookies = await loginToPFConcept(pfEmail, pfPassword);
-    } else {
-      console.log("PF_CONCEPT credentials not set, scraping public data only");
+    // ── 1. Fetch product feed ──
+    console.log("Fetching PF Concept product feed...");
+    let productData: any;
+    try {
+      productData = await fetchFeed(PRODUCT_FEED, pfEmail || undefined, pfPassword || undefined);
+    } catch (err) {
+      console.error("Product feed error:", err);
+      return new Response(JSON.stringify({
+        error: `Could not fetch product feed. Make sure your PF Concept data feeds are activated. Error: ${err}`,
+      }), {
+        status: 502,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    // Scrape products from all categories
-    console.log(`Scraping PF Concept products across ${CATEGORIES.length} keywords...`);
+    // ── 2. Fetch price feed (optional, non-blocking) ──
+    let priceMap = new Map<string, number>(); // itemCode -> nettPrice
+    try {
+      console.log("Fetching PF Concept price feed...");
+      const priceData = await fetchFeed(PRICE_FEED, pfEmail || undefined, pfPassword || undefined);
 
-    const allProducts = new Map<string, ScrapedProduct>();
+      // Parse price feed – structure: priceInfo[0].models[0].model[]
+      const priceRoot = priceData?.priceInfo?.[0] || priceData?.pfcPricefeed?.priceInfo || priceData;
+      const priceModels = priceRoot?.models?.[0]?.model || priceRoot?.models || [];
 
-    for (const cat of CATEGORIES) {
-      let page = 1;
-      const maxPages = 5; // Limit pages per keyword
-
-      while (page <= maxPages) {
-        try {
-          const { products, hasMore } = await scrapeSearchPage(
-            cat.keyword,
-            cat.category,
-            page,
-            cookies,
-          );
-
-          for (const p of products) {
-            const key = p.sku || p.name;
-            if (!allProducts.has(key)) {
-              allProducts.set(key, p);
-            }
+      for (const pm of priceModels) {
+        const items = pm?.items?.[0]?.item || pm?.items || [];
+        for (const item of items) {
+          const code = item?.itemcode || item?.itemCode;
+          // Take the lowest quantity nettPrice (unit price)
+          const scales = item?.scales || [];
+          if (scales.length > 0 && code) {
+            const unitScale = scales[0];
+            const price = parseFloat(String(unitScale?.nettPrice || "0"));
+            if (price > 0) priceMap.set(code, price);
           }
-
-          console.log(`"${cat.keyword}" p${page}: ${products.length} products`);
-
-          if (!hasMore || products.length === 0) break;
-          page++;
-
-          // Small delay to be respectful
-          await new Promise((r) => setTimeout(r, 500));
-        } catch (err) {
-          console.error(`Error scraping "${cat.keyword}" p${page}:`, err);
-          break;
         }
       }
+      console.log(`Parsed ${priceMap.size} item prices`);
+    } catch (err) {
+      console.warn("Price feed unavailable, using base prices:", err);
     }
 
-    console.log(`Total unique products scraped: ${allProducts.size}`);
+    // ── 3. Fetch stock feed (optional, non-blocking) ──
+    let stockMap = new Map<string, number>(); // itemCode -> stockDirect
+    try {
+      console.log("Fetching PF Concept stock feed...");
+      const stockData = await fetchFeed(STOCK_FEED, pfEmail || undefined, pfPassword || undefined);
 
-    // Upsert into catalog_products
+      const stockRoot = stockData?.stockFeed?.[0] || stockData?.pfcStockfeed?.stockFeed || stockData;
+      const stockModels = stockRoot?.models?.[0]?.model || stockRoot?.models || [];
+
+      for (const sm of stockModels) {
+        const items = sm?.items?.[0]?.item || sm?.items || [];
+        for (const item of items) {
+          const code = item?.itemCode || item?.itemcode;
+          if (code) {
+            stockMap.set(code, Number(item?.stockDirect) || 0);
+          }
+        }
+      }
+      console.log(`Parsed ${stockMap.size} item stocks`);
+    } catch (err) {
+      console.warn("Stock feed unavailable:", err);
+    }
+
+    // ── 4. Parse product feed and upsert ──
+    // Structure: pfcProductfeed.productfeed.models[].model
+    const feedRoot = productData?.pfcProductfeed?.productfeed || productData?.productfeed || productData;
+    const models: any[] = feedRoot?.models || [];
+
+    console.log(`Product feed contains ${models.length} models`);
+
     let created = 0;
     let updated = 0;
     let skipped = 0;
     let errors = 0;
     const now = new Date().toISOString();
 
-    for (const [, product] of allProducts) {
+    for (const modelEntry of models) {
       try {
-        if (!product.sku && !product.name) {
-          skipped++;
+        // Handle both { model: { modelCode, ... } } and flat { modelCode, ... }
+        const model = modelEntry?.model || modelEntry;
+        const modelCode = model?.modelCode;
+        if (!modelCode) { skipped++; continue; }
+
+        const name = model?.description || modelCode;
+        const description = model?.extDesc || null;
+        const category = mapCategory(model);
+
+        // Process items (SKUs/colors)
+        const itemsArr = model?.items || [];
+        const items = itemsArr?.[0]?.item || itemsArr;
+
+        if (!items || items.length === 0) {
+          // Insert as model-level product
+          const pfcId = `PFC-${modelCode}`;
+          const imageName = extractImageName(model, null);
+          const imageUrl = imageName ? `${IMAGE_BASE}/${imageName}` : null;
+
+          const { data: existing } = await supabase
+            .from("catalog_products")
+            .select("id")
+            .eq("midocean_id", pfcId)
+            .maybeSingle();
+
+          const payload = {
+            name,
+            sku: modelCode,
+            category,
+            description,
+            image_url: imageUrl,
+            stock_qty: 0,
+            base_price: 0,
+            is_new: false,
+            last_synced_at: now,
+          };
+
+          if (existing) {
+            await supabase.from("catalog_products").update(payload).eq("id", existing.id);
+            updated++;
+          } else {
+            await supabase.from("catalog_products").insert({ ...payload, midocean_id: pfcId, active: true });
+            created++;
+          }
           continue;
         }
 
-        const pfcId = `PFC-${product.sku || product.name.replace(/\s+/g, "-").substring(0, 30)}`;
+        // Use first item as main product entry (model level)
+        const firstItem = items[0];
+        const itemCode = firstItem?.itemCode || firstItem?.itemcode || modelCode;
+        const pfcId = `PFC-${modelCode}`;
 
-        // Check if exists
+        const imageName = extractImageName(model, firstItem);
+        const imageUrl = imageName ? `${IMAGE_BASE}/${imageName}` : null;
+
+        // Get price from price feed, or 0
+        const price = priceMap.get(itemCode) || 0;
+        const stock = stockMap.get(itemCode) || 0;
+
         const { data: existing } = await supabase
           .from("catalog_products")
           .select("id")
@@ -332,14 +331,14 @@ Deno.serve(async (req) => {
           .maybeSingle();
 
         const payload = {
-          name: product.name || product.sku,
-          sku: product.sku || pfcId,
-          category: product.category,
-          description: null as string | null,
-          image_url: product.imageUrl,
-          stock_qty: 0, // PF Concept doesn't expose stock publicly
-          base_price: product.price,
-          is_new: product.isNew,
+          name,
+          sku: itemCode,
+          category,
+          description,
+          image_url: imageUrl,
+          stock_qty: stock,
+          base_price: Math.round(price * PRICE_MULTIPLIER * 100) / 100,
+          is_new: false,
           last_synced_at: now,
         };
 
@@ -347,15 +346,11 @@ Deno.serve(async (req) => {
           await supabase.from("catalog_products").update(payload).eq("id", existing.id);
           updated++;
         } else {
-          await supabase.from("catalog_products").insert({
-            ...payload,
-            midocean_id: pfcId,
-            active: true,
-          });
+          await supabase.from("catalog_products").insert({ ...payload, midocean_id: pfcId, active: true });
           created++;
         }
       } catch (e) {
-        console.error("Error saving product:", e);
+        console.error("Error processing model:", e);
         errors++;
       }
     }
@@ -367,12 +362,13 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        total: allProducts.size,
+        total: models.length,
         created,
         updated,
         skipped,
         errors,
-        authenticated: !!cookies,
+        pricesLoaded: priceMap.size,
+        stocksLoaded: stockMap.size,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
