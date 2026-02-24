@@ -7,134 +7,141 @@ const corsHeaders = {
 };
 
 // ── Configuration ──
-// Data feed base URL (requires activation by PF Concept)
 const FEED_BASE = "https://www.pfconcept.com/portal/datafeed";
-// Belgium feed (CBE1), French language – adjust if needed
-const PRODUCT_FEED = `${FEED_BASE}/productfeed_fr_v3.json`;
-const PRICE_FEED   = `${FEED_BASE}/pricefeed_cbe1_v3.json`;
-const STOCK_FEED   = `${FEED_BASE}/stockfeed_cbe1_v3.json`;
-// Image CDN
+const PRICE_FEED = `${FEED_BASE}/pricefeed_cbe1_v3.json`;
+const STOCK_FEED = `${FEED_BASE}/stockfeed_cbe1_v3.json`;
 const IMAGE_BASE = "https://images.pfconcept.com/ProductImages_All/JPG/500x500";
-// Price multiplier (margin)
 const PRICE_MULTIPLIER = 1.65;
+const BATCH_SIZE = 50;
 
-// ── Types ──
-interface FeedModel {
-  model?: {
-    modelCode: string;
-    description?: string;
-    extDesc?: string;
-    items?: Array<{
-      numberOfItems?: number;
-      item?: Array<{
-        itemCode: string;
-        color?: string;
-        colorDesc?: string;
-        baseColor?: string;
-        images?: { image?: string[] };
-        mainImage?: string;
-      }>;
-    }>;
-  };
-  // Alternative flat structure
-  modelCode?: string;
-  description?: string;
-  extDesc?: string;
-  items?: Array<any>;
+// ── Helpers ──
+
+function extractImageUrl(itemCode: string): string {
+  return `${IMAGE_BASE}/${itemCode}_1.jpg`;
 }
 
-interface PriceModel {
-  modelcode?: string;
-  items?: Array<{
-    numberOfItems?: number;
-    item?: Array<{
-      itemcode?: string;
-      currency?: string;
-      scales?: Array<{
-        priceBar?: string | number;
-        nettPrice?: string | number;
-        type?: string;
-      }>;
-    }>;
-  }>;
+function cleanCategory(raw: string): string {
+  if (!raw || raw === "undefined") return "General";
+  const cleaned = raw.trim();
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
 }
 
-interface StockModel {
-  modelCode?: string;
-  items?: Array<{
-    item?: Array<{
-      itemCode?: string;
-      stockDirect?: number;
-      stockNextPo?: number;
-    }>;
-  }>;
-}
-
-/**
- * Fetch a JSON data feed, optionally with basic auth
- */
-async function fetchFeed(url: string, email?: string, password?: string): Promise<any> {
+async function fetchJson(url: string, email?: string, password?: string): Promise<any> {
   const headers: Record<string, string> = {
-    "Accept": "application/json",
+    Accept: "application/json",
     "User-Agent": "InkooBot/2.0",
   };
-
   if (email && password) {
     headers["Authorization"] = "Basic " + btoa(`${email}:${password}`);
   }
-
-  console.log(`Fetching feed: ${url}`);
+  console.log(`Fetching: ${url}`);
   const res = await fetch(url, { headers });
-
-  if (!res.ok) {
-    throw new Error(`Feed fetch failed: ${res.status} ${res.statusText} for ${url}`);
-  }
-
+  if (!res.ok) throw new Error(`Feed ${res.status} ${res.statusText} for ${url}`);
   return res.json();
 }
 
 /**
- * Extract the first product image name from a model/item
+ * Stream-parse the product feed JSON and yield individual model objects.
+ * This avoids loading the entire ~50-100MB JSON into memory at once.
+ * Strategy: read response as text in chunks, use bracket counting to extract
+ * individual model objects from the "models" array.
  */
-function extractImageName(model: any, item: any): string | null {
-  // Try item-level images first
-  if (item?.images?.image) {
-    const imgs = Array.isArray(item.images.image) ? item.images.image : [item.images.image];
-    for (const img of imgs) {
-      if (typeof img === "string" && img.endsWith(".jpg")) return img;
+async function* streamProductModels(
+  url: string,
+  email?: string,
+  password?: string
+): AsyncGenerator<any> {
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    "User-Agent": "InkooBot/2.0",
+  };
+  if (email && password) {
+    headers["Authorization"] = "Basic " + btoa(`${email}:${password}`);
+  }
+
+  console.log(`Streaming product feed: ${url}`);
+  const res = await fetch(url, { headers });
+  if (!res.ok) throw new Error(`Feed ${res.status} for ${url}`);
+
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let inModels = false;
+  let depth = 0;
+  let objectStart = -1;
+  let yieldCount = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+
+    let i = 0;
+    while (i < buffer.length) {
+      const ch = buffer[i];
+
+      // Skip strings to avoid counting brackets inside them
+      if (ch === '"') {
+        i++;
+        while (i < buffer.length && buffer[i] !== '"') {
+          if (buffer[i] === "\\") i++; // skip escaped char
+          i++;
+        }
+        i++; // skip closing quote
+        continue;
+      }
+
+      if (!inModels) {
+        // Look for "models" key - once found, wait for the opening [
+        if (ch === "[" && buffer.lastIndexOf('"models"', i) > Math.max(0, i - 50)) {
+          inModels = true;
+          depth = 0;
+        }
+        i++;
+        continue;
+      }
+
+      // We're inside the models array
+      if (ch === "{") {
+        if (depth === 0) {
+          objectStart = i;
+        }
+        depth++;
+      } else if (ch === "}") {
+        depth--;
+        if (depth === 0 && objectStart >= 0) {
+          const objectStr = buffer.substring(objectStart, i + 1);
+          try {
+            const model = JSON.parse(objectStr);
+            yieldCount++;
+            yield model;
+          } catch {
+            // malformed object, skip
+          }
+          objectStart = -1;
+          // Trim processed buffer to free memory
+          buffer = buffer.substring(i + 1);
+          i = 0;
+          continue;
+        }
+      } else if (ch === "]" && depth === 0) {
+        // End of models array
+        buffer = "";
+        break;
+      }
+
+      i++;
+    }
+
+    // Keep only unprocessed part of buffer (from current object start)
+    if (inModels && objectStart > 0) {
+      buffer = buffer.substring(objectStart);
+      objectStart = 0;
     }
   }
-  if (item?.mainImage && typeof item.mainImage === "string") return item.mainImage;
 
-  // Try model-level
-  if (model?.images?.image) {
-    const imgs = Array.isArray(model.images.image) ? model.images.image : [model.images.image];
-    for (const img of imgs) {
-      if (typeof img === "string" && img.endsWith(".jpg")) return img;
-    }
-  }
-  if (model?.mainImage && typeof model.mainImage === "string") return model.mainImage;
-
-  // Construct from itemCode: PF Concept uses {itemCode}_1.jpg as main image
-  const code = item?.itemCode || item?.itemcode;
-  if (code) return `${code}_1.jpg`;
-
-  return null;
-}
-
-/**
- * Map PF Concept group descriptions to clean categories
- */
-function mapCategory(model: any): string {
-  const groupDesc = model?.groupDesc || model?.model?.groupDesc || "";
-  const catDesc = model?.categoryDesc || model?.model?.categoryDesc || "";
-  const desc = (groupDesc || catDesc || "").toLowerCase();
-
-  if (!desc || desc === "undefined") return "General";
-
-  // Clean up and capitalize
-  const cleaned = (groupDesc || catDesc || "General").trim();
-  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+  console.log(`Streamed ${yieldCount} models from product feed`);
 }
 
 Deno.serve(async (req) => {
@@ -156,9 +163,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser(
-      authHeader.replace("Bearer ", ""),
-    );
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
@@ -180,69 +188,42 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Credentials for data feed access
     const pfEmail = Deno.env.get("PF_CONCEPT_EMAIL");
     const pfPassword = Deno.env.get("PF_CONCEPT_PASSWORD");
 
-    // ── 1. Fetch product feed ──
-    console.log("Fetching PF Concept product feed...");
-    let productData: any;
+    // ── 1. Fetch price feed (small) ──
+    const priceMap = new Map<string, number>();
     try {
-      productData = await fetchFeed(PRODUCT_FEED, pfEmail || undefined, pfPassword || undefined);
-    } catch (err) {
-      console.error("Product feed error:", err);
-      return new Response(JSON.stringify({
-        error: `Could not fetch product feed. Make sure your PF Concept data feeds are activated. Error: ${err}`,
-      }), {
-        status: 502,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // ── 2. Fetch price feed (optional, non-blocking) ──
-    let priceMap = new Map<string, number>(); // itemCode -> nettPrice
-    try {
-      console.log("Fetching PF Concept price feed...");
-      const priceData = await fetchFeed(PRICE_FEED, pfEmail || undefined, pfPassword || undefined);
-
-      // Parse price feed – structure: priceInfo[0].models[0].model[]
+      const priceData = await fetchJson(PRICE_FEED, pfEmail || undefined, pfPassword || undefined);
       const priceRoot = priceData?.priceInfo?.[0] || priceData?.pfcPricefeed?.priceInfo || priceData;
       const priceModels = priceRoot?.models?.[0]?.model || priceRoot?.models || [];
-
       for (const pm of priceModels) {
         const items = pm?.items?.[0]?.item || pm?.items || [];
         for (const item of items) {
           const code = item?.itemcode || item?.itemCode;
-          // Take the lowest quantity nettPrice (unit price)
           const scales = item?.scales || [];
           if (scales.length > 0 && code) {
-            const unitScale = scales[0];
-            const price = parseFloat(String(unitScale?.nettPrice || "0"));
+            const price = parseFloat(String(scales[0]?.nettPrice || "0"));
             if (price > 0) priceMap.set(code, price);
           }
         }
       }
       console.log(`Parsed ${priceMap.size} item prices`);
     } catch (err) {
-      console.warn("Price feed unavailable, using base prices:", err);
+      console.warn("Price feed unavailable:", err);
     }
 
-    // ── 3. Fetch stock feed (optional, non-blocking) ──
-    let stockMap = new Map<string, number>(); // itemCode -> stockDirect
+    // ── 2. Fetch stock feed (small) ──
+    const stockMap = new Map<string, number>();
     try {
-      console.log("Fetching PF Concept stock feed...");
-      const stockData = await fetchFeed(STOCK_FEED, pfEmail || undefined, pfPassword || undefined);
-
+      const stockData = await fetchJson(STOCK_FEED, pfEmail || undefined, pfPassword || undefined);
       const stockRoot = stockData?.stockFeed?.[0] || stockData?.pfcStockfeed?.stockFeed || stockData;
       const stockModels = stockRoot?.models?.[0]?.model || stockRoot?.models || [];
-
       for (const sm of stockModels) {
         const items = sm?.items?.[0]?.item || sm?.items || [];
         for (const item of items) {
           const code = item?.itemCode || item?.itemcode;
-          if (code) {
-            stockMap.set(code, Number(item?.stockDirect) || 0);
-          }
+          if (code) stockMap.set(code, Number(item?.stockDirect) || 0);
         }
       }
       console.log(`Parsed ${stockMap.size} item stocks`);
@@ -250,119 +231,140 @@ Deno.serve(async (req) => {
       console.warn("Stock feed unavailable:", err);
     }
 
-    // ── 4. Parse product feed and upsert ──
-    // Structure: pfcProductfeed.productfeed.models[].model
-    const feedRoot = productData?.pfcProductfeed?.productfeed || productData?.productfeed || productData;
-    const models: any[] = feedRoot?.models || [];
-
-    console.log(`Product feed contains ${models.length} models`);
-
+    // ── 3. Stream product feed and upsert in batches ──
+    const PRODUCT_FEED = `${FEED_BASE}/productfeed_fr_v3.json`;
     let created = 0;
     let updated = 0;
     let skipped = 0;
     let errors = 0;
+    let total = 0;
     const now = new Date().toISOString();
 
-    for (const modelEntry of models) {
-      try {
-        // Handle both { model: { modelCode, ... } } and flat { modelCode, ... }
-        const model = modelEntry?.model || modelEntry;
-        const modelCode = model?.modelCode;
-        if (!modelCode) { skipped++; continue; }
+    let batch: Array<{
+      pfcId: string;
+      payload: Record<string, any>;
+    }> = [];
 
-        const name = model?.description || modelCode;
-        const description = model?.extDesc || null;
-        const category = mapCategory(model);
+    async function flushBatch() {
+      if (batch.length === 0) return;
 
-        // Process items (SKUs/colors)
-        const itemsArr = model?.items || [];
-        const items = itemsArr?.[0]?.item || itemsArr;
+      // Check which ones already exist
+      const pfcIds = batch.map((b) => b.pfcId);
+      const { data: existing } = await supabase
+        .from("catalog_products")
+        .select("id, midocean_id")
+        .in("midocean_id", pfcIds);
 
-        if (!items || items.length === 0) {
-          // Insert as model-level product
-          const pfcId = `PFC-${modelCode}`;
-          const imageName = extractImageName(model, null);
-          const imageUrl = imageName ? `${IMAGE_BASE}/${imageName}` : null;
-
-          const { data: existing } = await supabase
-            .from("catalog_products")
-            .select("id")
-            .eq("midocean_id", pfcId)
-            .maybeSingle();
-
-          const payload = {
-            name,
-            sku: modelCode,
-            category,
-            description,
-            image_url: imageUrl,
-            stock_qty: 0,
-            base_price: 0,
-            is_new: false,
-            last_synced_at: now,
-          };
-
-          if (existing) {
-            await supabase.from("catalog_products").update(payload).eq("id", existing.id);
-            updated++;
-          } else {
-            await supabase.from("catalog_products").insert({ ...payload, midocean_id: pfcId, active: true });
-            created++;
-          }
-          continue;
-        }
-
-        // Use first item as main product entry (model level)
-        const firstItem = items[0];
-        const itemCode = firstItem?.itemCode || firstItem?.itemcode || modelCode;
-        const pfcId = `PFC-${modelCode}`;
-
-        const imageName = extractImageName(model, firstItem);
-        const imageUrl = imageName ? `${IMAGE_BASE}/${imageName}` : null;
-
-        // Get price from price feed, or 0
-        const price = priceMap.get(itemCode) || 0;
-        const stock = stockMap.get(itemCode) || 0;
-
-        const { data: existing } = await supabase
-          .from("catalog_products")
-          .select("id")
-          .eq("midocean_id", pfcId)
-          .maybeSingle();
-
-        const payload = {
-          name,
-          sku: itemCode,
-          category,
-          description,
-          image_url: imageUrl,
-          stock_qty: stock,
-          base_price: Math.round(price * PRICE_MULTIPLIER * 100) / 100,
-          is_new: false,
-          last_synced_at: now,
-        };
-
-        if (existing) {
-          await supabase.from("catalog_products").update(payload).eq("id", existing.id);
-          updated++;
-        } else {
-          await supabase.from("catalog_products").insert({ ...payload, midocean_id: pfcId, active: true });
-          created++;
-        }
-      } catch (e) {
-        console.error("Error processing model:", e);
-        errors++;
+      const existingMap = new Map<string, string>();
+      for (const e of existing || []) {
+        if (e.midocean_id) existingMap.set(e.midocean_id, e.id);
       }
+
+      const toInsert: any[] = [];
+      const toUpdate: Array<{ id: string; payload: Record<string, any> }> = [];
+
+      for (const b of batch) {
+        const existingId = existingMap.get(b.pfcId);
+        if (existingId) {
+          toUpdate.push({ id: existingId, payload: b.payload });
+        } else {
+          toInsert.push({ ...b.payload, midocean_id: b.pfcId, active: true });
+        }
+      }
+
+      if (toInsert.length > 0) {
+        const { error } = await supabase.from("catalog_products").insert(toInsert);
+        if (error) {
+          console.error("Insert error:", error.message);
+          errors += toInsert.length;
+        } else {
+          created += toInsert.length;
+        }
+      }
+
+      for (const u of toUpdate) {
+        const { error } = await supabase
+          .from("catalog_products")
+          .update(u.payload)
+          .eq("id", u.id);
+        if (error) {
+          errors++;
+        } else {
+          updated++;
+        }
+      }
+
+      batch = [];
+    }
+
+    try {
+      for await (const modelEntry of streamProductModels(
+        PRODUCT_FEED,
+        pfEmail || undefined,
+        pfPassword || undefined
+      )) {
+        total++;
+        try {
+          const model = modelEntry?.model || modelEntry;
+          const modelCode = model?.modelCode;
+          if (!modelCode) {
+            skipped++;
+            continue;
+          }
+
+          const name = model?.description || modelCode;
+          const description = model?.extDesc || null;
+          const category = cleanCategory(model?.groupDesc || model?.categoryDesc || "");
+
+          // Get first item for SKU, image, price, stock
+          const itemsArr = model?.items || [];
+          const items = itemsArr?.[0]?.item || itemsArr;
+          const firstItem = Array.isArray(items) && items.length > 0 ? items[0] : null;
+          const itemCode = firstItem?.itemCode || firstItem?.itemcode || modelCode;
+
+          const pfcId = `PFC-${modelCode}`;
+          const imageUrl = extractImageUrl(itemCode);
+          const price = priceMap.get(itemCode) || 0;
+          const stock = stockMap.get(itemCode) || 0;
+
+          batch.push({
+            pfcId,
+            payload: {
+              name,
+              sku: itemCode,
+              category,
+              description,
+              image_url: imageUrl,
+              stock_qty: stock,
+              base_price: Math.round(price * PRICE_MULTIPLIER * 100) / 100,
+              is_new: false,
+              last_synced_at: now,
+            },
+          });
+
+          if (batch.length >= BATCH_SIZE) {
+            await flushBatch();
+          }
+        } catch (e) {
+          errors++;
+        }
+      }
+
+      // Flush remaining
+      await flushBatch();
+    } catch (err) {
+      console.error("Product feed streaming error:", err);
+      // Still return partial results
     }
 
     console.log(
-      `PF Concept sync complete: ${created} created, ${updated} updated, ${skipped} skipped, ${errors} errors`,
+      `PF Concept sync: ${created} created, ${updated} updated, ${skipped} skipped, ${errors} errors (total models: ${total})`
     );
 
     return new Response(
       JSON.stringify({
         success: true,
-        total: models.length,
+        total,
         created,
         updated,
         skipped,
@@ -370,7 +372,7 @@ Deno.serve(async (req) => {
         pricesLoaded: priceMap.size,
         stocksLoaded: stockMap.size,
       }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {
     console.error("Sync error:", error);
