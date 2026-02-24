@@ -41,7 +41,7 @@ const OrderDetail = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_items")
-        .select("*, products(name, sku, image_url, category)")
+        .select("*, products(name, sku, image_url, category), product_variants(variant_label, variant_value)")
         .eq("order_id", orderId!);
       if (error) throw error;
       return data;
@@ -216,6 +216,7 @@ const OrderDetail = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead className="text-xs">{t("common.product")}</TableHead>
+                  <TableHead className="text-xs">Variante</TableHead>
                   <TableHead className="text-xs">SKU</TableHead>
                   <TableHead className="text-xs">{t("common.category")}</TableHead>
                   <TableHead className="text-xs text-right">{t("common.price")}</TableHead>
@@ -226,6 +227,8 @@ const OrderDetail = () => {
               <TableBody>
                 {items.map((item) => {
                   const product = item.products as any;
+                  const variant = (item as any).product_variants as any;
+                  const variantText = variant ? `${variant.variant_label}: ${variant.variant_value}` : (item as any).variant_label || null;
                   return (
                     <TableRow key={item.id} className="text-sm">
                       <TableCell>
@@ -238,6 +241,7 @@ const OrderDetail = () => {
                           <span className="font-medium text-foreground">{product?.name || "Produit supprimé"}</span>
                         </div>
                       </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{variantText || "—"}</TableCell>
                       <TableCell className="font-mono text-xs text-muted-foreground">{product?.sku || "—"}</TableCell>
                       <TableCell className="text-xs text-muted-foreground capitalize">{product?.category || "—"}</TableCell>
                       <TableCell className="text-right">{formatCurrency(Number(item.unit_price))}</TableCell>

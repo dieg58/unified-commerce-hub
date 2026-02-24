@@ -230,6 +230,8 @@ const Storefront = () => {
       const orderItems = items.map((item) => ({
         order_id: order.id, tenant_id: tenantId, product_id: item.productId,
         qty: item.qty, unit_price: freeProductIds.has(item.productId) ? 0 : item.price,
+        variant_id: item.variantId || null,
+        variant_label: item.variantLabel || null,
       }));
       const { error: iErr } = await supabase.from("order_items").insert(orderItems);
       if (iErr) throw iErr;

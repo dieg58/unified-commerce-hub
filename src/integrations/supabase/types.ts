@@ -674,6 +674,8 @@ export type Database = {
           qty: number
           tenant_id: string
           unit_price: number
+          variant_id: string | null
+          variant_label: string | null
         }
         Insert: {
           id?: string
@@ -682,6 +684,8 @@ export type Database = {
           qty?: number
           tenant_id: string
           unit_price?: number
+          variant_id?: string | null
+          variant_label?: string | null
         }
         Update: {
           id?: string
@@ -690,6 +694,8 @@ export type Database = {
           qty?: number
           tenant_id?: string
           unit_price?: number
+          variant_id?: string | null
+          variant_label?: string | null
         }
         Relationships: [
           {
@@ -711,6 +717,13 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_variant_id_fkey"
+            columns: ["variant_id"]
+            isOneToOne: false
+            referencedRelation: "product_variants"
             referencedColumns: ["id"]
           },
         ]
