@@ -47,3 +47,6 @@ verify_jwt = false
 
 [functions.sync-pfconcept]
 verify_jwt = false
+
+[functions.sync-printcom]
+verify_jwt = false
