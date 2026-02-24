@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import TopBar from "@/components/TopBar";
 import { SectionHeader } from "@/components/DashboardWidgets";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -8,9 +8,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Plus, Search, Loader2, MoreHorizontal, Pencil, Trash2, Package, Upload, Eye, RefreshCw } from "lucide-react";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Plus, Search, Loader2, MoreHorizontal, Pencil, Trash2, Package, Upload, Eye, RefreshCw, Filter } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/mock-data";
@@ -46,6 +48,9 @@ const CatalogProducts = () => {
   const qc = useQueryClient();
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
+  const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [filterSource, setFilterSource] = useState<string>("all");
+  const [filterActive, setFilterActive] = useState<boolean | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<CatalogProduct | null>(null);
   const [form, setForm] = useState(emptyCp);
@@ -63,11 +68,24 @@ const CatalogProducts = () => {
     },
   });
 
-  const filtered = products?.filter((p) =>
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    p.sku.toLowerCase().includes(search.toLowerCase()) ||
-    p.category.toLowerCase().includes(search.toLowerCase())
-  );
+  const categories = useMemo(() => {
+    if (!products) return [];
+    return [...new Set(products.map((p) => p.category))].sort();
+  }, [products]);
+
+  const filtered = products?.filter((p) => {
+    const matchesSearch =
+      p.name.toLowerCase().includes(search.toLowerCase()) ||
+      p.sku.toLowerCase().includes(search.toLowerCase()) ||
+      p.category.toLowerCase().includes(search.toLowerCase());
+    const matchesCategory = filterCategory === "all" || p.category === filterCategory;
+    const matchesSource =
+      filterSource === "all" ||
+      (filterSource === "midocean" && !!p.midocean_id) ||
+      (filterSource === "manual" && !p.midocean_id);
+    const matchesActive = filterActive === null || p.active === filterActive;
+    return matchesSearch && matchesCategory && matchesSource && matchesActive;
+  });
 
   const openCreate = () => {
     setEditing(null);
@@ -208,7 +226,52 @@ const CatalogProducts = () => {
           </div>
         </div>
 
-        {/* Table */}
+        {/* Filters */}
+        <div className="bg-card rounded-lg border border-border p-4 flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <Filter className="w-4 h-4" />
+            Filtres
+          </div>
+          <Select value={filterSource} onValueChange={setFilterSource}>
+            <SelectTrigger className="h-8 w-40 text-sm">
+              <SelectValue placeholder="Fournisseur" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous les fournisseurs</SelectItem>
+              <SelectItem value="midocean">Midocean</SelectItem>
+              <SelectItem value="manual">Manuel</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={filterCategory} onValueChange={setFilterCategory}>
+            <SelectTrigger className="h-8 w-52 text-sm">
+              <SelectValue placeholder="Catégorie" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Toutes les catégories</SelectItem>
+              {categories.map((cat) => (
+                <SelectItem key={cat} value={cat}>
+                  <span className="capitalize">{cat}</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <ToggleGroup
+            type="single"
+            value={filterActive === null ? "all" : filterActive ? "active" : "inactive"}
+            onValueChange={(val) => {
+              if (val === "active") setFilterActive(true);
+              else if (val === "inactive") setFilterActive(false);
+              else setFilterActive(null);
+            }}
+            variant="outline"
+            size="sm"
+          >
+            <ToggleGroupItem value="all" className="text-xs px-3">Tous</ToggleGroupItem>
+            <ToggleGroupItem value="active" className="text-xs px-3">Actifs</ToggleGroupItem>
+            <ToggleGroupItem value="inactive" className="text-xs px-3">Inactifs</ToggleGroupItem>
+          </ToggleGroup>
+        </div>
+
         <div className="bg-card rounded-lg border border-border shadow-card animate-fade-in">
           <div className="p-5 border-b border-border">
             <SectionHeader
