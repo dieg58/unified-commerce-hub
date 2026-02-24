@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { CartProvider } from "@/hooks/useCart";
-import { RequireSuperAdmin, RequireTenantUser, RequireEmployee } from "@/components/RouteGuards";
+import { RequireSuperAdmin, RequireTenantUser, RequireEmployee, RequireShopManager } from "@/components/RouteGuards";
 import AppLayout from "./components/AppLayout";
 import TenantAdminLayout from "./components/TenantAdminLayout";
 import StorefrontLayout from "./components/StorefrontLayout";
@@ -47,18 +47,36 @@ const SubdomainAwareRoutes = () => {
   const { isSubdomain } = useSubdomain();
 
   if (isSubdomain) {
-    // Subdomain mode: employee-facing storefront only
+    // Subdomain mode: storefront + tenant admin for managers
     return (
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/reset-password" element={<ResetPassword />} />
-        <Route element={<RequireTenantUser><StorefrontLayout /></RequireTenantUser>}>
+
+        {/* Tenant admin routes for shop_manager / dept_manager */}
+        <Route element={<RequireShopManager><TenantAdminLayout /></RequireShopManager>}>
+          <Route path="/tenant" element={<TenantDashboard />} />
+          <Route path="/tenant/orders" element={<TenantOrders />} />
+          <Route path="/tenant/approvals" element={<TenantApprovals />} />
+          <Route path="/tenant/stats" element={<TenantStats />} />
+          <Route path="/tenant/users" element={<TenantUsers />} />
+          <Route path="/tenant/settings" element={<TenantSettings />} />
+          <Route path="/tenant/entities" element={<TenantEntities />} />
+          <Route path="/tenant/entities/:id" element={<TenantEntityForm />} />
+          <Route path="/tenant/discounts" element={<TenantDiscountCodes />} />
+          <Route path="/tenant/products" element={<TenantProducts />} />
+          <Route path="/tenant/product-requests" element={<TenantProductRequests />} />
+        </Route>
+
+        {/* Employee storefront */}
+        <Route element={<RequireEmployee><StorefrontLayout /></RequireEmployee>}>
           <Route path="/" element={<Storefront />} />
           <Route path="/shop" element={<Storefront />} />
           <Route path="/shop/wishlist" element={<MyWishlist />} />
           <Route path="/shop/orders" element={<MyOrders />} />
           <Route path="/shop/profile" element={<MyProfile />} />
         </Route>
+
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     );
