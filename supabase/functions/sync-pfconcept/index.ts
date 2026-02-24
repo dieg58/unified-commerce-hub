@@ -10,8 +10,6 @@ const FEED_BASE = "https://www.pfconcept.com/portal/datafeed";
 const IMAGE_BASE = "https://images.pfconcept.com/ProductImages_All/JPG/500x500";
 const PRICE_MULTIPLIER = 1.65;
 const BATCH_SIZE = 50;
-
-// Try multiple country codes for price/stock feeds
 const COUNTRY_CODES = ["cbe1", "cnl1", "cfr1", "cde1"];
 
 function cleanCategory(raw: string): string {
@@ -43,10 +41,15 @@ async function tryFetchJson(urls: string[], email?: string, password?: string): 
 }
 
 /**
- * Fetch product feed as text and extract models using fast string splitting.
- * Much faster than char-by-char streaming.
+ * Stream the product feed and yield individual model objects one at a time.
+ * This avoids loading the entire JSON into memory.
  */
-async function fetchProductModels(url: string, email?: string, password?: string): Promise<any[]> {
+async function* streamModels(
+  url: string,
+  email?: string,
+  password?: string,
+  limit?: number
+): AsyncGenerator<any> {
   const headers: Record<string, string> = {
     Accept: "application/json",
     "User-Agent": "InkooBot/2.0",
@@ -55,55 +58,91 @@ async function fetchProductModels(url: string, email?: string, password?: string
     headers["Authorization"] = "Basic " + btoa(`${email}:${password}`);
   }
 
-  console.log(`Fetching product feed as text: ${url}`);
+  console.log(`Streaming product feed: ${url}`);
   const res = await fetch(url, { headers });
-  if (!res.ok) throw new Error(`Feed ${res.status} for ${url}`);
+  if (!res.ok) throw new Error(`Feed ${res.status}`);
+  if (!res.body) throw new Error("No response body");
 
-  // Read as text - avoids double memory from JSON.parse on full object
-  const text = await res.text();
-  console.log(`Product feed size: ${(text.length / 1024 / 1024).toFixed(1)} MB`);
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
 
-  // Fast extraction: find the models array and parse it
-  // The structure is: {"pfcProductfeed":{"productfeed":{"models":[...]}}}
-  // or similar nesting. Find "models" and extract the array content.
-  
-  // Find the models array start
-  const modelsIdx = text.indexOf('"models"');
-  if (modelsIdx === -1) {
-    console.error("Could not find 'models' key in product feed");
-    return [];
-  }
-
-  // Find the opening bracket of the array
-  const arrayStart = text.indexOf('[', modelsIdx);
-  if (arrayStart === -1) return [];
-
-  // Find the matching closing bracket by counting
+  // State machine: find individual model objects within the "models" array
+  let buffer = "";
+  let inModelsArray = false;
   let depth = 0;
-  let arrayEnd = -1;
-  for (let i = arrayStart; i < text.length; i++) {
-    if (text[i] === '[') depth++;
-    else if (text[i] === ']') {
-      depth--;
-      if (depth === 0) {
-        arrayEnd = i;
-        break;
+  let objectStart = -1;
+  let yielded = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+
+    let i = 0;
+    while (i < buffer.length) {
+      if (!inModelsArray) {
+        // Look for "models" key - find the opening bracket
+        const idx = buffer.indexOf('"models"', i);
+        if (idx === -1) {
+          // Keep last 20 chars in case "models" spans chunks
+          if (buffer.length > 20) {
+            buffer = buffer.slice(-20);
+          }
+          break;
+        }
+        // Find the [ after "models"
+        const bracketIdx = buffer.indexOf('[', idx + 8);
+        if (bracketIdx === -1) {
+          i = idx + 8;
+          continue;
+        }
+        inModelsArray = true;
+        i = bracketIdx + 1;
+        depth = 0;
+        objectStart = -1;
+        continue;
       }
+
+      const ch = buffer[i];
+      if (ch === '{') {
+        if (depth === 0) objectStart = i;
+        depth++;
+      } else if (ch === '}') {
+        depth--;
+        if (depth === 0 && objectStart !== -1) {
+          const objStr = buffer.substring(objectStart, i + 1);
+          objectStart = -1;
+          try {
+            yield JSON.parse(objStr);
+            yielded++;
+            if (limit && yielded >= limit) {
+              reader.cancel();
+              return;
+            }
+          } catch {
+            // skip malformed
+          }
+          // Trim processed buffer to free memory
+          buffer = buffer.substring(i + 1);
+          i = 0;
+          continue;
+        }
+      } else if (ch === ']' && depth === 0) {
+        // End of models array
+        reader.cancel();
+        return;
+      }
+      i++;
     }
-  }
 
-  if (arrayEnd === -1) return [];
-
-  // Parse just the models array
-  const modelsJson = text.substring(arrayStart, arrayEnd + 1);
-  
-  // Free the full text from memory
-  // Parse the array
-  try {
-    return JSON.parse(modelsJson);
-  } catch (e) {
-    console.error("Failed to parse models array:", e);
-    return [];
+    // If buffer grows too large without yielding, trim what we can
+    if (objectStart !== -1 && objectStart > 0) {
+      buffer = buffer.substring(objectStart);
+      objectStart = 0;
+    } else if (!inModelsArray && buffer.length > 10000) {
+      buffer = buffer.slice(-20);
+    }
   }
 }
 
@@ -150,10 +189,17 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Optional limit parameter for testing
+    let limit: number | undefined;
+    try {
+      const body = await req.json();
+      limit = body?.limit;
+    } catch { /* no body */ }
+
     const pfEmail = Deno.env.get("PF_CONCEPT_EMAIL");
     const pfPassword = Deno.env.get("PF_CONCEPT_PASSWORD");
 
-    // ── 1. Fetch price feed (try multiple country codes) ──
+    // ── 1. Fetch price feed (small, fits in memory) ──
     const priceMap = new Map<string, number>();
     const priceUrls = COUNTRY_CODES.map((c) => `${FEED_BASE}/pricefeed_${c}_v3.json`);
     try {
@@ -178,7 +224,7 @@ Deno.serve(async (req) => {
       console.warn("Price feed error:", err);
     }
 
-    // ── 2. Fetch stock feed (try multiple country codes) ──
+    // ── 2. Fetch stock feed (small, fits in memory) ──
     const stockMap = new Map<string, number>();
     const stockUrls = COUNTRY_CODES.map((c) => `${FEED_BASE}/stockfeed_${c}_v3.json`);
     try {
@@ -199,68 +245,22 @@ Deno.serve(async (req) => {
       console.warn("Stock feed error:", err);
     }
 
-    // ── 3. Fetch and process product feed ──
+    // ── 3. Stream and process product feed ──
     const PRODUCT_FEED = `${FEED_BASE}/productfeed_fr_v3.json`;
-    let models: any[];
-    try {
-      models = await fetchProductModels(PRODUCT_FEED, pfEmail || undefined, pfPassword || undefined);
-    } catch (err) {
-      return new Response(
-        JSON.stringify({ error: `Product feed error: ${err}` }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    console.log(`Processing ${models.length} models`);
 
     let created = 0;
     let updated = 0;
     let skipped = 0;
     let errors = 0;
+    let total = 0;
     const now = new Date().toISOString();
 
-    // Process in batches
-    for (let i = 0; i < models.length; i += BATCH_SIZE) {
-      const chunk = models.slice(i, i + BATCH_SIZE);
-      const batch: Array<{ pfcId: string; payload: Record<string, any> }> = [];
+    // Accumulate batch items
+    let batch: Array<{ pfcId: string; payload: Record<string, any> }> = [];
 
-      for (const modelEntry of chunk) {
-        try {
-          const model = modelEntry?.model || modelEntry;
-          const modelCode = model?.modelCode;
-          if (!modelCode) { skipped++; continue; }
+    async function flushBatch() {
+      if (batch.length === 0) return;
 
-          const name = model?.description || modelCode;
-          const description = model?.extDesc || null;
-          const category = cleanCategory(model?.groupDesc || model?.categoryDesc || "");
-
-          const itemsArr = model?.items || [];
-          const items = itemsArr?.[0]?.item || itemsArr;
-          const firstItem = Array.isArray(items) && items.length > 0 ? items[0] : null;
-          const itemCode = firstItem?.itemCode || firstItem?.itemcode || modelCode;
-
-          batch.push({
-            pfcId: `PFC-${modelCode}`,
-            payload: {
-              name,
-              sku: itemCode,
-              category,
-              description,
-              image_url: `${IMAGE_BASE}/${itemCode}_1.jpg`,
-              stock_qty: stockMap.get(itemCode) || 0,
-              base_price: Math.round((priceMap.get(itemCode) || 0) * PRICE_MULTIPLIER * 100) / 100,
-              is_new: false,
-              last_synced_at: now,
-            },
-          });
-        } catch {
-          errors++;
-        }
-      }
-
-      if (batch.length === 0) continue;
-
-      // Check existing
       const pfcIds = batch.map((b) => b.pfcId);
       const { data: existing } = await supabase
         .from("catalog_products")
@@ -290,17 +290,68 @@ Deno.serve(async (req) => {
         else created += toInsert.length;
       }
 
-      // Batch update using upsert pattern
       for (const u of toUpdate) {
         await supabase.from("catalog_products").update(u.payload).eq("id", u.id);
         updated++;
       }
+
+      batch = [];
     }
+
+    try {
+      for await (const modelEntry of streamModels(PRODUCT_FEED, pfEmail || undefined, pfPassword || undefined, limit)) {
+        total++;
+        try {
+          const model = modelEntry?.model || modelEntry;
+          const modelCode = model?.modelCode;
+          if (!modelCode) { skipped++; continue; }
+
+          const name = model?.description || modelCode;
+          const description = model?.extDesc || null;
+          const category = cleanCategory(model?.groupDesc || model?.categoryDesc || "");
+
+          const itemsArr = model?.items || [];
+          const items = itemsArr?.[0]?.item || itemsArr;
+          const firstItem = Array.isArray(items) && items.length > 0 ? items[0] : null;
+          const itemCode = firstItem?.itemCode || firstItem?.itemcode || modelCode;
+
+          batch.push({
+            pfcId: `PFC-${modelCode}`,
+            payload: {
+              name,
+              sku: itemCode,
+              category,
+              description,
+              image_url: `${IMAGE_BASE}/${itemCode}_1.jpg`,
+              stock_qty: stockMap.get(itemCode) || 0,
+              base_price: Math.round((priceMap.get(itemCode) || 0) * PRICE_MULTIPLIER * 100) / 100,
+              is_new: false,
+              last_synced_at: now,
+            },
+          });
+
+          if (batch.length >= BATCH_SIZE) {
+            await flushBatch();
+          }
+        } catch {
+          errors++;
+        }
+
+        // Log progress every 500
+        if (total % 500 === 0) console.log(`Progress: ${total} models processed`);
+      }
+    } catch (err) {
+      console.error("Stream error:", err);
+      // Still flush what we have
+    }
+
+    // Flush remaining
+    await flushBatch();
 
     console.log(`Done: ${created} created, ${updated} updated, ${skipped} skipped, ${errors} errors`);
 
     return new Response(
-      JSON.stringify({ success: true, total: models.length, created, updated, skipped, errors, pricesLoaded: priceMap.size, stocksLoaded: stockMap.size }),
+      JSON.stringify({ success: true, total, created, updated, skipped, errors, pricesLoaded: priceMap.size, stocksLoaded: stockMap.size }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {
