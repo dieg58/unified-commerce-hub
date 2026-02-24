@@ -236,7 +236,7 @@ Deno.serve(async (req) => {
     // Fetch order with profile and items
     const { data: order, error: orderErr } = await supabase
       .from("orders")
-      .select("*, profiles:created_by(id, full_name, email, odoo_partner_id), order_items(qty, unit_price, variant_label, products(id, name, sku, odoo_product_id)), entities(name, code)")
+      .select("*, profiles:created_by(id, full_name, email, odoo_partner_id), order_items(qty, unit_price, variant_label, products(id, name, sku, odoo_product_id)), entities!orders_entity_id_fkey(name, code)")
       .eq("id", order_id)
       .single();
     if (orderErr || !order) throw new Error("Order not found");
