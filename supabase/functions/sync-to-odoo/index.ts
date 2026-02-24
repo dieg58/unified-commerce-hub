@@ -141,6 +141,8 @@ async function createSaleOrder(url: string, db: string, uid: number, apiKey: str
   const orderLines: string[] = [];
   for (const item of items) {
     const productName = item.products?.name || "Product";
+    const variantLabel = item.variant_label;
+    const displayName = variantLabel ? `${productName} (${variantLabel})` : productName;
     const productSku = item.products?.sku || `INKOO-${Date.now()}`;
     const productPrice = Number(item.unit_price);
     const productId = item.products?.id;
@@ -155,7 +157,7 @@ async function createSaleOrder(url: string, db: string, uid: number, apiKey: str
 
     const lineVals = struct({
       product_id: int(odooProductId),
-      name: str(productName),
+      name: str(displayName),
       product_uom_qty: int(item.qty),
       price_unit: `<double>${productPrice}</double>`,
     });
@@ -234,7 +236,7 @@ Deno.serve(async (req) => {
     // Fetch order with profile and items
     const { data: order, error: orderErr } = await supabase
       .from("orders")
-      .select("*, profiles:created_by(id, full_name, email, odoo_partner_id), order_items(qty, unit_price, products(id, name, sku, odoo_product_id)), entities(name, code)")
+      .select("*, profiles:created_by(id, full_name, email, odoo_partner_id), order_items(qty, unit_price, variant_label, products(id, name, sku, odoo_product_id)), entities(name, code)")
       .eq("id", order_id)
       .single();
     if (orderErr || !order) throw new Error("Order not found");
