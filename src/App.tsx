@@ -24,7 +24,7 @@ import TenantEntityForm from "./pages/tenant/TenantEntityForm";
 import TenantDiscountCodes from "./pages/tenant/TenantDiscountCodes";
 import TenantApprovals from "./pages/tenant/TenantApprovals";
 import TenantProducts from "./pages/tenant/TenantProducts";
-import TenantBudgets from "./pages/tenant/TenantBudgets";
+
 import Storefront from "./pages/Storefront";
 import ProductRequests from "./pages/ProductRequests";
 import CatalogProducts from "./pages/CatalogProducts";
@@ -99,7 +99,7 @@ const SubdomainAwareRoutes = () => {
         <Route path="/tenant/entities/:id" element={<TenantEntityForm />} />
         <Route path="/tenant/discounts" element={<TenantDiscountCodes />} />
         <Route path="/tenant/products" element={<TenantProducts />} />
-        <Route path="/tenant/budgets" element={<TenantBudgets />} />
+        
         <Route path="/tenant/product-requests" element={<TenantProductRequests />} />
       </Route>
 
