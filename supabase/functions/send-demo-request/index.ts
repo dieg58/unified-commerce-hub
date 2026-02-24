@@ -65,7 +65,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "Inkoo <onboarding@resend.dev>",
+        from: "Inkoo <noreply@inkoo.eu>",
         to: ["diego@inkoo.eu"],
         subject: `Demande de démo — ${sanitizeHtml(company)}`,
         html: htmlBody,

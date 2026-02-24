@@ -149,7 +149,7 @@ serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          from: "Inkoo <onboarding@resend.dev>",
+          from: "Inkoo <noreply@inkoo.eu>",
           to: recipients,
           subject: `⚠️ Alerte stock bas — ${tenantName} (${alerts.length} produit${alerts.length > 1 ? "s" : ""})`,
           html: htmlBody,

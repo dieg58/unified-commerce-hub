@@ -188,7 +188,7 @@ Deno.serve(async (req) => {
         method: "POST",
         headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          from: "Inkoo <onboarding@resend.dev>",
+          from: "Inkoo <noreply@inkoo.eu>",
           to: [to],
           subject,
           html,
