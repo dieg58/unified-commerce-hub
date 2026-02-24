@@ -337,6 +337,24 @@ Deno.serve(async (req) => {
           const firstItem = Array.isArray(items) && items.length > 0 ? items[0] : null;
           const itemCode = firstItem?.itemCode || firstItem?.itemcode || modelCode;
 
+          // Extract colors and sizes from items
+          const colorMap = new Map<string, { color: string; hex: string | null; image_url: string | null }>();
+          const sizeSet = new Set<string>();
+          const allItems = Array.isArray(items) ? items : [];
+          for (const item of allItems) {
+            const colorName = item?.colorDesc || item?.color || null;
+            if (colorName && !colorMap.has(colorName)) {
+              const ic = item?.itemCode || item?.itemcode;
+              colorMap.set(colorName, {
+                color: colorName,
+                hex: item?.colorHex || null,
+                image_url: ic ? `${IMAGE_BASE}/${ic}_1.jpg` : null,
+              });
+            }
+            const size = item?.sizeDesc || item?.size || null;
+            if (size) sizeSet.add(size);
+          }
+
           batch.push({
             pfcId: `PFC-${modelCode}`,
             payload: {
@@ -349,6 +367,8 @@ Deno.serve(async (req) => {
               base_price: Math.round((priceMap.get(itemCode) || 0) * PRICE_MULTIPLIER * 100) / 100,
               is_new: false,
               last_synced_at: now,
+              variant_colors: Array.from(colorMap.values()),
+              variant_sizes: Array.from(sizeSet),
             },
           });
 

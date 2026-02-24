@@ -334,6 +334,8 @@ Deno.serve(async (req) => {
           active: product.active !== false,
           last_synced_at: now,
           midocean_id: printId,
+          variant_colors: [],
+          variant_sizes: [],
         });
       } catch { errors++; }
     }
