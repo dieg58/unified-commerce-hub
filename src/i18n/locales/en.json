@@ -103,7 +103,8 @@
     "structure": "Structure",
     "commerce": "Commerce",
     "analysis": "Analytics",
-    "productRequests": "Product requests"
+    "productRequests": "Product requests",
+    "catalogGlobal": "Global catalog"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -391,6 +392,24 @@
     "noProductFound": "No product found",
     "noProduct": "No product",
     "general": "general"
+  },
+  "catalogAdmin": {
+    "title": "Global catalog",
+    "subtitle": "Products available to partner shops",
+    "totalProducts": "Total products",
+    "activeProducts": "Active products",
+    "inactiveProducts": "Inactive products",
+    "addProduct": "Add product",
+    "editProduct": "Edit product",
+    "noProductFound": "No product found",
+    "noProduct": "No product in catalog",
+    "productCreated": "Product added to catalog",
+    "productUpdated": "Product updated",
+    "productDeleted": "Product removed from catalog",
+    "basePrice": "Base price",
+    "uploadImage": "Upload image",
+    "visibleInCatalog": "Visible in catalog",
+    "visibleDesc": "Shops will be able to see and request this product"
   },
   "users": {
     "title": "Users",

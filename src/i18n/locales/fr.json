@@ -103,7 +103,8 @@
     "structure": "Structure",
     "commerce": "Commerce",
     "analysis": "Analyse",
-    "productRequests": "Demandes produits"
+    "productRequests": "Demandes produits",
+    "catalogGlobal": "Catalogue global"
   },
   "dashboard": {
     "title": "Tableau de bord",
@@ -391,6 +392,24 @@
     "noProductFound": "Aucun produit trouvé",
     "noProduct": "Aucun produit",
     "general": "général"
+  },
+  "catalogAdmin": {
+    "title": "Catalogue global",
+    "subtitle": "Produits proposés aux boutiques partenaires",
+    "totalProducts": "Produits au total",
+    "activeProducts": "Produits actifs",
+    "inactiveProducts": "Produits inactifs",
+    "addProduct": "Ajouter un produit",
+    "editProduct": "Modifier le produit",
+    "noProductFound": "Aucun produit trouvé",
+    "noProduct": "Aucun produit dans le catalogue",
+    "productCreated": "Produit ajouté au catalogue",
+    "productUpdated": "Produit mis à jour",
+    "productDeleted": "Produit supprimé du catalogue",
+    "basePrice": "Prix de base",
+    "uploadImage": "Télécharger une image",
+    "visibleInCatalog": "Visible dans le catalogue",
+    "visibleDesc": "Les boutiques pourront voir et demander ce produit"
   },
   "users": {
     "title": "Utilisateurs",

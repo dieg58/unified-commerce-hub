@@ -27,6 +27,7 @@ import TenantProducts from "./pages/tenant/TenantProducts";
 import TenantBudgets from "./pages/tenant/TenantBudgets";
 import Storefront from "./pages/Storefront";
 import ProductRequests from "./pages/ProductRequests";
+import CatalogProducts from "./pages/CatalogProducts";
 import TenantProductRequests from "./pages/tenant/TenantProductRequests";
 import Orders from "./pages/Orders";
 import OrderDetail from "./pages/OrderDetail";
@@ -81,6 +82,7 @@ const SubdomainAwareRoutes = () => {
         <Route path="/orders/:orderId" element={<OrderDetail />} />
         <Route path="/store/:tenantId" element={<Storefront />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/catalog-products" element={<CatalogProducts />} />
         <Route path="/product-requests" element={<ProductRequests />} />
       </Route>
 

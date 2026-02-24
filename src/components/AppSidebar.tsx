@@ -9,6 +9,7 @@ import {
   ChevronRight,
   LogOut,
   Sparkles,
+  BookOpen,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -25,7 +26,8 @@ const AppSidebar = () => {
     { to: "/dashboard", icon: LayoutDashboard, label: t("nav.dashboard") },
     { to: "/tenants", icon: Building2, label: t("nav.shops") },
     { to: "/orders", icon: ShoppingCart, label: t("nav.orders") },
-    { to: "/product-requests", icon: Sparkles, label: "Demandes produits" },
+    { to: "/catalog-products", icon: BookOpen, label: t("nav.catalogGlobal") },
+    { to: "/product-requests", icon: Sparkles, label: t("nav.productRequests") },
     { to: "/settings", icon: Settings, label: t("nav.settings") },
   ];
 

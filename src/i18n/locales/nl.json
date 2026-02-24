@@ -103,7 +103,8 @@
     "structure": "Structuur",
     "commerce": "Commerce",
     "analysis": "Analyse",
-    "productRequests": "Productaanvragen"
+    "productRequests": "Productaanvragen",
+    "catalogGlobal": "Globale catalogus"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -391,6 +392,24 @@
     "noProductFound": "Geen product gevonden",
     "noProduct": "Geen product",
     "general": "algemeen"
+  },
+  "catalogAdmin": {
+    "title": "Globale catalogus",
+    "subtitle": "Producten aangeboden aan partnerwinkels",
+    "totalProducts": "Totaal producten",
+    "activeProducts": "Actieve producten",
+    "inactiveProducts": "Inactieve producten",
+    "addProduct": "Product toevoegen",
+    "editProduct": "Product bewerken",
+    "noProductFound": "Geen product gevonden",
+    "noProduct": "Geen product in catalogus",
+    "productCreated": "Product toegevoegd aan catalogus",
+    "productUpdated": "Product bijgewerkt",
+    "productDeleted": "Product verwijderd uit catalogus",
+    "basePrice": "Basisprijs",
+    "uploadImage": "Afbeelding uploaden",
+    "visibleInCatalog": "Zichtbaar in catalogus",
+    "visibleDesc": "Winkels kunnen dit product zien en aanvragen"
   },
   "users": {
     "title": "Gebruikers",
