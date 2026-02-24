@@ -204,13 +204,45 @@ Deno.serve(async (req) => {
               imageUrl = product.imageUrl || product.image || product.url_image || null;
             }
 
+            // ── Extract variant colors and sizes ──
+            const variantColors: { color: string; hex: string | null; image_url: string | null }[] = [];
+            const sizeSet = new Set<string>();
+
+            if (product.colors?.length) {
+              for (const c of product.colors) {
+                const colorName = c.label || c.name || c.code || null;
+                if (colorName) {
+                  // Find image for this color
+                  let colorImage: string | null = null;
+                  const packshots = c?.packshots || c?.images;
+                  if (packshots) {
+                    const face = packshots.FACE || packshots.face || Object.values(packshots)[0] as any;
+                    if (face) colorImage = face.url_packshot || face.url || face.imageUrl || null;
+                  }
+                  if (!colorImage) colorImage = c.url_image || c.imageUrl || c.image || null;
+
+                  variantColors.push({
+                    color: colorName,
+                    hex: c.hex || c.hexa || c.colorCode || null,
+                    image_url: colorImage,
+                  });
+                }
+
+                // Extract sizes from color variants
+                const sizes = c.sizes || c.variants || [];
+                for (const s of sizes) {
+                  const sizeName = s.label || s.name || s.size || s.code || null;
+                  if (sizeName) sizeSet.add(sizeName);
+                }
+              }
+            }
+
+            const variantSizes = Array.from(sizeSet);
+
             // ── Price ──
             const price = priceMap.get(ref) || 0;
 
-            // ── Stock: sum across all color/size variants ──
-            // (stock not fetched per-brand; would require per-SKU calls — set 0 for now)
-
-            // ── Novelty: check isNew on sizes or createdDate ──
+            // ── Novelty: check createdDate ──
             let isNew = false;
             const created = product.createdDate;
             if (created) {
@@ -242,6 +274,8 @@ Deno.serve(async (req) => {
               is_new: isNew,
               release_date: created || null,
               last_synced_at: now,
+              variant_colors: variantColors,
+              variant_sizes: variantSizes,
             };
 
             if (existing) {

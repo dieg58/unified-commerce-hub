@@ -176,6 +176,33 @@ Deno.serve(async (req) => {
         // Image: use MainPicture[0].HTMLPath
         const imageUrl = product.MainPicture?.[0]?.HTMLPath || null;
 
+        // Extract variant colors with images
+        const colorMap = new Map<string, { color: string; hex: string | null; image_url: string | null }>();
+        const mainPicByColor = new Map<string, string>();
+        for (const pic of product.MainPicture || []) {
+          if (pic.ColorCode && pic.HTMLPath) {
+            mainPicByColor.set(pic.ColorCode, pic.HTMLPath);
+          }
+        }
+        for (const v of variants) {
+          const colorName = v.Color || v.ColorCode || null;
+          if (colorName && !colorMap.has(colorName)) {
+            colorMap.set(colorName, {
+              color: colorName,
+              hex: null, // SS API doesn't provide hex codes directly
+              image_url: mainPicByColor.get(v.ColorCode) || null,
+            });
+          }
+        }
+        const variantColors = Array.from(colorMap.values());
+
+        // Extract sizes
+        const sizeSet = new Set<string>();
+        for (const v of variants) {
+          if (v.SizeCode) sizeSet.add(v.SizeCode);
+        }
+        const variantSizes = Array.from(sizeSet);
+
         // Category: combine Category + Type (e.g. "Tees > T-shirts")
         const category = [product.Category, product.Type].filter(Boolean).join(" > ");
 
@@ -224,6 +251,8 @@ Deno.serve(async (req) => {
             is_new: isNew,
             release_date: firstVariantStartDate,
             last_synced_at: new Date().toISOString(),
+            variant_colors: variantColors,
+            variant_sizes: variantSizes,
           }, { onConflict: "sku" });
 
         if (upsertError) {
