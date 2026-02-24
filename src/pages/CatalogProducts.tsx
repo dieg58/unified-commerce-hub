@@ -672,8 +672,8 @@ const CatalogProducts = () => {
                 </TableHeader>
                 <TableBody>
                   {filtered.map((product, i) => (
-                    <TableRow key={product.id} className={`text-sm animate-fade-in ${selected.has(product.id) ? "bg-primary/5" : ""}`} style={{ animationDelay: `${i * 30}ms` }}>
-                      <TableCell>
+                    <TableRow key={product.id} className={`text-sm animate-fade-in cursor-pointer ${selected.has(product.id) ? "bg-primary/5" : ""}`} style={{ animationDelay: `${i * 30}ms` }} onClick={() => setPreviewProduct(product)}>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <Checkbox
                           checked={selected.has(product.id)}
                           onCheckedChange={() => toggleSelect(product.id)}
@@ -708,7 +708,7 @@ const CatalogProducts = () => {
                       </TableCell>
                       <TableCell className="font-medium">{formatCurrency(product.base_price)}</TableCell>
                       <TableCell className="text-xs font-medium">{product.stock_qty}</TableCell>
-                      <TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <Switch
                           checked={product.active}
                           onCheckedChange={async (checked) => {
@@ -719,7 +719,7 @@ const CatalogProducts = () => {
                           }}
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="sm" className="h-8 w-8 p-0"><MoreHorizontal className="w-4 h-4" /></Button>
