@@ -55,12 +55,20 @@ const LoginDialog = ({ open, onOpenChange, redirectTo }: LoginDialogProps) => {
         setIsSignUp(false);
       }
     } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error, data } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
         toast({ title: "Erreur", description: error.message, variant: "destructive" });
-      } else {
+      } else if (data.user) {
+        const { data: rolesData } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id);
+        const roles = rolesData?.map(r => r.role) || [];
         onOpenChange(false);
-        navigate(redirectTo || "/dashboard");
+        if (roles.includes("super_admin")) {
+          navigate(redirectTo || "/dashboard");
+        } else if (roles.includes("shop_manager") || roles.includes("dept_manager")) {
+          navigate("/tenant");
+        } else {
+          navigate("/shop");
+        }
       }
     }
     setLoading(false);
