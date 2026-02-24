@@ -24,23 +24,11 @@ function buildPayload(user: string, password: string, extra: Record<string, unkn
 
 async function ssApiCall(url: string, user: string, password: string, extra: Record<string, unknown> = {}) {
   const res = await fetch(url, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: buildPayload(user, password, extra),
   });
-
-  // Some servers don't allow body with GET, try POST if GET fails
-  if (!res.ok) {
-    const resPost = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: buildPayload(user, password, extra),
-    });
-    if (!resPost.ok) throw new Error(`SS API failed [${resPost.status}] ${url}`);
-    return resPost.json();
-  }
+  if (!res.ok) throw new Error(`SS API failed [${res.status}] ${url}`);
   return res.json();
 }
 
