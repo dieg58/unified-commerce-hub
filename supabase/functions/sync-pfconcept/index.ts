@@ -41,8 +41,8 @@ async function tryFetchJson(urls: string[], email?: string, password?: string): 
 }
 
 /**
- * Stream the product feed and yield individual model objects one at a time.
- * This avoids loading the entire JSON into memory.
+ * Stream the product feed and yield product models from the nested
+ * structure: ..."models":[{"model":[{...},{...}]}]
  */
 async function* streamModels(
   url: string,
@@ -66,82 +66,99 @@ async function* streamModels(
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
 
-  // State machine: find individual model objects within the "models" array
   let buffer = "";
-  let inModelsArray = false;
-  let depth = 0;
-  let objectStart = -1;
   let yielded = 0;
+
+  let phase: "findModels" | "findModelArray" | "readModelObjects" = "findModels";
+  let modelDepth = 0;
+  let modelObjectStart = -1;
 
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
 
     buffer += decoder.decode(value, { stream: true });
-
     let i = 0;
+
     while (i < buffer.length) {
-      if (!inModelsArray) {
-        // Look for "models" key - find the opening bracket
-        const idx = buffer.indexOf('"models"', i);
-        if (idx === -1) {
-          // Keep last 20 chars in case "models" spans chunks
-          if (buffer.length > 20) {
-            buffer = buffer.slice(-20);
-          }
+      if (phase === "findModels") {
+        const modelsIdx = buffer.indexOf('"models"', i);
+        if (modelsIdx === -1) {
+          if (buffer.length > 32) buffer = buffer.slice(-32);
           break;
         }
-        // Find the [ after "models"
-        const bracketIdx = buffer.indexOf('[', idx + 8);
-        if (bracketIdx === -1) {
-          i = idx + 8;
+
+        const modelsArrStart = buffer.indexOf("[", modelsIdx);
+        if (modelsArrStart === -1) {
+          i = modelsIdx + 8;
           continue;
         }
-        inModelsArray = true;
-        i = bracketIdx + 1;
-        depth = 0;
-        objectStart = -1;
+
+        phase = "findModelArray";
+        i = modelsArrStart + 1;
         continue;
       }
 
+      if (phase === "findModelArray") {
+        const modelKeyIdx = buffer.indexOf('"model"', i);
+        if (modelKeyIdx === -1) {
+          if (buffer.length > 4096) buffer = buffer.slice(-4096);
+          break;
+        }
+
+        const modelArrStart = buffer.indexOf("[", modelKeyIdx);
+        if (modelArrStart === -1) {
+          i = modelKeyIdx + 7;
+          continue;
+        }
+
+        phase = "readModelObjects";
+        i = modelArrStart + 1;
+        modelDepth = 0;
+        modelObjectStart = -1;
+        continue;
+      }
+
+      // phase === "readModelObjects"
       const ch = buffer[i];
-      if (ch === '{') {
-        if (depth === 0) objectStart = i;
-        depth++;
-      } else if (ch === '}') {
-        depth--;
-        if (depth === 0 && objectStart !== -1) {
-          const objStr = buffer.substring(objectStart, i + 1);
-          objectStart = -1;
+      if (ch === "{") {
+        if (modelDepth === 0) modelObjectStart = i;
+        modelDepth++;
+      } else if (ch === "}") {
+        modelDepth--;
+
+        if (modelDepth === 0 && modelObjectStart !== -1) {
+          const objStr = buffer.substring(modelObjectStart, i + 1);
+          modelObjectStart = -1;
+
           try {
-            yield JSON.parse(objStr);
+            const parsed = JSON.parse(objStr);
+            yield parsed;
             yielded++;
+
             if (limit && yielded >= limit) {
-              reader.cancel();
+              await reader.cancel();
               return;
             }
           } catch {
-            // skip malformed
+            // Ignore malformed object and continue
           }
-          // Trim processed buffer to free memory
+
           buffer = buffer.substring(i + 1);
           i = 0;
           continue;
         }
-      } else if (ch === ']' && depth === 0) {
-        // End of models array
-        reader.cancel();
+      } else if (ch === "]" && modelDepth === 0) {
+        await reader.cancel();
         return;
       }
+
       i++;
     }
 
-    // If buffer grows too large without yielding, trim what we can
-    if (objectStart !== -1 && objectStart > 0) {
-      buffer = buffer.substring(objectStart);
-      objectStart = 0;
-    } else if (!inModelsArray && buffer.length > 10000) {
-      buffer = buffer.slice(-20);
+    if (phase === "readModelObjects" && modelObjectStart > 0) {
+      buffer = buffer.substring(modelObjectStart);
+      modelObjectStart = 0;
     }
   }
 }
@@ -243,6 +260,18 @@ Deno.serve(async (req) => {
       console.log(`Stocks loaded: ${stockMap.size}`);
     } catch (err) {
       console.warn("Stock feed error:", err);
+    }
+
+    // Fail-fast: don't process huge product feed when upstream price/stock feeds are unavailable
+    if (priceMap.size === 0 && stockMap.size === 0) {
+      return new Response(
+        JSON.stringify({
+          error: "PF Concept feeds unavailable (price/stock both empty). Check credentials and feed activation.",
+          pricesLoaded: priceMap.size,
+          stocksLoaded: stockMap.size,
+        }),
+        { status: 424, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     // ── 3. Stream and process product feed ──
