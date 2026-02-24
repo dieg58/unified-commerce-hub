@@ -108,12 +108,22 @@ const CatalogProducts = () => {
   const { data: products, isLoading } = useQuery({
     queryKey: ["catalog-products"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("catalog_products")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data as CatalogProduct[];
+      const all: CatalogProduct[] = [];
+      const PAGE = 1000;
+      let from = 0;
+      while (true) {
+        const { data, error } = await supabase
+          .from("catalog_products")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        all.push(...(data as CatalogProduct[]));
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+      return all;
     },
   });
 
