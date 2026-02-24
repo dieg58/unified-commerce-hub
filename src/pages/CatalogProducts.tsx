@@ -14,7 +14,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Search, Loader2, MoreHorizontal, Pencil, Trash2, Package, Upload, Eye, RefreshCw, Filter, Gift, Shirt, CheckCircle, XCircle } from "lucide-react";
+import { Plus, Search, Loader2, MoreHorizontal, Pencil, Trash2, Package, Upload, Eye, RefreshCw, Filter, Gift, Shirt, CheckCircle, XCircle, ShoppingBag, Coffee, PenTool, Laptop, Umbrella, HardHat, Footprints, Scissors, Wrench, Layers } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/mock-data";
@@ -40,6 +40,35 @@ type CatalogProduct = {
   last_synced_at: string | null;
 };
 
+// ── HS-code → human-readable category grouping ──
+const CATEGORY_GROUPS: Record<string, { label: string; icon: React.ElementType; prefixes: string[] }> = {
+  bags: { label: "Sacs & Bagagerie", icon: ShoppingBag, prefixes: ["4202", "4601"] },
+  drinkware: { label: "Mugs & Bouteilles", icon: Coffee, prefixes: ["6912", "7013", "7010", "7006", "7323", "7907"] },
+  writing: { label: "Écriture & Bureau", icon: PenTool, prefixes: ["4820", "4819", "4818", "4823", "4911", "9608", "9609", "9610"] },
+  tech: { label: "Tech & Électronique", icon: Laptop, prefixes: ["8414", "8471", "8504", "8506", "8507", "8508", "8513", "8516", "8517", "8518", "8519", "8523", "8525", "8527", "8528", "8531", "8534", "8536", "8539", "8543", "9002", "9004", "9005", "9006", "9013", "9015", "9017", "9018", "9019", "9021", "9023", "9024", "9025", "9026", "9027", "9028", "9029", "9030", "9031", "9032", "9033", "9101", "9102", "9103", "9104", "9105", "9106", "9108", "9109", "9110", "9111", "9112", "9113", "9114", "9405"] },
+  clothing: { label: "Vêtements", icon: Shirt, prefixes: ["6110", "6116", "6117", "6211", "6214", "6217"] },
+  home_textile: { label: "Textile & Linge", icon: Layers, prefixes: ["6301", "6302", "6306", "6307", "5608"] },
+  headgear: { label: "Casquettes & Chapeaux", icon: HardHat, prefixes: ["6504", "6505", "6506"] },
+  umbrellas: { label: "Parapluies", icon: Umbrella, prefixes: ["6601"] },
+  footwear: { label: "Chaussures", icon: Footprints, prefixes: ["6402"] },
+  tools: { label: "Outils & Couteaux", icon: Wrench, prefixes: ["8201", "8203", "8205", "8206", "8211", "8214", "8215", "8302", "8304", "8306"] },
+  cosmetics: { label: "Cosmétique & Hygiène", icon: Gift, prefixes: ["3304", "3307", "3406", "3808", "3824", "3005", "3006"] },
+  plastic: { label: "Plastique & Divers", icon: Package, prefixes: ["3924", "3926", "4016"] },
+  wood: { label: "Bois & Liège", icon: Gift, prefixes: ["4419", "4420", "4421", "4503"] },
+  metal: { label: "Métal & Accessoires", icon: Scissors, prefixes: ["7117", "7321", "7326", "7616", "7020", "7009", "6802", "8302", "8304", "8306"] },
+  seeds: { label: "Graines & Nature", icon: Gift, prefixes: ["1206", "1209", "1704"] },
+};
+
+function getCategoryGroup(hsCode: string): string {
+  const code = hsCode.replace(/\s/g, "");
+  for (const [groupKey, group] of Object.entries(CATEGORY_GROUPS)) {
+    if (group.prefixes.some((prefix) => code.startsWith(prefix.replace(/\s/g, "")))) {
+      return groupKey;
+    }
+  }
+  return "other";
+}
+
 const emptyCp = {
   name: "", name_en: "", name_nl: "", sku: "", category: "general",
   base_price: 0, description: "", description_en: "", description_nl: "",
@@ -51,7 +80,8 @@ const CatalogProducts = () => {
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<"goodies" | "textile">("goodies");
-  const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [filterGroup, setFilterGroup] = useState<string>("all");
+  const [filterSubCategory, setFilterSubCategory] = useState<string>("all");
   
   const [filterActive, setFilterActive] = useState<boolean | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -110,18 +140,42 @@ const CatalogProducts = () => {
     return products.filter((p) => !!p.midocean_id?.startsWith("SS-"));
   }, [products, activeTab]);
 
-  const categories = useMemo(() => {
-    return [...new Set(tabProducts.map((p) => p.category))].sort();
+  // Group products by category group
+  const groupedCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    tabProducts.forEach((p) => {
+      const group = getCategoryGroup(p.category);
+      counts[group] = (counts[group] || 0) + 1;
+    });
+    return counts;
   }, [tabProducts]);
+
+  const availableGroups = useMemo(() => {
+    return Object.entries(groupedCounts)
+      .filter(([, count]) => count > 0)
+      .sort(([, a], [, b]) => b - a);
+  }, [groupedCounts]);
+
+  // Sub-categories within selected group
+  const subCategories = useMemo(() => {
+    if (filterGroup === "all") return [];
+    const cats = [...new Set(
+      tabProducts
+        .filter((p) => getCategoryGroup(p.category) === filterGroup)
+        .map((p) => p.category)
+    )].sort();
+    return cats;
+  }, [tabProducts, filterGroup]);
 
   const filtered = tabProducts.filter((p) => {
     const matchesSearch =
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.sku.toLowerCase().includes(search.toLowerCase()) ||
       p.category.toLowerCase().includes(search.toLowerCase());
-    const matchesCategory = filterCategory === "all" || p.category === filterCategory;
+    const matchesGroup = filterGroup === "all" || getCategoryGroup(p.category) === filterGroup;
+    const matchesSubCat = filterSubCategory === "all" || p.category === filterSubCategory;
     const matchesActive = filterActive === null || p.active === filterActive;
-    return matchesSearch && matchesCategory && matchesActive;
+    return matchesSearch && matchesGroup && matchesSubCat && matchesActive;
   });
 
   const openCreate = () => {
@@ -240,7 +294,7 @@ const CatalogProducts = () => {
       <div className="p-6 space-y-6 overflow-auto">
         {/* Stats */}
         {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as "goodies" | "textile"); setFilterCategory("all"); setSearch(""); }}>
+        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as "goodies" | "textile"); setFilterGroup("all"); setFilterSubCategory("all"); setSearch(""); }}>
           <div className="flex items-center justify-between">
             <TabsList>
               <TabsTrigger value="goodies" className="gap-1.5">
@@ -260,31 +314,65 @@ const CatalogProducts = () => {
           </div>
         </Tabs>
 
-        {/* Category sub-tabs */}
-        {categories.length > 0 && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button
-              size="sm"
-              variant={filterCategory === "all" ? "default" : "outline"}
-              className="h-7 text-xs rounded-full px-3"
-              onClick={() => setFilterCategory("all")}
-            >
-              Tout ({tabProducts.length})
-            </Button>
-            {categories.map((cat) => {
-              const count = tabProducts.filter((p) => p.category === cat).length;
-              return (
+        {/* Category group tabs */}
+        {availableGroups.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                size="sm"
+                variant={filterGroup === "all" ? "default" : "outline"}
+                className="h-8 text-xs rounded-full px-3 gap-1.5"
+                onClick={() => { setFilterGroup("all"); setFilterSubCategory("all"); }}
+              >
+                <Package className="w-3.5 h-3.5" />
+                Tout ({tabProducts.length})
+              </Button>
+              {availableGroups.map(([groupKey, count]) => {
+                const group = CATEGORY_GROUPS[groupKey];
+                const Icon = group?.icon || Package;
+                const label = group?.label || "Autres";
+                return (
+                  <Button
+                    key={groupKey}
+                    size="sm"
+                    variant={filterGroup === groupKey ? "default" : "outline"}
+                    className="h-8 text-xs rounded-full px-3 gap-1.5"
+                    onClick={() => { setFilterGroup(groupKey); setFilterSubCategory("all"); }}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    {label} ({count})
+                  </Button>
+                );
+              })}
+            </div>
+
+            {/* Sub-category pills */}
+            {filterGroup !== "all" && subCategories.length > 1 && (
+              <div className="flex items-center gap-1.5 flex-wrap pl-4 border-l-2 border-primary/20">
                 <Button
-                  key={cat}
                   size="sm"
-                  variant={filterCategory === cat ? "default" : "outline"}
-                  className="h-7 text-xs rounded-full px-3 capitalize"
-                  onClick={() => setFilterCategory(cat)}
+                  variant={filterSubCategory === "all" ? "secondary" : "ghost"}
+                  className="h-6 text-[11px] rounded-full px-2.5"
+                  onClick={() => setFilterSubCategory("all")}
                 >
-                  {cat} ({count})
+                  Tout ({tabProducts.filter((p) => getCategoryGroup(p.category) === filterGroup).length})
                 </Button>
-              );
-            })}
+                {subCategories.map((cat) => {
+                  const count = tabProducts.filter((p) => p.category === cat).length;
+                  return (
+                    <Button
+                      key={cat}
+                      size="sm"
+                      variant={filterSubCategory === cat ? "secondary" : "ghost"}
+                      className="h-6 text-[11px] rounded-full px-2.5 font-mono"
+                      onClick={() => setFilterSubCategory(cat)}
+                    >
+                      {cat} ({count})
+                    </Button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
