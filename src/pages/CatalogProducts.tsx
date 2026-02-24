@@ -63,7 +63,7 @@ const CatalogProducts = () => {
   const qc = useQueryClient();
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
-  const [activeTab, setActiveTab] = useState<"goodies" | "textile" | "toptex">("goodies");
+  const [activeTab, setActiveTab] = useState<"goodies" | "textile">("goodies");
   const [filterGroup, setFilterGroup] = useState<string>("all");
   const [filterSubCategory, setFilterSubCategory] = useState<string>("all");
   
@@ -122,10 +122,8 @@ const CatalogProducts = () => {
     if (activeTab === "goodies") {
       return products.filter((p) => !p.midocean_id?.startsWith("SS-") && !p.midocean_id?.startsWith("TT-"));
     }
-    if (activeTab === "textile") {
-      return products.filter((p) => !!p.midocean_id?.startsWith("SS-"));
-    }
-    return products.filter((p) => !!p.midocean_id?.startsWith("TT-"));
+    // textile = Stanley/Stella + TopTex
+    return products.filter((p) => !!p.midocean_id?.startsWith("SS-") || !!p.midocean_id?.startsWith("TT-"));
   }, [products, activeTab]);
 
   // Parent categories with counts
@@ -245,8 +243,7 @@ const CatalogProducts = () => {
 
   const activeCount = tabProducts.filter((p) => p.active).length;
   const goodiesCount = products?.filter((p) => !p.midocean_id?.startsWith("SS-") && !p.midocean_id?.startsWith("TT-")).length || 0;
-  const textileCount = products?.filter((p) => !!p.midocean_id?.startsWith("SS-")).length || 0;
-  const toptexCount = products?.filter((p) => !!p.midocean_id?.startsWith("TT-")).length || 0;
+  const textileCount = products?.filter((p) => !!p.midocean_id?.startsWith("SS-") || !!p.midocean_id?.startsWith("TT-")).length || 0;
 
   const syncMidocean = useMutation({
     mutationFn: async () => {
@@ -323,7 +320,7 @@ const CatalogProducts = () => {
       <div className="p-6 space-y-6 overflow-auto">
         {/* Stats */}
         {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as "goodies" | "textile" | "toptex"); setFilterGroup("all"); setFilterSubCategory("all"); setSearch(""); }}>
+        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as "goodies" | "textile"); setFilterGroup("all"); setFilterSubCategory("all"); setSearch(""); }}>
           <div className="flex items-center justify-between">
             <TabsList>
               <TabsTrigger value="goodies" className="gap-1.5">
@@ -333,10 +330,6 @@ const CatalogProducts = () => {
               <TabsTrigger value="textile" className="gap-1.5">
                 <Shirt className="w-4 h-4" />
                 Textile ({textileCount})
-              </TabsTrigger>
-              <TabsTrigger value="toptex" className="gap-1.5">
-                <Package className="w-4 h-4" />
-                TopTex ({toptexCount})
               </TabsTrigger>
             </TabsList>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -447,16 +440,16 @@ const CatalogProducts = () => {
                     </Button>
                   )}
                   {activeTab === "textile" && (
-                    <Button size="sm" variant="outline" className="gap-1.5" onClick={() => syncStanleyStella.mutate()} disabled={syncStanleyStella.isPending}>
-                      {syncStanleyStella.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                      Sync Stanley/Stella
-                    </Button>
-                  )}
-                  {activeTab === "toptex" && (
-                    <Button size="sm" variant="outline" className="gap-1.5" onClick={loadToptexBrands} disabled={toptexLoadingBrands || syncToptex.isPending}>
-                      {(toptexLoadingBrands || syncToptex.isPending) ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                      Sync TopTex
-                    </Button>
+                    <>
+                      <Button size="sm" variant="outline" className="gap-1.5" onClick={() => syncStanleyStella.mutate()} disabled={syncStanleyStella.isPending}>
+                        {syncStanleyStella.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                        Sync Stanley/Stella
+                      </Button>
+                      <Button size="sm" variant="outline" className="gap-1.5" onClick={loadToptexBrands} disabled={toptexLoadingBrands || syncToptex.isPending}>
+                        {(toptexLoadingBrands || syncToptex.isPending) ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                        Sync TopTex
+                      </Button>
+                    </>
                   )}
                   <Button size="sm" className="gap-1.5" onClick={openCreate}>
                     <Plus className="w-4 h-4" /> {t("catalogAdmin.addProduct")}
