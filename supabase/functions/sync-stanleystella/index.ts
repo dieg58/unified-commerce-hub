@@ -33,9 +33,7 @@ async function ssApiCall(url: string, user: string, password: string, extra: Rec
 }
 
 function parseResult(data: { result?: string; error?: unknown }): unknown[] {
-  if (data.error) {
-    throw new Error(`SS API error: ${JSON.stringify(data.error)}`);
-  }
+  if (data.error) throw new Error(`SS API error: ${JSON.stringify(data.error)}`);
   const result = data.result;
   if (!result) return [];
   if (typeof result === "string") {
@@ -43,6 +41,43 @@ function parseResult(data: { result?: string; error?: unknown }): unknown[] {
   }
   if (Array.isArray(result)) return result;
   return [];
+}
+
+interface SSVariant {
+  B2BSKUREF: string;
+  Color: string;
+  ColorCode: string;
+  SizeCode: string;
+  Stock: number;
+  Weight: number;
+  CompositionList: string;
+  Published: number;
+  [key: string]: unknown;
+}
+
+interface SSProduct {
+  StyleCode: string;
+  StyleName: string;
+  Type: string;
+  Category: string;
+  Gender: string;
+  Fit: string;
+  Neckline: string;
+  Sleeve: string;
+  ShortDescription: string;
+  LongDescription: string;
+  CountryOfOrigin: string;
+  StyleMainsSegments: string;
+  Segment: string;
+  MainPicture: Array<{ HTMLPath: string; ColorCode: string }>;
+  Variants: SSVariant[];
+  [key: string]: unknown;
+}
+
+interface SSPrice {
+  B2BSKUREF: string;
+  PurchasePrice: number;
+  [key: string]: unknown;
 }
 
 Deno.serve(async (req) => {
@@ -59,30 +94,20 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get("authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
     const { data: { user }, error: authError } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
     const { data: roleData } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .eq("role", "super_admin")
-      .maybeSingle();
-
+      .from("user_roles").select("role").eq("user_id", user.id).eq("role", "super_admin").maybeSingle();
     if (!roleData) {
       return new Response(JSON.stringify({ error: "Forbidden: super_admin required" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -90,66 +115,127 @@ Deno.serve(async (req) => {
     const ssPassword = Deno.env.get("STANLEYSTELLA_PASSWORD");
     if (!ssUser || !ssPassword) {
       return new Response(JSON.stringify({ error: "Stanley/Stella credentials not configured" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    console.log("Fetching Stanley/Stella data (DEBUG MODE)...");
+    console.log("Fetching Stanley/Stella data...");
 
-    // Fetch only products and prices for debug (skip stock/images to be faster)
-    const [productsData, stockData, pricesData, imagesData] = await Promise.all([
+    // Fetch all data in parallel
+    const [productsData, pricesData] = await Promise.all([
       ssApiCall(`${SS_BASE}/productsV2/get_json`, ssUser, ssPassword, {
         LanguageCode: "fr_FR",
         Published: true,
       }),
-      ssApiCall(`${SS_BASE}/v2/stock/get_json`, ssUser, ssPassword, {
-        Is_Inventory: true,
-      }),
       ssApiCall(`${SS_BASE}/products/get_prices`, ssUser, ssPassword, {}),
-      ssApiCall(`${SS_BASE}/products_imagesV2/get_json`, ssUser, ssPassword, {
-        LanguageCode: "fr_FR",
-      }),
     ]);
 
-    const products = parseResult(productsData);
-    const stocks = parseResult(stockData);
-    const prices = parseResult(pricesData);
-    const images = parseResult(imagesData);
+    const products = parseResult(productsData) as SSProduct[];
+    const prices = parseResult(pricesData) as SSPrice[];
 
-    // Return sample data for field mapping
-    const sampleProduct = products.length > 0 ? products[0] : null;
-    const sampleStock = stocks.length > 0 ? stocks[0] : null;
-    const samplePrice = prices.length > 0 ? prices[0] : null;
-    const sampleImage = images.length > 0 ? images[0] : null;
+    console.log(`Fetched ${products.length} products, ${prices.length} prices`);
 
-    // Also get keys of each
-    const productKeys = sampleProduct ? Object.keys(sampleProduct as Record<string, unknown>) : [];
-    const stockKeys = sampleStock ? Object.keys(sampleStock as Record<string, unknown>) : [];
-    const priceKeys = samplePrice ? Object.keys(samplePrice as Record<string, unknown>) : [];
-    const imageKeys = sampleImage ? Object.keys(sampleImage as Record<string, unknown>) : [];
+    // Build price map: B2BSKUREF -> PurchasePrice
+    const priceMap = new Map<string, number>();
+    for (const p of prices) {
+      if (p.PurchasePrice && p.PurchasePrice > 0) {
+        priceMap.set(p.B2BSKUREF, p.PurchasePrice);
+      }
+    }
+
+    let upserted = 0;
+    let errors = 0;
+
+    for (const product of products) {
+      try {
+        const styleCode = product.StyleCode;
+        const variants = product.Variants || [];
+
+        // Aggregate stock from all variants
+        const totalStock = variants.reduce((sum, v) => sum + (v.Stock || 0), 0);
+
+        // Find best (lowest) purchase price across variants using price API
+        let bestPrice = Infinity;
+        for (const v of variants) {
+          const pp = priceMap.get(v.B2BSKUREF);
+          if (pp && pp > 0 && pp < bestPrice) {
+            bestPrice = pp;
+          }
+        }
+        if (bestPrice === Infinity) bestPrice = 0;
+
+        const finalPrice = Math.round(bestPrice * PRICE_MULTIPLIER * 100) / 100;
+
+        // Image: use MainPicture[0].HTMLPath
+        const imageUrl = product.MainPicture?.[0]?.HTMLPath || null;
+
+        // Category: combine Category + Type (e.g. "Tees > T-shirts")
+        const category = [product.Category, product.Type].filter(Boolean).join(" > ");
+
+        // Description: combine short + long + metadata
+        const descParts = [
+          product.ShortDescription,
+          product.LongDescription,
+        ].filter(Boolean);
+        
+        // Add metadata to description
+        const meta: string[] = [];
+        if (product.Gender) meta.push(`Genre: ${product.Gender}`);
+        if (product.Fit) meta.push(`Coupe: ${product.Fit}`);
+        if (product.Neckline) meta.push(`Col: ${product.Neckline}`);
+        if (product.Sleeve) meta.push(`Manche: ${product.Sleeve}`);
+        if (product.CountryOfOrigin) meta.push(`Origine: ${product.CountryOfOrigin}`);
+        if (product.StyleMainsSegments) meta.push(`Segment: ${product.StyleMainsSegments}`);
+        
+        // Get composition from first variant
+        const firstVariant = variants[0];
+        if (firstVariant?.CompositionList) meta.push(`Composition: ${firstVariant.CompositionList}`);
+        if (firstVariant?.Weight) meta.push(`Grammage: ${firstVariant.Weight}g/m²`);
+
+        const description = descParts.join("\n\n") + (meta.length ? "\n\n" + meta.join(" | ") : "");
+
+        const { error: upsertError } = await supabase
+          .from("catalog_products")
+          .upsert({
+            sku: styleCode,
+            midocean_id: `SS-${styleCode}`,
+            name: `${product.StyleName} (${styleCode})`,
+            name_en: product.StyleName,
+            name_nl: product.StyleName,
+            description,
+            description_en: product.ShortDescription || product.StyleName,
+            description_nl: product.ShortDescription || product.StyleName,
+            category,
+            base_price: finalPrice,
+            stock_qty: totalStock,
+            image_url: imageUrl,
+            active: true,
+            last_synced_at: new Date().toISOString(),
+          }, { onConflict: "sku" });
+
+        if (upsertError) {
+          console.error(`Error upserting ${styleCode}:`, upsertError.message);
+          errors++;
+        } else {
+          upserted++;
+        }
+      } catch (err) {
+        console.error(`Error processing product:`, err);
+        errors++;
+      }
+    }
+
+    console.log(`Sync complete: ${upserted} upserted, ${errors} errors`);
 
     return new Response(
-      JSON.stringify({
-        debug: true,
-        counts: { products: products.length, stocks: stocks.length, prices: prices.length, images: images.length },
-        sampleProduct,
-        productKeys,
-        sampleStock,
-        stockKeys,
-        samplePrice,
-        priceKeys,
-        sampleImage,
-        imageKeys,
-      }, null, 2),
+      JSON.stringify({ success: true, upserted, errors, total: products.length }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {
     console.error("Stanley/Stella sync error:", error);
     const message = error instanceof Error ? error.message : "Unknown error";
     return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
