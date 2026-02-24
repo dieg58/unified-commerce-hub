@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS catalog_products_midocean_id_unique ON public.catalog_products (midocean_id) WHERE midocean_id IS NOT NULL;
