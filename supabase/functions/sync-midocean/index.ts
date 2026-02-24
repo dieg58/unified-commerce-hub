@@ -91,6 +91,38 @@ Deno.serve(async (req) => {
     const stockData = await stockRes.json();
     const pricesData = await pricesRes.json();
 
+    // DEBUG: Log sample data structure
+    const sampleProducts = Array.isArray(productsData) ? productsData.slice(0, 2) : (productsData?.products || []).slice(0, 2);
+    console.log("SAMPLE PRODUCTS:", JSON.stringify(sampleProducts, null, 2));
+
+    const sampleStock = Array.isArray(stockData) ? stockData.slice(0, 2) : (stockData?.stock || []).slice(0, 2);
+    console.log("SAMPLE STOCK:", JSON.stringify(sampleStock, null, 2));
+
+    const samplePrices = Array.isArray(pricesData) ? pricesData.slice(0, 2) : (pricesData?.price || pricesData?.prices || []).slice(0, 2);
+    console.log("SAMPLE PRICES:", JSON.stringify(samplePrices, null, 2));
+
+    console.log("TOP-LEVEL KEYS products:", JSON.stringify(Object.keys(productsData || {})));
+    console.log("TOP-LEVEL KEYS stock:", JSON.stringify(Object.keys(stockData || {})));
+    console.log("TOP-LEVEL KEYS prices:", JSON.stringify(Object.keys(pricesData || {})));
+
+    // DEBUG: Return early with samples
+    return new Response(JSON.stringify({
+      debug: true,
+      sampleProducts: sampleProducts,
+      sampleStock: sampleStock,
+      samplePrices: samplePrices,
+      pricesCurrency: pricesData?.currency,
+      pricesDate: pricesData?.date,
+      topLevelKeys: {
+        products: Object.keys(productsData || {}),
+        stock: Object.keys(stockData || {}),
+        prices: Object.keys(pricesData || {}),
+      }
+    }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+
     // Build stock map: sku -> qty
     const stockMap = new Map<string, number>();
     if (Array.isArray(stockData?.stock)) {
