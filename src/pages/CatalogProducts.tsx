@@ -136,32 +136,44 @@ const CatalogProducts = () => {
     return products.filter((p) => !!p.midocean_id?.startsWith("SS-") || !!p.midocean_id?.startsWith("TT-"));
   }, [products, activeTab]);
 
+  // Goodies supplier filter
+  const [goodiesSupplier, setGoodiesSupplier] = useState<"all" | "midocean" | "pfconcept" | "manual">("all");
+
+  // Filter by supplier within goodies tab
+  const supplierFilteredProducts = useMemo(() => {
+    if (activeTab !== "goodies" || goodiesSupplier === "all") return tabProducts;
+    if (goodiesSupplier === "midocean") return tabProducts.filter((p) => p.midocean_id && !p.midocean_id.startsWith("PFC-"));
+    if (goodiesSupplier === "pfconcept") return tabProducts.filter((p) => p.midocean_id?.startsWith("PFC-"));
+    // manual = no midocean_id
+    return tabProducts.filter((p) => !p.midocean_id);
+  }, [tabProducts, goodiesSupplier, activeTab]);
+
   // Parent categories with counts
   const parentCategories = useMemo(() => {
     const counts: Record<string, number> = {};
-    tabProducts.forEach((p) => {
+    supplierFilteredProducts.forEach((p) => {
       const parent = getParentCategory(p.category);
       counts[parent] = (counts[parent] || 0) + 1;
     });
     return Object.entries(counts).sort(([, a], [, b]) => b - a);
-  }, [tabProducts]);
+  }, [supplierFilteredProducts]);
 
   // Sub-categories within selected parent
   const subCategories = useMemo(() => {
     if (filterGroup === "all") return [];
     const subs: Record<string, number> = {};
-    tabProducts
+    supplierFilteredProducts
       .filter((p) => getParentCategory(p.category) === filterGroup)
       .forEach((p) => {
         const sub = getSubCategory(p.category);
         if (sub) subs[sub] = (subs[sub] || 0) + 1;
       });
     return Object.entries(subs).sort(([a], [b]) => a.localeCompare(b));
-  }, [tabProducts, filterGroup]);
+  }, [supplierFilteredProducts, filterGroup]);
 
-  const newCount = tabProducts.filter((p) => (p as any).is_new).length;
+  const newCount = supplierFilteredProducts.filter((p) => (p as any).is_new).length;
 
-  const filtered = tabProducts.filter((p) => {
+  const filtered = supplierFilteredProducts.filter((p) => {
     const matchesSearch =
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.sku.toLowerCase().includes(search.toLowerCase()) ||
@@ -251,9 +263,23 @@ const CatalogProducts = () => {
     onError: (err: any) => toast.error(err.message),
   });
 
-  const activeCount = tabProducts.filter((p) => p.active).length;
+  const activeCount = supplierFilteredProducts.filter((p) => p.active).length;
   const goodiesCount = products?.filter((p) => !p.midocean_id?.startsWith("SS-") && !p.midocean_id?.startsWith("TT-")).length || 0;
   const textileCount = products?.filter((p) => !!p.midocean_id?.startsWith("SS-") || !!p.midocean_id?.startsWith("TT-")).length || 0;
+
+  const syncPfConcept = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("sync-pfconcept");
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success(`PF Concept : ${data.created} créés, ${data.updated} mis à jour${data.authenticated ? "" : " (sans prix authentifiés)"}`);
+      qc.invalidateQueries({ queryKey: ["catalog-products"] });
+    },
+    onError: (err: any) => toast.error(`Erreur sync PF Concept : ${err.message}`),
+  });
 
   const syncMidocean = useMutation({
     mutationFn: async () => {
@@ -343,12 +369,35 @@ const CatalogProducts = () => {
               </TabsTrigger>
             </TabsList>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span>{tabProducts.length} produits</span>
+              <span>{supplierFilteredProducts.length} produits</span>
               <span>·</span>
               <span>{activeCount} actifs</span>
             </div>
           </div>
         </Tabs>
+
+        {/* Supplier filter for goodies tab */}
+        {activeTab === "goodies" && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-xs text-muted-foreground mr-1">Fournisseur :</span>
+            {([
+              ["all", "Tous", tabProducts.length],
+              ["midocean", "Midocean", tabProducts.filter(p => p.midocean_id && !p.midocean_id.startsWith("PFC-")).length],
+              ["pfconcept", "PF Concept", tabProducts.filter(p => p.midocean_id?.startsWith("PFC-")).length],
+              ["manual", "Manuel", tabProducts.filter(p => !p.midocean_id).length],
+            ] as [string, string, number][]).filter(([, , count]) => count > 0).map(([key, label, count]) => (
+              <Button
+                key={key}
+                size="sm"
+                variant={goodiesSupplier === key ? "default" : "outline"}
+                className="h-7 text-xs rounded-full px-3"
+                onClick={() => { setGoodiesSupplier(key as any); setFilterGroup("all"); setFilterSubCategory("all"); }}
+              >
+                {label} ({count})
+              </Button>
+            ))}
+          </div>
+        )}
 
         {/* Parent category pills → click reveals sub-categories */}
         <div className="space-y-2">
@@ -359,7 +408,7 @@ const CatalogProducts = () => {
               className="h-7 text-xs rounded-full px-3"
               onClick={() => { setFilterGroup("all"); setFilterSubCategory("all"); }}
             >
-              Tout ({tabProducts.length})
+              Tout ({supplierFilteredProducts.length})
             </Button>
             {parentCategories.map(([parent, count]) => (
               <Button
@@ -383,7 +432,7 @@ const CatalogProducts = () => {
                 className="h-6 text-[11px] rounded-full px-2.5"
                 onClick={() => setFilterSubCategory("all")}
               >
-                Tout ({tabProducts.filter((p) => getParentCategory(p.category) === filterGroup).length})
+                Tout ({supplierFilteredProducts.filter((p) => getParentCategory(p.category) === filterGroup).length})
               </Button>
               {subCategories.map(([sub, count]) => (
                 <Button
@@ -444,10 +493,16 @@ const CatalogProducts = () => {
                     <Input placeholder={t("common.search")} value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-8 w-52 text-sm" />
                   </div>
                   {activeTab === "goodies" && (
-                    <Button size="sm" variant="outline" className="gap-1.5" onClick={() => syncMidocean.mutate()} disabled={syncMidocean.isPending}>
-                      {syncMidocean.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                      Sync Midocean
-                    </Button>
+                    <>
+                      <Button size="sm" variant="outline" className="gap-1.5" onClick={() => syncMidocean.mutate()} disabled={syncMidocean.isPending}>
+                        {syncMidocean.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                        Sync Midocean
+                      </Button>
+                      <Button size="sm" variant="outline" className="gap-1.5" onClick={() => syncPfConcept.mutate()} disabled={syncPfConcept.isPending}>
+                        {syncPfConcept.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                        Sync PF Concept
+                      </Button>
+                    </>
                   )}
                   {activeTab === "textile" && (
                     <>
