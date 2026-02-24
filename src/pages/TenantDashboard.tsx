@@ -7,6 +7,8 @@ import { ShoppingCart, Package, Users, TrendingUp, Loader2, AlertTriangle, Clock
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/DashboardWidgets";
+import CatalogProductDetailDialog from "@/components/CatalogProductDetailDialog";
+import { useState } from "react";
 
 const TenantDashboard = () => {
   const { profile, roles, isShopManager } = useAuth();
@@ -90,6 +92,22 @@ const TenantDashboard = () => {
 
   const unselectedCatalog = newCatalogProducts?.filter(p => !selections?.has(p.id)) || [];
 
+  // Existing product requests for this tenant
+  const { data: existingRequests } = useQuery({
+    queryKey: ["tenant-product-requests", tenantId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("product_requests")
+        .select("catalog_product_id")
+        .eq("tenant_id", tenantId!);
+      if (error) throw error;
+      return new Set(data?.map(r => r.catalog_product_id));
+    },
+    enabled: !!tenantId,
+  });
+
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+
   const roleLabel = roles.map((r) => {
     if (r === "shop_manager") return "Responsable Boutique";
     if (r === "dept_manager") return "Responsable Département";
@@ -171,7 +189,11 @@ const TenantDashboard = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {unselectedCatalog.map(product => (
-                <div key={product.id} className="border border-border rounded-lg p-4 hover:shadow-card-hover transition-all">
+                <button
+                  key={product.id}
+                  onClick={() => setSelectedProduct(product)}
+                  className="border border-border rounded-lg p-4 hover:shadow-card-hover transition-all text-left cursor-pointer"
+                >
                   <div className="flex items-start gap-3">
                     {product.image_url ? (
                       <img src={product.image_url} alt={product.name} className="w-12 h-12 rounded-md object-cover" />
@@ -186,7 +208,7 @@ const TenantDashboard = () => {
                       <p className="text-sm font-semibold text-primary mt-1">{formatCurrency(Number(product.base_price))}</p>
                     </div>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )}
@@ -218,6 +240,13 @@ const TenantDashboard = () => {
           )}
         </div>
       </div>
+
+      <CatalogProductDetailDialog
+        product={selectedProduct}
+        open={!!selectedProduct}
+        onOpenChange={(open) => !open && setSelectedProduct(null)}
+        alreadyRequested={selectedProduct ? existingRequests?.has(selectedProduct.id) : false}
+      />
     </>
   );
 };
