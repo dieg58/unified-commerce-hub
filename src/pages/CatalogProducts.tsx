@@ -916,6 +916,7 @@ const CatalogProducts = () => {
         product={previewProduct}
         open={!!previewProduct}
         onOpenChange={(open) => !open && setPreviewProduct(null)}
+        hideRequestButton
       />
     </>
   );
