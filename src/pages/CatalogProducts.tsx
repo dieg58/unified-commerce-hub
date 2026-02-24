@@ -437,7 +437,7 @@ const CatalogProducts = () => {
               </TabsTrigger>
               <TabsTrigger value="autre" className="gap-1.5">
                 <Printer className="w-4 h-4" />
-                Autre ({autreCount})
+                Signalétique ({autreCount})
               </TabsTrigger>
             </TabsList>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
