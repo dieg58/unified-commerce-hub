@@ -167,7 +167,7 @@ const Tenants = () => {
                             <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/tenants/${tenant.id}`); }}>
                               <ExternalLink className="w-4 h-4 mr-2" /> {t("tenants.viewDetails")}
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/store/${tenant.id}`); }}>
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); window.open(`/store/${tenant.id}`, '_blank'); }}>
                               <Store className="w-4 h-4 mr-2" /> {t("tenants.viewShop")}
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setEditTenant(tenant); }}>
