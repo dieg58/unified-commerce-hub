@@ -404,9 +404,15 @@ const CatalogProducts = () => {
                       <TableCell className="font-medium">{formatCurrency(product.base_price)}</TableCell>
                       <TableCell className="text-xs font-medium">{product.stock_qty}</TableCell>
                       <TableCell>
-                        <Badge variant="outline" className={`text-[10px] ${product.active ? "bg-success/10 text-success border-success/20" : "bg-muted text-muted-foreground"}`}>
-                          {product.active ? t("common.active") : t("common.inactive")}
-                        </Badge>
+                        <Switch
+                          checked={product.active}
+                          onCheckedChange={async (checked) => {
+                            const { error } = await supabase.from("catalog_products").update({ active: checked }).eq("id", product.id);
+                            if (error) { toast.error(error.message); return; }
+                            qc.invalidateQueries({ queryKey: ["catalog-products"] });
+                            toast.success(checked ? "Produit activé" : "Produit désactivé");
+                          }}
+                        />
                       </TableCell>
                       <TableCell>
                         <DropdownMenu>
