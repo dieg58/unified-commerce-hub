@@ -22,13 +22,14 @@ import {
   Send,
   Eye,
   Sparkles,
-  ArrowLeft,
   ShoppingBag,
   Clock,
   CheckCircle2,
   XCircle,
   MessageSquare,
-  Filter,
+  Gift,
+  Shirt,
+  Printer,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/mock-data";
@@ -43,6 +44,21 @@ const statusConfig: Record<string, { label: string; className: string; icon: typ
   rejected: { label: "Rejeté", className: "bg-red-500/10 text-red-600 border-red-200", icon: XCircle },
 };
 
+/* ── Catalog section helpers ── */
+type CatalogSection = "goodies" | "textile" | "signaletique";
+
+function getProductSection(p: { midocean_id?: string | null }): CatalogSection {
+  if (p.midocean_id?.startsWith("SS-") || p.midocean_id?.startsWith("TT-")) return "textile";
+  if (p.midocean_id?.startsWith("PRINT-")) return "signaletique";
+  return "goodies";
+}
+
+const sectionTabs: { key: CatalogSection; label: string; icon: typeof Gift }[] = [
+  { key: "goodies", label: "Goodies", icon: Gift },
+  { key: "textile", label: "Textile", icon: Shirt },
+  { key: "signaletique", label: "Signalétique", icon: Printer },
+];
+
 /* ── Category helpers ── */
 function getParentCategory(category: string): string {
   const parts = category.split(">").map((s) => s.trim());
@@ -52,8 +68,7 @@ function getParentCategory(category: string): string {
 function getAllCategories(products: any[]): string[] {
   const cats = new Set<string>();
   products.forEach((p) => cats.add(getParentCategory(p.category)));
-  const sorted = Array.from(cats).sort();
-  return sorted;
+  return Array.from(cats).sort();
 }
 
 const TenantProductRequests = () => {
@@ -62,6 +77,7 @@ const TenantProductRequests = () => {
   const qc = useQueryClient();
 
   const [activeTab, setActiveTab] = useState("catalog");
+  const [catalogSection, setCatalogSection] = useState<CatalogSection>("goodies");
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showNewOnly, setShowNewOnly] = useState(false);
@@ -101,7 +117,6 @@ const TenantProductRequests = () => {
     enabled: !!tenantId,
   });
 
-  // Map of catalog_product_id → request (active ones)
   const requestMap = useMemo(() => {
     const map = new Map<string, any>();
     requests?.forEach((r) => {
@@ -133,11 +148,25 @@ const TenantProductRequests = () => {
     onError: (err: any) => toast.error(err.message),
   });
 
-  /* ── Filtered catalog ── */
-  const categories = useMemo(() => getAllCategories(catalogProducts || []), [catalogProducts]);
+  /* ── Section counts ── */
+  const sectionCounts = useMemo(() => {
+    const all = catalogProducts || [];
+    return {
+      goodies: all.filter((p) => getProductSection(p) === "goodies").length,
+      textile: all.filter((p) => getProductSection(p) === "textile").length,
+      signaletique: all.filter((p) => getProductSection(p) === "signaletique").length,
+    };
+  }, [catalogProducts]);
+
+  /* ── Section-filtered products ── */
+  const sectionProducts = useMemo(() => {
+    return (catalogProducts || []).filter((p) => getProductSection(p) === catalogSection);
+  }, [catalogProducts, catalogSection]);
+
+  const categories = useMemo(() => getAllCategories(sectionProducts), [sectionProducts]);
 
   const filteredCatalog = useMemo(() => {
-    let list = catalogProducts || [];
+    let list = sectionProducts;
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(
@@ -154,9 +183,9 @@ const TenantProductRequests = () => {
       list = list.filter((p) => p.is_new);
     }
     return list;
-  }, [catalogProducts, search, selectedCategory, showNewOnly]);
+  }, [sectionProducts, search, selectedCategory, showNewOnly]);
 
-  const newCount = catalogProducts?.filter((p) => p.is_new).length || 0;
+  const newCount = sectionProducts.filter((p) => p.is_new).length;
 
   /* ── Filtered requests ── */
   const filteredRequests = useMemo(() => {
@@ -207,7 +236,31 @@ const TenantProductRequests = () => {
 
           {/* ════════════ CATALOGUE TAB ════════════ */}
           <TabsContent value="catalog" className="space-y-4 mt-4">
-            {/* Search + filters */}
+            {/* Section tabs (Goodies / Textile / Signalétique) */}
+            <div className="flex gap-2">
+              {sectionTabs.map((s) => (
+                <button
+                  key={s.key}
+                  onClick={() => {
+                    setCatalogSection(s.key);
+                    setSelectedCategory(null);
+                    setSearch("");
+                    setShowNewOnly(false);
+                  }}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    catalogSection === s.key
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "bg-secondary text-muted-foreground hover:bg-secondary/80"
+                  }`}
+                >
+                  <s.icon className="w-4 h-4" />
+                  {s.label}
+                  <span className="text-[11px] opacity-70">({sectionCounts[s.key]})</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Search + nouveautés */}
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -235,36 +288,38 @@ const TenantProductRequests = () => {
             </div>
 
             {/* Category pills */}
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => setSelectedCategory(null)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                  !selectedCategory
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-secondary text-muted-foreground hover:bg-secondary/80"
-                }`}
-              >
-                Tout ({catalogProducts?.length || 0})
-              </button>
-              {categories.map((cat) => {
-                const count = (catalogProducts || []).filter(
-                  (p) => getParentCategory(p.category) === cat
-                ).length;
-                return (
-                  <button
-                    key={cat}
-                    onClick={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                      selectedCategory === cat
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-secondary text-muted-foreground hover:bg-secondary/80"
-                    }`}
-                  >
-                    {cat} ({count})
-                  </button>
-                );
-              })}
-            </div>
+            {categories.length > 1 && (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setSelectedCategory(null)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                    !selectedCategory
+                      ? "bg-primary/20 text-primary"
+                      : "bg-secondary text-muted-foreground hover:bg-secondary/80"
+                  }`}
+                >
+                  Tout ({sectionProducts.length})
+                </button>
+                {categories.map((cat) => {
+                  const count = sectionProducts.filter(
+                    (p) => getParentCategory(p.category) === cat
+                  ).length;
+                  return (
+                    <button
+                      key={cat}
+                      onClick={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                        selectedCategory === cat
+                          ? "bg-primary/20 text-primary"
+                          : "bg-secondary text-muted-foreground hover:bg-secondary/80"
+                      }`}
+                    >
+                      {cat} ({count})
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
             {/* Products grid */}
             {catalogLoading ? (
@@ -310,7 +365,10 @@ const TenantProductRequests = () => {
                         )}
                         {isRequested && st && (
                           <div className="absolute top-2 right-2">
-                            <Badge variant="outline" className={`text-[9px] ${st.className} bg-background/90 backdrop-blur-sm`}>
+                            <Badge
+                              variant="outline"
+                              className={`text-[9px] ${st.className} bg-background/90 backdrop-blur-sm`}
+                            >
                               {st.label}
                             </Badge>
                           </div>
@@ -334,7 +392,6 @@ const TenantProductRequests = () => {
 
           {/* ════════════ REQUESTS TAB ════════════ */}
           <TabsContent value="requests" className="space-y-4 mt-4">
-            {/* Filters bar */}
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -347,7 +404,6 @@ const TenantProductRequests = () => {
               </div>
             </div>
 
-            {/* Status filter pills */}
             <div className="flex flex-wrap gap-2">
               {[
                 { key: "all", label: "Toutes" },
@@ -369,7 +425,6 @@ const TenantProductRequests = () => {
               ))}
             </div>
 
-            {/* Requests list */}
             {requestsLoading ? (
               <div className="flex items-center justify-center py-20">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -391,11 +446,7 @@ const TenantProductRequests = () => {
               <div className="space-y-3">
                 {filteredRequests.map((r, i) => {
                   const cp = r.catalog_products as any;
-                  const st = statusConfig[r.status] || {
-                    label: r.status,
-                    className: "",
-                    icon: Clock,
-                  };
+                  const st = statusConfig[r.status] || { label: r.status, className: "", icon: Clock };
                   const StatusIcon = st.icon;
                   return (
                     <button
@@ -405,11 +456,7 @@ const TenantProductRequests = () => {
                       style={{ animationDelay: `${Math.min(i, 15) * 30}ms` }}
                     >
                       {cp?.image_url ? (
-                        <img
-                          src={cp.image_url}
-                          alt={cp.name}
-                          className="w-14 h-14 rounded-lg object-cover shrink-0"
-                        />
+                        <img src={cp.image_url} alt={cp.name} className="w-14 h-14 rounded-lg object-cover shrink-0" />
                       ) : (
                         <div className="w-14 h-14 rounded-lg bg-muted flex items-center justify-center shrink-0">
                           <Package className="w-6 h-6 text-muted-foreground/30" />
@@ -419,9 +466,7 @@ const TenantProductRequests = () => {
                         <p className="font-medium text-sm text-foreground truncate">{cp?.name}</p>
                         <p className="text-xs text-muted-foreground font-mono mt-0.5">{cp?.sku}</p>
                         {r.admin_note && (
-                          <p className="text-xs text-muted-foreground mt-1 truncate">
-                            💬 {r.admin_note}
-                          </p>
+                          <p className="text-xs text-muted-foreground mt-1 truncate">💬 {r.admin_note}</p>
                         )}
                       </div>
                       <div className="flex flex-col items-end gap-1.5 shrink-0">
@@ -430,10 +475,7 @@ const TenantProductRequests = () => {
                           {st.label}
                         </Badge>
                         <span className="text-[11px] text-muted-foreground">
-                          {new Date(r.created_at).toLocaleDateString("fr-FR", {
-                            day: "numeric",
-                            month: "short",
-                          })}
+                          {new Date(r.created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
                         </span>
                       </div>
                     </button>
@@ -449,10 +491,7 @@ const TenantProductRequests = () => {
       <Dialog
         open={!!detailProduct}
         onOpenChange={(v) => {
-          if (!v) {
-            setDetailProduct(null);
-            setNote("");
-          }
+          if (!v) { setDetailProduct(null); setNote(""); }
         }}
       >
         <DialogContent className="sm:max-w-lg">
@@ -467,98 +506,55 @@ const TenantProductRequests = () => {
                     {detailProduct.is_new && <Sparkles className="w-4 h-4 text-warning" />}
                     {detailProduct.name}
                   </DialogTitle>
-                  <DialogDescription className="capitalize">
-                    {detailProduct.category}
-                  </DialogDescription>
+                  <DialogDescription className="capitalize">{detailProduct.category}</DialogDescription>
                 </DialogHeader>
-
                 <div className="space-y-4">
                   {detailProduct.image_url ? (
-                    <img
-                      src={detailProduct.image_url}
-                      alt={detailProduct.name}
-                      className="w-full h-56 object-contain rounded-xl bg-muted"
-                    />
+                    <img src={detailProduct.image_url} alt={detailProduct.name} className="w-full h-56 object-contain rounded-xl bg-muted" />
                   ) : (
                     <div className="w-full h-56 rounded-xl bg-muted flex items-center justify-center">
                       <Package className="w-16 h-16 text-muted-foreground/20" />
                     </div>
                   )}
-
                   <div className="grid grid-cols-3 gap-3">
                     <div className="bg-secondary/50 rounded-lg p-3">
                       <p className="text-[11px] text-muted-foreground">Référence</p>
-                      <p className="font-mono text-sm font-medium text-foreground mt-0.5">
-                        {detailProduct.sku}
-                      </p>
+                      <p className="font-mono text-sm font-medium text-foreground mt-0.5">{detailProduct.sku}</p>
                     </div>
                     <div className="bg-secondary/50 rounded-lg p-3">
                       <p className="text-[11px] text-muted-foreground">Prix indicatif</p>
-                      <p className="text-sm font-semibold text-primary mt-0.5">
-                        {formatCurrency(Number(detailProduct.base_price))}
-                      </p>
+                      <p className="text-sm font-semibold text-primary mt-0.5">{formatCurrency(Number(detailProduct.base_price))}</p>
                     </div>
                     <div className="bg-secondary/50 rounded-lg p-3">
                       <p className="text-[11px] text-muted-foreground">Stock</p>
-                      <p className="text-sm font-medium text-foreground mt-0.5">
-                        {detailProduct.stock_qty}
-                      </p>
+                      <p className="text-sm font-medium text-foreground mt-0.5">{detailProduct.stock_qty}</p>
                     </div>
                   </div>
-
                   {detailProduct.description && (
                     <div>
                       <p className="text-xs text-muted-foreground mb-1">Description</p>
-                      <p className="text-sm text-foreground leading-relaxed">
-                        {detailProduct.description}
-                      </p>
+                      <p className="text-sm text-foreground leading-relaxed">{detailProduct.description}</p>
                     </div>
                   )}
-
                   {isRequested && st ? (
                     <div className={`rounded-lg border p-4 ${st.className}`}>
                       <div className="flex items-center gap-2">
                         <st.icon className="w-4 h-4" />
                         <span className="text-sm font-medium">Demande {st.label.toLowerCase()}</span>
                       </div>
-                      {existing.admin_note && (
-                        <p className="text-sm mt-2 opacity-80">💬 {existing.admin_note}</p>
-                      )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="mt-3 gap-1.5"
-                        onClick={() => {
-                          setDetailProduct(null);
-                          setViewRequest(existing);
-                        }}
-                      >
+                      {existing.admin_note && <p className="text-sm mt-2 opacity-80">💬 {existing.admin_note}</p>}
+                      <Button variant="outline" size="sm" className="mt-3 gap-1.5" onClick={() => { setDetailProduct(null); setViewRequest(existing); }}>
                         <Eye className="w-3.5 h-3.5" /> Voir ma demande
                       </Button>
                     </div>
                   ) : (
                     <>
                       <div>
-                        <label className="text-sm font-medium mb-1.5 block">
-                          Note pour l'équipe INKOO (optionnel)
-                        </label>
-                        <Textarea
-                          value={note}
-                          onChange={(e) => setNote(e.target.value)}
-                          placeholder="Précisez vos besoins : couleurs, quantités, emplacement du logo…"
-                          rows={3}
-                        />
+                        <label className="text-sm font-medium mb-1.5 block">Note pour l'équipe INKOO (optionnel)</label>
+                        <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Précisez vos besoins : couleurs, quantités, emplacement du logo…" rows={3} />
                       </div>
-                      <Button
-                        className="w-full gap-2"
-                        onClick={() => submitRequest.mutate()}
-                        disabled={submitRequest.isPending}
-                      >
-                        {submitRequest.isPending ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Send className="w-4 h-4" />
-                        )}
+                      <Button className="w-full gap-2" onClick={() => submitRequest.mutate()} disabled={submitRequest.isPending}>
+                        {submitRequest.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                         Demander l'ajout à ma boutique
                       </Button>
                     </>
@@ -573,138 +569,79 @@ const TenantProductRequests = () => {
       {/* ════════════ VIEW REQUEST DETAIL DIALOG ════════════ */}
       <Dialog open={!!viewRequest} onOpenChange={(v) => !v && setViewRequest(null)}>
         <DialogContent className="sm:max-w-md">
-          {viewRequest &&
-            (() => {
-              const cp = viewRequest.catalog_products as any;
-              const st = statusConfig[viewRequest.status] || {
-                label: viewRequest.status,
-                className: "",
-                icon: Clock,
-              };
-              const StatusIcon = st.icon;
-
-              // Build timeline from status
-              const allStatuses = ["requested", "in_discussion", "bat_sent", "validated", "added"];
-              const currentIdx = allStatuses.indexOf(viewRequest.status);
-              const isRejected = viewRequest.status === "rejected";
-
-              return (
-                <>
-                  <DialogHeader>
-                    <DialogTitle>Suivi de la demande</DialogTitle>
-                    <DialogDescription>{cp?.name}</DialogDescription>
-                  </DialogHeader>
-
-                  <div className="space-y-5">
-                    {/* Product preview */}
-                    <div className="flex items-center gap-4 p-3 rounded-xl bg-secondary/50 border border-border">
-                      {cp?.image_url ? (
-                        <img
-                          src={cp.image_url}
-                          alt={cp.name}
-                          className="w-14 h-14 rounded-lg object-cover"
-                        />
-                      ) : (
-                        <div className="w-14 h-14 rounded-lg bg-muted flex items-center justify-center">
-                          <Package className="w-6 h-6 text-muted-foreground/30" />
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-sm truncate">{cp?.name}</p>
-                        <p className="text-xs text-muted-foreground font-mono">{cp?.sku}</p>
-                        <p className="text-sm font-medium text-primary mt-0.5">
-                          {formatCurrency(Number(cp?.base_price || 0))}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Status timeline */}
-                    <div className="space-y-0">
-                      {(isRejected
-                        ? [
-                            ...allStatuses.slice(0, Math.max(currentIdx, 1)),
-                            "rejected",
-                          ]
-                        : allStatuses
-                      ).map((s, idx) => {
-                        const sc = statusConfig[s];
-                        if (!sc) return null;
-                        const Icon = sc.icon;
-                        const isActive = s === viewRequest.status;
-                        const isPast = !isRejected && idx < currentIdx;
-                        const isFuture = !isRejected && idx > currentIdx;
-                        return (
-                          <div key={s} className="flex items-center gap-3 relative">
-                            {idx > 0 && (
-                              <div
-                                className={`absolute left-[11px] -top-3 w-0.5 h-3 ${
-                                  isPast || isActive ? "bg-primary/30" : "bg-border"
-                                }`}
-                              />
-                            )}
-                            <div
-                              className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
-                                isActive
-                                  ? "bg-primary text-primary-foreground"
-                                  : isPast
-                                  ? "bg-primary/20 text-primary"
-                                  : "bg-secondary text-muted-foreground"
-                              }`}
-                            >
-                              <Icon className="w-3 h-3" />
-                            </div>
-                            <span
-                              className={`text-sm py-2 ${
-                                isActive
-                                  ? "font-semibold text-foreground"
-                                  : isFuture
-                                  ? "text-muted-foreground/50"
-                                  : "text-muted-foreground"
-                              }`}
-                            >
-                              {sc.label}
-                            </span>
-                            {isActive && (
-                              <Badge variant="outline" className="text-[9px] ml-auto">
-                                Étape actuelle
-                              </Badge>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Notes */}
-                    {viewRequest.note && (
-                      <div>
-                        <p className="text-xs text-muted-foreground mb-1.5">Votre note</p>
-                        <div className="text-sm bg-secondary/50 rounded-lg p-3 border border-border">
-                          {viewRequest.note}
-                        </div>
+          {viewRequest && (() => {
+            const cp = viewRequest.catalog_products as any;
+            const st = statusConfig[viewRequest.status] || { label: viewRequest.status, className: "", icon: Clock };
+            const allStatuses = ["requested", "in_discussion", "bat_sent", "validated", "added"];
+            const currentIdx = allStatuses.indexOf(viewRequest.status);
+            const isRejected = viewRequest.status === "rejected";
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle>Suivi de la demande</DialogTitle>
+                  <DialogDescription>{cp?.name}</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-5">
+                  <div className="flex items-center gap-4 p-3 rounded-xl bg-secondary/50 border border-border">
+                    {cp?.image_url ? (
+                      <img src={cp.image_url} alt={cp.name} className="w-14 h-14 rounded-lg object-cover" />
+                    ) : (
+                      <div className="w-14 h-14 rounded-lg bg-muted flex items-center justify-center">
+                        <Package className="w-6 h-6 text-muted-foreground/30" />
                       </div>
                     )}
-                    {viewRequest.admin_note && (
-                      <div>
-                        <p className="text-xs text-muted-foreground mb-1.5">Réponse INKOO</p>
-                        <div className="text-sm bg-primary/5 rounded-lg p-3 border border-primary/10">
-                          💬 {viewRequest.admin_note}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Meta */}
-                    <p className="text-[11px] text-muted-foreground text-center">
-                      Demande créée le{" "}
-                      {new Date(viewRequest.created_at).toLocaleDateString("fr-FR", {
-                        day: "numeric",
-                        month: "long",
-                        year: "numeric",
-                      })}
-                    </p>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm truncate">{cp?.name}</p>
+                      <p className="text-xs text-muted-foreground font-mono">{cp?.sku}</p>
+                      <p className="text-sm font-medium text-primary mt-0.5">{formatCurrency(Number(cp?.base_price || 0))}</p>
+                    </div>
                   </div>
-                </>
-              );
-            })()}
+                  <div className="space-y-0">
+                    {(isRejected
+                      ? [...allStatuses.slice(0, Math.max(currentIdx, 1)), "rejected"]
+                      : allStatuses
+                    ).map((s, idx) => {
+                      const sc = statusConfig[s];
+                      if (!sc) return null;
+                      const Icon = sc.icon;
+                      const isActive = s === viewRequest.status;
+                      const isPast = !isRejected && idx < currentIdx;
+                      const isFuture = !isRejected && idx > currentIdx;
+                      return (
+                        <div key={s} className="flex items-center gap-3 relative">
+                          {idx > 0 && (
+                            <div className={`absolute left-[11px] -top-3 w-0.5 h-3 ${isPast || isActive ? "bg-primary/30" : "bg-border"}`} />
+                          )}
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${isActive ? "bg-primary text-primary-foreground" : isPast ? "bg-primary/20 text-primary" : "bg-secondary text-muted-foreground"}`}>
+                            <Icon className="w-3 h-3" />
+                          </div>
+                          <span className={`text-sm py-2 ${isActive ? "font-semibold text-foreground" : isFuture ? "text-muted-foreground/50" : "text-muted-foreground"}`}>
+                            {sc.label}
+                          </span>
+                          {isActive && <Badge variant="outline" className="text-[9px] ml-auto">Étape actuelle</Badge>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {viewRequest.note && (
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1.5">Votre note</p>
+                      <div className="text-sm bg-secondary/50 rounded-lg p-3 border border-border">{viewRequest.note}</div>
+                    </div>
+                  )}
+                  {viewRequest.admin_note && (
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1.5">Réponse INKOO</p>
+                      <div className="text-sm bg-primary/5 rounded-lg p-3 border border-primary/10">💬 {viewRequest.admin_note}</div>
+                    </div>
+                  )}
+                  <p className="text-[11px] text-muted-foreground text-center">
+                    Demande créée le {new Date(viewRequest.created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}
+                  </p>
+                </div>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </>
