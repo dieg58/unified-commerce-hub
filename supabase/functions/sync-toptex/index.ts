@@ -126,6 +126,7 @@ Deno.serve(async (req) => {
 
         console.log(`Brand ${brand}: ${allProducts.length} products fetched`);
 
+
         // Build price map from price endpoint (paginated)
         const priceMap = new Map<string, number>();
         let pricePage = 1;
@@ -178,51 +179,53 @@ Deno.serve(async (req) => {
             // ── Description (multilingual) ──
             const desc = ml(product.description);
 
-            // ── Extract variant colors and sizes from ALL SKU items ──
+            // ── Extract variant colors and sizes from product.colors[] ──
             const colorMap = new Map<string, { color: string; hex: string | null; image_url: string | null }>();
             const sizeSet = new Set<string>();
             let firstImage: string | null = null;
 
-            for (const item of items) {
-              // Color: TopTex uses colorLabel / color / colorCode at item level
-              const colorName = item.colorLabel || item.color || item.colorCode || null;
-              if (colorName && !colorMap.has(colorName)) {
-                // Try to find an image for this color
-                let colorImage: string | null = null;
-                const packshots = item.packshots || item.images;
-                if (packshots) {
-                  if (Array.isArray(packshots) && packshots.length) {
-                    colorImage = packshots[0].url_image || packshots[0].url || packshots[0].imageUrl || null;
-                  } else if (typeof packshots === "object") {
-                    const face = packshots.FACE || packshots.face || Object.values(packshots)[0] as any;
-                    if (face) colorImage = face.url_packshot || face.url || face.imageUrl || null;
-                  }
-                }
-                if (!colorImage) colorImage = item.url_image || item.imageUrl || item.image || null;
+            const productColors = product.colors || [];
+            for (const colorEntry of productColors) {
+              // Color name: multilingual object in colorEntry.colors
+              const colorNames = colorEntry.colors;
+              const colorName = colorNames?.fr || colorNames?.en || colorNames?.de || null;
+              if (!colorName) continue;
 
-                colorMap.set(colorName, {
-                  color: colorName,
-                  hex: item.hexColor || item.hexa || item.hex || item.colorHex || null,
-                  image_url: colorImage,
-                });
+              // Hex: colorsHexa is an array like ["C6BFB2"]
+              const hexArr = colorEntry.colorsHexa;
+              const hex = Array.isArray(hexArr) && hexArr.length ? hexArr[0] : null;
+
+              // Image: packshots.FACE.url_packshot
+              let colorImage: string | null = null;
+              const packshots = colorEntry.packshots;
+              if (packshots) {
+                const face = packshots.FACE || packshots.face;
+                if (face) colorImage = face.url_packshot || face.url || null;
+                if (!colorImage) {
+                  const firstShot = Object.values(packshots)[0] as any;
+                  if (firstShot) colorImage = firstShot.url_packshot || firstShot.url || null;
+                }
               }
 
-              // Size: TopTex uses sizeLabel / size / sizeCode at item level
-              const sizeName = item.sizeLabel || item.size || item.sizeCode || null;
-              if (sizeName) sizeSet.add(sizeName);
+              if (!firstImage && colorImage) firstImage = colorImage;
 
-              // Capture first available image as product image
-              if (!firstImage) {
-                const packshots = item.packshots || item.images;
-                if (packshots) {
-                  if (Array.isArray(packshots) && packshots.length) {
-                    firstImage = packshots[0].url_image || packshots[0].url || packshots[0].imageUrl || null;
-                  } else if (typeof packshots === "object") {
-                    const face = packshots.FACE || packshots.face || Object.values(packshots)[0] as any;
-                    if (face) firstImage = face.url_packshot || face.url || face.imageUrl || null;
-                  }
+              colorMap.set(colorName, { color: colorName, hex, image_url: colorImage });
+
+              // Sizes: colorEntry.sizes[] array with size objects
+              const sizes = colorEntry.sizes;
+              if (Array.isArray(sizes)) {
+                for (const s of sizes) {
+                  const sizeName = s.sizeLabel || s.size || s.sizeCode || null;
+                  if (sizeName) sizeSet.add(sizeName);
                 }
-                if (!firstImage) firstImage = item.url_image || item.imageUrl || item.image || null;
+              }
+            }
+
+            // Fallback: product-level images if no color packshots
+            if (!firstImage) {
+              const imgs = product.images;
+              if (Array.isArray(imgs) && imgs.length) {
+                firstImage = imgs[0].url_image || imgs[0].url || null;
               }
             }
 
