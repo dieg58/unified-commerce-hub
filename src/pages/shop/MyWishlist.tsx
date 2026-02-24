@@ -8,11 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Heart, ShoppingCart, Package, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 const MyWishlist = () => {
   const { profile } = useAuth();
-  const { wishlistItems, toggleFavorite, isFavorite } = useWishlist();
+  const { wishlistItems, toggleFavorite } = useWishlist();
   const { addItem } = useCart();
+  const { t } = useTranslation();
   const tenantId = profile?.tenant_id;
 
   const { data: products, isLoading } = useQuery({
@@ -39,11 +41,11 @@ const MyWishlist = () => {
   const handleAddToCart = (product: any) => {
     const price = getPrice(product);
     if (!price) {
-      toast.error("Aucun prix défini pour ce produit");
+      toast.error(t("wishlist.noPrice"));
       return;
     }
     addItem({ productId: product.id, name: product.name, price, sku: product.sku, storeType: "staff" });
-    toast.success(`${product.name} ajouté au panier`);
+    toast.success(t("wishlist.addedToCart", { name: product.name }));
   };
 
   if (isLoading) {
@@ -58,7 +60,7 @@ const MyWishlist = () => {
     <div className="flex-1 flex flex-col overflow-auto">
       <header className="sticky top-0 z-10 bg-background border-b border-border px-6 h-14 flex items-center gap-2">
         <Heart className="w-5 h-5 text-primary fill-primary" />
-        <h1 className="text-lg font-bold text-foreground">Mes favoris</h1>
+        <h1 className="text-lg font-bold text-foreground">{t("wishlist.title")}</h1>
         <Badge variant="outline" className="ml-2 text-xs">{wishlistItems.length}</Badge>
       </header>
 
@@ -66,8 +68,8 @@ const MyWishlist = () => {
         {!products?.length ? (
           <div className="text-center py-20">
             <Heart className="w-16 h-16 text-muted-foreground/20 mx-auto mb-4" />
-            <p className="text-muted-foreground text-sm">Aucun produit dans vos favoris</p>
-            <p className="text-muted-foreground text-xs mt-1">Ajoutez des produits depuis la boutique en cliquant sur le cœur</p>
+            <p className="text-muted-foreground text-sm">{t("wishlist.empty")}</p>
+            <p className="text-muted-foreground text-xs mt-1">{t("wishlist.emptyHint")}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
@@ -100,7 +102,7 @@ const MyWishlist = () => {
                         {price ? formatCurrency(price) : "—"}
                       </p>
                       <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => handleAddToCart(product)}>
-                        <ShoppingCart className="w-3.5 h-3.5" /> Ajouter
+                        <ShoppingCart className="w-3.5 h-3.5" /> {t("storefront.addToCart")}
                       </Button>
                     </div>
                   </div>

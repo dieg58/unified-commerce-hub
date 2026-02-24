@@ -11,25 +11,27 @@ import { Search, MoreHorizontal, Loader2, Trash2, UserCog } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-
-const roleLabels: Record<string, string> = {
-  super_admin: "Super Admin",
-  shop_manager: "Responsable Boutique",
-  dept_manager: "Responsable Département",
-  employee: "Employé",
-};
-
-const roleColors: Record<string, string> = {
-  super_admin: "bg-destructive/10 text-destructive border-destructive/20",
-  shop_manager: "bg-primary/10 text-primary border-primary/20",
-  dept_manager: "bg-warning/10 text-warning border-warning/20",
-  employee: "bg-secondary text-secondary-foreground border-border",
-};
+import { useTranslation } from "react-i18next";
 
 const UsersPage = () => {
   const qc = useQueryClient();
+  const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
+
+  const roleLabels: Record<string, string> = {
+    super_admin: t("users.superAdmin"),
+    shop_manager: t("users.shopManager"),
+    dept_manager: t("users.deptManager"),
+    employee: t("users.employee"),
+  };
+
+  const roleColors: Record<string, string> = {
+    super_admin: "bg-destructive/10 text-destructive border-destructive/20",
+    shop_manager: "bg-primary/10 text-primary border-primary/20",
+    dept_manager: "bg-warning/10 text-warning border-warning/20",
+    employee: "bg-secondary text-secondary-foreground border-border",
+  };
 
   const { data: profiles, isLoading } = useQuery({
     queryKey: ["all-profiles"],
@@ -56,7 +58,7 @@ const UsersPage = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Rôle mis à jour");
+      toast.success(t("users.roleUpdated"));
       qc.invalidateQueries({ queryKey: ["all-roles"] });
     },
     onError: (err: any) => toast.error(err.message),
@@ -74,28 +76,28 @@ const UsersPage = () => {
 
   return (
     <>
-      <TopBar title="Utilisateurs" subtitle="Tous les utilisateurs de la plateforme" />
+      <TopBar title={t("users.title")} subtitle={t("users.subtitle")} />
       <div className="p-6 space-y-6 overflow-auto">
         <div className="bg-card rounded-lg border border-border shadow-card animate-fade-in">
           <div className="p-5 border-b border-border">
             <SectionHeader
-              title={`Utilisateurs (${filtered?.length || 0})`}
+              title={`${t("common.users")} (${filtered?.length || 0})`}
               action={
                 <div className="flex items-center gap-2">
                   <div className="relative">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                    <Input placeholder="Rechercher…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-8 w-48 text-sm" />
+                    <Input placeholder={t("common.search")} value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-8 w-48 text-sm" />
                   </div>
                   <Select value={roleFilter} onValueChange={setRoleFilter}>
                     <SelectTrigger className="h-8 w-[180px] text-xs">
-                      <SelectValue placeholder="Filtrer par rôle" />
+                      <SelectValue placeholder={t("users.filterByRole")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Tous les rôles</SelectItem>
-                      <SelectItem value="super_admin">Super Admin</SelectItem>
-                      <SelectItem value="shop_manager">Responsable Boutique</SelectItem>
-                      <SelectItem value="dept_manager">Responsable Département</SelectItem>
-                      <SelectItem value="employee">Employé</SelectItem>
+                      <SelectItem value="all">{t("users.allRoles")}</SelectItem>
+                      <SelectItem value="super_admin">{t("users.superAdmin")}</SelectItem>
+                      <SelectItem value="shop_manager">{t("users.shopManager")}</SelectItem>
+                      <SelectItem value="dept_manager">{t("users.deptManager")}</SelectItem>
+                      <SelectItem value="employee">{t("users.employee")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -105,15 +107,15 @@ const UsersPage = () => {
           {isLoading ? (
             <div className="flex items-center justify-center p-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
           ) : !filtered?.length ? (
-            <p className="p-12 text-center text-sm text-muted-foreground">{search || roleFilter !== "all" ? "Aucun utilisateur trouvé" : "Aucun utilisateur"}</p>
+            <p className="p-12 text-center text-sm text-muted-foreground">{search || roleFilter !== "all" ? t("users.noUserFound") : t("users.noUser")}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-xs">Utilisateur</TableHead>
-                  <TableHead className="text-xs">Rôle</TableHead>
-                  <TableHead className="text-xs">Boutique</TableHead>
-                  <TableHead className="text-xs">Inscrit le</TableHead>
+                  <TableHead className="text-xs">{t("common.user")}</TableHead>
+                  <TableHead className="text-xs">{t("common.role")}</TableHead>
+                  <TableHead className="text-xs">{t("nav.shop")}</TableHead>
+                  <TableHead className="text-xs">{t("common.registeredOn")}</TableHead>
                   <TableHead className="text-xs w-10"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -137,7 +139,7 @@ const UsersPage = () => {
                       </TableCell>
                       <TableCell>
                         {roles.length === 0 ? (
-                          <span className="text-xs text-muted-foreground">Aucun rôle</span>
+                          <span className="text-xs text-muted-foreground">{t("common.noRole")}</span>
                         ) : (
                           <div className="flex flex-wrap gap-1">
                             {roles.map((role) => (
@@ -148,7 +150,7 @@ const UsersPage = () => {
                           </div>
                         )}
                       </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{tenant?.name || "Plateforme"}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{tenant?.name || t("common.platform")}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{new Date(user.created_at).toLocaleDateString("fr-FR")}</TableCell>
                       <TableCell>
                         <DropdownMenu>
@@ -157,13 +159,13 @@ const UsersPage = () => {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => changeRole.mutate({ userId: user.id, newRole: "shop_manager" })} disabled={currentRole === "shop_manager"}>
-                              <UserCog className="w-4 h-4 mr-2" /> → Responsable Boutique
+                              <UserCog className="w-4 h-4 mr-2" /> → {t("users.shopManager")}
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => changeRole.mutate({ userId: user.id, newRole: "dept_manager" })} disabled={currentRole === "dept_manager"}>
-                              <UserCog className="w-4 h-4 mr-2" /> → Responsable Département
+                              <UserCog className="w-4 h-4 mr-2" /> → {t("users.deptManager")}
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => changeRole.mutate({ userId: user.id, newRole: "employee" })} disabled={currentRole === "employee"}>
-                              <UserCog className="w-4 h-4 mr-2" /> → Employé
+                              <UserCog className="w-4 h-4 mr-2" /> → {t("users.employee")}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>

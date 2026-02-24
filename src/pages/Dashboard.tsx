@@ -94,7 +94,7 @@ const Dashboard = () => {
                   <TableRow>
                     <TableHead className="text-xs">{t("common.order")}</TableHead>
                     <TableHead className="text-xs">{t("common.user")}</TableHead>
-                    <TableHead className="text-xs">Type</TableHead>
+                    <TableHead className="text-xs">{t("common.type")}</TableHead>
                     <TableHead className="text-xs">{t("common.total")}</TableHead>
                     <TableHead className="text-xs">{t("common.status")}</TableHead>
                   </TableRow>
@@ -108,7 +108,7 @@ const Dashboard = () => {
                         <TableCell>{profile?.full_name || profile?.email || "—"}</TableCell>
                         <TableCell>
                           <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${order.store_type === "bulk" ? "bg-primary/10 text-primary" : "bg-accent/10 text-accent"}`}>
-                            {order.store_type}
+                            {order.store_type === "bulk" ? "Bulk" : "Staff"}
                           </span>
                         </TableCell>
                         <TableCell className="font-medium">{formatCurrency(Number(order.total))}</TableCell>
@@ -155,7 +155,7 @@ const Dashboard = () => {
                         </p>
                         <div className="flex items-center gap-1 mt-1">
                           <span className={`inline-flex items-center px-1.5 py-0 rounded text-[10px] font-medium ${order.store_type === "bulk" ? "bg-primary/10 text-primary" : "bg-accent/10 text-accent"}`}>
-                            {order.store_type}
+                            {order.store_type === "bulk" ? "Bulk" : "Staff"}
                           </span>
                           <StatusBadge status={order.status} />
                         </div>

@@ -11,6 +11,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 type BudgetRow = {
   id: string;
@@ -26,6 +27,7 @@ type BudgetRow = {
 
 const Budgets = () => {
   const qc = useQueryClient();
+  const { t } = useTranslation();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editAmount, setEditAmount] = useState("");
 
@@ -78,7 +80,7 @@ const Budgets = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Budget mis à jour");
+      toast.success(t("budgets.budgetUpdated"));
       qc.invalidateQueries({ queryKey: ["budgets"] });
       setEditingId(null);
     },
@@ -95,22 +97,22 @@ const Budgets = () => {
       }
     },
     onSuccess: () => {
-      toast.success("Dépenses synchronisées");
+      toast.success(t("budgets.spendingSynced"));
       qc.invalidateQueries({ queryKey: ["budgets"] });
     },
     onError: (err: any) => toast.error(err.message),
   });
 
   const getStatusInfo = (pct: number) => {
-    if (pct > 100) return { label: "Dépassé", color: "text-destructive", bgColor: "bg-destructive/10", progressColor: "bg-destructive" };
-    if (pct >= 80) return { label: "Attention", color: "text-warning", bgColor: "bg-warning/10", progressColor: "bg-warning" };
-    return { label: "OK", color: "text-success", bgColor: "bg-success/10", progressColor: "" };
+    if (pct > 100) return { label: t("budgets.exceeded"), color: "text-destructive", bgColor: "bg-destructive/10", progressColor: "bg-destructive" };
+    if (pct >= 80) return { label: t("budgets.warning"), color: "text-warning", bgColor: "bg-warning/10", progressColor: "bg-warning" };
+    return { label: t("budgets.ok"), color: "text-success", bgColor: "bg-success/10", progressColor: "" };
   };
 
   if (budgetsLoading) {
     return (
       <>
-        <TopBar title="Budgets" subtitle="Allocation et suivi des budgets" />
+        <TopBar title={t("budgets.title")} subtitle={t("budgets.subtitle")} />
         <div className="flex-1 flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
       </>
     );
@@ -118,14 +120,14 @@ const Budgets = () => {
 
   return (
     <>
-      <TopBar title="Budgets" subtitle="Allocation et suivi des budgets par entité" />
+      <TopBar title={t("budgets.title")} subtitle={t("budgets.subtitle")} />
       <div className="p-6 space-y-6 overflow-auto">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard label="Budget total" value={formatCurrency(totalBudget)} icon={<Wallet className="w-4 h-4 text-primary" />} delay={0} />
-          <StatCard label="Total dépensé" value={formatCurrency(totalSpent)} icon={<TrendingDown className="w-4 h-4 text-primary" />} delay={50} />
-          <StatCard label="Alertes" value={warningCount.toString()} icon={<AlertTriangle className="w-4 h-4 text-warning" />} delay={100} />
+          <StatCard label={t("budgets.totalBudget")} value={formatCurrency(totalBudget)} icon={<Wallet className="w-4 h-4 text-primary" />} delay={0} />
+          <StatCard label={t("budgets.totalSpent")} value={formatCurrency(totalSpent)} icon={<TrendingDown className="w-4 h-4 text-primary" />} delay={50} />
+          <StatCard label={t("budgets.alerts")} value={warningCount.toString()} icon={<AlertTriangle className="w-4 h-4 text-warning" />} delay={100} />
           <StatCard
-            label="Utilisation"
+            label={t("budgets.utilization")}
             value={`${utilization}%`}
             icon={blockedCount > 0 ? <ShieldAlert className="w-4 h-4 text-destructive" /> : <CheckCircle className="w-4 h-4 text-success" />}
             delay={150}
@@ -135,22 +137,23 @@ const Budgets = () => {
         <div className="bg-card rounded-lg border border-border shadow-card animate-fade-in" style={{ animationDelay: "200ms" }}>
           <div className="p-5 border-b border-border">
             <SectionHeader
-              title="Budgets par entité"
+              title={t("budgets.byEntity")}
               action={
                 <Button variant="outline" size="sm" onClick={() => syncSpent.mutate()} disabled={syncSpent.isPending}>
                   {syncSpent.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
-                  Synchroniser les dépenses
+                  {t("budgets.syncSpending")}
                 </Button>
               }
             />
           </div>
           {!enriched?.length ? (
-            <p className="p-12 text-center text-sm text-muted-foreground">Aucun budget configuré</p>
+            <p className="p-12 text-center text-sm text-muted-foreground">{t("budgets.noBudget")}</p>
           ) : (
             <div className="divide-y divide-border">
               {enriched.map((b, i) => {
                 const status = getStatusInfo(b.pct);
                 const isEditing = editingId === b.id;
+                const periodLabel = b.period === "monthly" ? t("budgets.monthly") : b.period === "quarterly" ? t("budgets.quarterly") : t("budgets.yearly");
                 return (
                   <div key={b.id} className={`p-5 animate-fade-in ${b.pct > 100 ? "bg-destructive/5" : ""}`} style={{ animationDelay: `${(i + 4) * 50}ms` }}>
                     <div className="flex items-center justify-between mb-2">
@@ -165,13 +168,13 @@ const Budgets = () => {
                               <TooltipProvider>
                                 <Tooltip>
                                   <TooltipTrigger><ShieldAlert className="w-4 h-4 text-destructive" /></TooltipTrigger>
-                                  <TooltipContent><p className="text-xs">Budget dépassé — les commandes staff sont bloquées.</p></TooltipContent>
+                                  <TooltipContent><p className="text-xs">{t("budgets.budgetExceededBlocked")}</p></TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>
                             )}
                           </div>
                           <p className="text-xs text-muted-foreground capitalize">
-                            {(b.tenants as any)?.name || "—"} · {b.store_type} · {b.period === "monthly" ? "mensuel" : b.period === "quarterly" ? "trimestriel" : "annuel"}
+                            {(b.tenants as any)?.name || "—"} · {b.store_type} · {periodLabel}
                           </p>
                         </div>
                       </div>
@@ -181,7 +184,7 @@ const Budgets = () => {
                             <Input type="number" value={editAmount} onChange={(e) => setEditAmount(e.target.value)} className="w-28 h-8 text-sm" min={0} autoFocus />
                             <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => {
                               const val = parseFloat(editAmount);
-                              if (isNaN(val) || val < 0) { toast.error("Montant invalide"); return; }
+                              if (isNaN(val) || val < 0) { toast.error(t("budgets.invalidAmount")); return; }
                               updateAmount.mutate({ id: b.id, amount: val });
                             }} disabled={updateAmount.isPending}>
                               <Save className="w-4 h-4 text-success" />
@@ -194,7 +197,7 @@ const Budgets = () => {
                           <div className="flex items-center gap-2">
                             <div className="text-right">
                               <p className={`text-sm font-semibold ${status.color}`}>{formatCurrency(b.computedSpent)}</p>
-                              <p className="text-xs text-muted-foreground">sur {formatCurrency(Number(b.amount))}</p>
+                              <p className="text-xs text-muted-foreground">{t("budgets.on")} {formatCurrency(Number(b.amount))}</p>
                             </div>
                             <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => { setEditingId(b.id); setEditAmount(String(b.amount)); }}>
                               <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
