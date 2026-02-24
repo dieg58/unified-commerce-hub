@@ -38,3 +38,6 @@ verify_jwt = false
 
 [functions.sync-midocean]
 verify_jwt = false
+
+[functions.sync-stanleystella]
+verify_jwt = false
