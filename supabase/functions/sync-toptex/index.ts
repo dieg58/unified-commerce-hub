@@ -153,16 +153,19 @@ Deno.serve(async (req) => {
           pricePage++;
         }
 
-        // Group products by catalogReference (deduplicate SKU-level entries)
-        const byRef = new Map<string, any>();
+        // Group ALL items by catalogReference to collect variant info
+        const byRef = new Map<string, any[]>();
         for (const item of allProducts) {
           const ref = item.catalogReference;
-          if (!ref || byRef.has(ref)) continue;
-          byRef.set(ref, item);
+          if (!ref) continue;
+          if (!byRef.has(ref)) byRef.set(ref, []);
+          byRef.get(ref)!.push(item);
         }
 
-        for (const [ref, product] of byRef) {
+        for (const [ref, items] of byRef) {
           try {
+            const product = items[0]; // Use first item for product-level info
+
             // ── Name (multilingual) ──
             const designation = ml(product.designation, ref);
 
@@ -175,68 +178,55 @@ Deno.serve(async (req) => {
             // ── Description (multilingual) ──
             const desc = ml(product.description);
 
-            // ── Image: try multiple paths ──
-            let imageUrl: string | null = null;
-            // 1. Top-level images array
-            if (product.images?.length) {
-              imageUrl = product.images[0].url_image || product.images[0].url || product.images[0].imageUrl || null;
-            }
-            // 2. Packshots from colors
-            if (!imageUrl && product.colors?.length) {
-              for (const c of product.colors) {
-                const packshots = c?.packshots || c?.images;
-                if (packshots) {
-                  const face = packshots.FACE || packshots.face || Object.values(packshots)[0] as any;
-                  if (face) {
-                    imageUrl = face.url_packshot || face.url || face.imageUrl || null;
-                    if (imageUrl) break;
-                  }
-                }
-                // Direct image on color
-                if (!imageUrl && (c?.url_image || c?.imageUrl || c?.image)) {
-                  imageUrl = c.url_image || c.imageUrl || c.image;
-                  break;
-                }
-              }
-            }
-            // 3. Direct product image fields
-            if (!imageUrl) {
-              imageUrl = product.imageUrl || product.image || product.url_image || null;
-            }
-
-            // ── Extract variant colors and sizes ──
-            const variantColors: { color: string; hex: string | null; image_url: string | null }[] = [];
+            // ── Extract variant colors and sizes from ALL SKU items ──
+            const colorMap = new Map<string, { color: string; hex: string | null; image_url: string | null }>();
             const sizeSet = new Set<string>();
+            let firstImage: string | null = null;
 
-            if (product.colors?.length) {
-              for (const c of product.colors) {
-                const colorName = c.label || c.name || c.code || null;
-                if (colorName) {
-                  // Find image for this color
-                  let colorImage: string | null = null;
-                  const packshots = c?.packshots || c?.images;
-                  if (packshots) {
+            for (const item of items) {
+              // Color: TopTex uses colorLabel / color / colorCode at item level
+              const colorName = item.colorLabel || item.color || item.colorCode || null;
+              if (colorName && !colorMap.has(colorName)) {
+                // Try to find an image for this color
+                let colorImage: string | null = null;
+                const packshots = item.packshots || item.images;
+                if (packshots) {
+                  if (Array.isArray(packshots) && packshots.length) {
+                    colorImage = packshots[0].url_image || packshots[0].url || packshots[0].imageUrl || null;
+                  } else if (typeof packshots === "object") {
                     const face = packshots.FACE || packshots.face || Object.values(packshots)[0] as any;
                     if (face) colorImage = face.url_packshot || face.url || face.imageUrl || null;
                   }
-                  if (!colorImage) colorImage = c.url_image || c.imageUrl || c.image || null;
-
-                  variantColors.push({
-                    color: colorName,
-                    hex: c.hex || c.hexa || c.colorCode || null,
-                    image_url: colorImage,
-                  });
                 }
+                if (!colorImage) colorImage = item.url_image || item.imageUrl || item.image || null;
 
-                // Extract sizes from color variants
-                const sizes = c.sizes || c.variants || [];
-                for (const s of sizes) {
-                  const sizeName = s.label || s.name || s.size || s.code || null;
-                  if (sizeName) sizeSet.add(sizeName);
+                colorMap.set(colorName, {
+                  color: colorName,
+                  hex: item.hexColor || item.hexa || item.hex || item.colorHex || null,
+                  image_url: colorImage,
+                });
+              }
+
+              // Size: TopTex uses sizeLabel / size / sizeCode at item level
+              const sizeName = item.sizeLabel || item.size || item.sizeCode || null;
+              if (sizeName) sizeSet.add(sizeName);
+
+              // Capture first available image as product image
+              if (!firstImage) {
+                const packshots = item.packshots || item.images;
+                if (packshots) {
+                  if (Array.isArray(packshots) && packshots.length) {
+                    firstImage = packshots[0].url_image || packshots[0].url || packshots[0].imageUrl || null;
+                  } else if (typeof packshots === "object") {
+                    const face = packshots.FACE || packshots.face || Object.values(packshots)[0] as any;
+                    if (face) firstImage = face.url_packshot || face.url || face.imageUrl || null;
+                  }
                 }
+                if (!firstImage) firstImage = item.url_image || item.imageUrl || item.image || null;
               }
             }
 
+            const variantColors = Array.from(colorMap.values());
             const variantSizes = Array.from(sizeSet);
 
             // ── Price ──
@@ -268,7 +258,7 @@ Deno.serve(async (req) => {
               description: desc.fr || null,
               description_en: desc.en || null,
               description_nl: desc.nl || null,
-              image_url: imageUrl,
+              image_url: firstImage || product.imageUrl || product.image || product.url_image || null,
               base_price: price,
               stock_qty: 0,
               is_new: isNew,
