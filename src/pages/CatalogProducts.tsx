@@ -14,7 +14,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Search, Loader2, MoreHorizontal, Pencil, Trash2, Package, Upload, Eye, RefreshCw, Filter, Gift, Shirt, CheckCircle, XCircle } from "lucide-react";
+import { Plus, Search, Loader2, MoreHorizontal, Pencil, Trash2, Package, Upload, Eye, RefreshCw, Filter, Gift, Shirt, CheckCircle, XCircle, Sparkles } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/mock-data";
@@ -38,6 +38,8 @@ type CatalogProduct = {
   midocean_id: string | null;
   stock_qty: number;
   last_synced_at: string | null;
+  is_new: boolean;
+  release_date: string | null;
 };
 
 // ── Parse hierarchical categories (uses ">" separator) ──
@@ -66,6 +68,7 @@ const CatalogProducts = () => {
   const [filterSubCategory, setFilterSubCategory] = useState<string>("all");
   
   const [filterActive, setFilterActive] = useState<boolean | null>(null);
+  const [filterNew, setFilterNew] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<CatalogProduct | null>(null);
   const [form, setForm] = useState(emptyCp);
@@ -145,6 +148,8 @@ const CatalogProducts = () => {
     return Object.entries(subs).sort(([a], [b]) => a.localeCompare(b));
   }, [tabProducts, filterGroup]);
 
+  const newCount = tabProducts.filter((p) => (p as any).is_new).length;
+
   const filtered = tabProducts.filter((p) => {
     const matchesSearch =
       p.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -153,7 +158,8 @@ const CatalogProducts = () => {
     const matchesGroup = filterGroup === "all" || getParentCategory(p.category) === filterGroup;
     const matchesSubCat = filterSubCategory === "all" || (getSubCategory(p.category) === filterSubCategory);
     const matchesActive = filterActive === null || p.active === filterActive;
-    return matchesSearch && matchesGroup && matchesSubCat && matchesActive;
+    const matchesNew = !filterNew || (p as any).is_new;
+    return matchesSearch && matchesGroup && matchesSubCat && matchesActive && matchesNew;
   });
 
   const openCreate = () => {
@@ -342,8 +348,17 @@ const CatalogProducts = () => {
           )}
         </div>
 
-        {/* Active filter + reset */}
+        {/* Nouveautés + Active filter + reset */}
         <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant={filterNew ? "default" : "outline"}
+            className="h-7 text-xs rounded-full px-3 gap-1.5"
+            onClick={() => setFilterNew(!filterNew)}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            Nouveautés ({newCount})
+          </Button>
           <ToggleGroup
             type="single"
             value={filterActive === null ? "all" : filterActive ? "active" : "inactive"}
@@ -359,8 +374,8 @@ const CatalogProducts = () => {
             <ToggleGroupItem value="active" className="text-xs px-3 h-7">Actifs</ToggleGroupItem>
             <ToggleGroupItem value="inactive" className="text-xs px-3 h-7">Inactifs</ToggleGroupItem>
           </ToggleGroup>
-          {(filterGroup !== "all" || filterActive !== null) && (
-            <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground" onClick={() => { setFilterGroup("all"); setFilterSubCategory("all"); setFilterActive(null); }}>
+          {(filterGroup !== "all" || filterActive !== null || filterNew) && (
+            <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground" onClick={() => { setFilterGroup("all"); setFilterSubCategory("all"); setFilterActive(null); setFilterNew(false); }}>
               Réinitialiser
             </Button>
           )}
@@ -452,7 +467,15 @@ const CatalogProducts = () => {
                             </div>
                           )}
                           <div>
-                            <p className="font-medium text-foreground">{product.name}</p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="font-medium text-foreground">{product.name}</p>
+                              {(product as any).is_new && (
+                                <Badge className="bg-amber-500/15 text-amber-600 border-amber-500/30 text-[9px] px-1.5 py-0 h-4 gap-0.5">
+                                  <Sparkles className="w-2.5 h-2.5" />
+                                  Nouveau
+                                </Badge>
+                              )}
+                            </div>
                             {product.description && <p className="text-[11px] text-muted-foreground truncate max-w-[200px]">{product.description}</p>}
                           </div>
                         </div>
