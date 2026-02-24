@@ -61,12 +61,15 @@ Deno.serve(async (req) => {
       });
     }
 
-    const headers = { "x-Gateway-APIKey": MIDOCEAN_API_KEY };
+    const headers: Record<string, string> = {
+      "x-Gateway-APIKey": MIDOCEAN_API_KEY,
+      "Accept": "application/json",
+    };
 
     // Fetch products, stock, and prices in parallel
     console.log("Fetching Midocean data...");
     const [productsRes, stockRes, pricesRes] = await Promise.all([
-      fetch(`${MIDOCEAN_BASE}/products/2.0`, { headers }),
+      fetch(`${MIDOCEAN_BASE}/products/2.0?language=en`, { headers }),
       fetch(`${MIDOCEAN_BASE}/stock/2.0`, { headers }),
       fetch(`${MIDOCEAN_BASE}/pricelist/2.0`, { headers }),
     ]);
