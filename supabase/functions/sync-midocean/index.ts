@@ -7,6 +7,13 @@ const corsHeaders = {
 };
 
 const MIDOCEAN_BASE = "https://api.midocean.com/gateway";
+const PRICE_MULTIPLIER = 1.81;
+
+function parseEuroPrice(val: unknown): number {
+  if (typeof val === "number") return val;
+  if (typeof val === "string") return parseFloat(val.replace(",", ".")) || 0;
+  return 0;
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -14,11 +21,11 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Auth check
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Auth check
     const authHeader = req.headers.get("authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -27,10 +34,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
+    const { data: { user }, error: authError } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
@@ -38,7 +42,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Check super_admin role
     const { data: roleData } = await supabase
       .from("user_roles")
       .select("role")
@@ -74,85 +77,30 @@ Deno.serve(async (req) => {
       fetch(`${MIDOCEAN_BASE}/pricelist/2.0`, { headers }),
     ]);
 
-    if (!productsRes.ok) {
-      const body = await productsRes.text();
-      throw new Error(`Midocean products API failed [${productsRes.status}]: ${body}`);
-    }
-    if (!stockRes.ok) {
-      const body = await stockRes.text();
-      throw new Error(`Midocean stock API failed [${stockRes.status}]: ${body}`);
-    }
-    if (!pricesRes.ok) {
-      const body = await pricesRes.text();
-      throw new Error(`Midocean pricelist API failed [${pricesRes.status}]: ${body}`);
-    }
+    if (!productsRes.ok) throw new Error(`Products API failed [${productsRes.status}]`);
+    if (!stockRes.ok) throw new Error(`Stock API failed [${stockRes.status}]`);
+    if (!pricesRes.ok) throw new Error(`Pricelist API failed [${pricesRes.status}]`);
 
     const productsData = await productsRes.json();
     const stockData = await stockRes.json();
     const pricesData = await pricesRes.json();
 
-    // DEBUG: Log sample data structure
-    const sampleProducts = Array.isArray(productsData) ? productsData.slice(0, 2) : (productsData?.products || []).slice(0, 2);
-    console.log("SAMPLE PRODUCTS:", JSON.stringify(sampleProducts, null, 2));
-
-    const sampleStock = Array.isArray(stockData) ? stockData.slice(0, 2) : (stockData?.stock || []).slice(0, 2);
-    console.log("SAMPLE STOCK:", JSON.stringify(sampleStock, null, 2));
-
-    const samplePrices = Array.isArray(pricesData) ? pricesData.slice(0, 2) : (pricesData?.price || pricesData?.prices || []).slice(0, 2);
-    console.log("SAMPLE PRICES:", JSON.stringify(samplePrices, null, 2));
-
-    console.log("TOP-LEVEL KEYS products:", JSON.stringify(Object.keys(productsData || {})));
-    console.log("TOP-LEVEL KEYS stock:", JSON.stringify(Object.keys(stockData || {})));
-    console.log("TOP-LEVEL KEYS prices:", JSON.stringify(Object.keys(pricesData || {})));
-
-    // DEBUG: Return early with samples
-    return new Response(JSON.stringify({
-      debug: true,
-      sampleProducts: sampleProducts,
-      sampleStock: sampleStock,
-      samplePrices: samplePrices,
-      pricesCurrency: pricesData?.currency,
-      pricesDate: pricesData?.date,
-      topLevelKeys: {
-        products: Object.keys(productsData || {}),
-        stock: Object.keys(stockData || {}),
-        prices: Object.keys(pricesData || {}),
-      }
-    }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-
-    // Build stock map: sku -> qty
+    // Build stock map: variant sku -> qty
     const stockMap = new Map<string, number>();
-    if (Array.isArray(stockData?.stock)) {
-      for (const s of stockData.stock) {
-        const sku = s.sku || s.master_id;
-        const qty = s.qty ?? s.quantity ?? s.stock ?? 0;
-        stockMap.set(sku, (stockMap.get(sku) || 0) + Number(qty));
-      }
-    } else if (Array.isArray(stockData)) {
-      for (const s of stockData) {
-        const sku = s.sku || s.master_id;
-        const qty = s.qty ?? s.quantity ?? s.stock ?? 0;
-        stockMap.set(sku, (stockMap.get(sku) || 0) + Number(qty));
-      }
+    const stockList = Array.isArray(stockData) ? stockData : stockData?.stock || [];
+    for (const s of stockList) {
+      const sku = s.sku || s.master_id;
+      if (!sku) continue;
+      stockMap.set(sku, (stockMap.get(sku) || 0) + Number(s.qty ?? s.quantity ?? 0));
     }
 
-    // Build price map: master_id -> price
+    // Build price map: variant sku -> price (parsed from comma format)
     const priceMap = new Map<string, number>();
-    if (Array.isArray(pricesData?.prices)) {
-      for (const p of pricesData.prices) {
-        const id = p.master_id || p.sku;
-        const price = p.price ?? p.unit_price ?? 0;
-        priceMap.set(id, Number(price));
-      }
-    } else if (Array.isArray(pricesData)) {
-      for (const p of pricesData) {
-        const id = p.master_id || p.sku;
-        const price = p.price ?? p.unit_price ?? 0;
-        priceMap.set(id, Number(price));
-      }
+    const priceList = Array.isArray(pricesData) ? pricesData : pricesData?.price || pricesData?.prices || [];
+    for (const p of priceList) {
+      const sku = p.sku || p.master_id;
+      if (!sku) continue;
+      priceMap.set(sku, parseEuroPrice(p.price));
     }
 
     // Process products
@@ -166,51 +114,73 @@ Deno.serve(async (req) => {
 
     for (const product of products) {
       try {
-        const masterId = product.master_id || product.sku || product.item_number;
-        if (!masterId) continue;
+        const masterCode = product.master_code;
+        if (!masterCode) continue;
 
-        const name = product.short_description || product.description || product.master_id || "Unknown";
-        const sku = product.master_id || product.sku || "";
-        const category = product.commodity_code || product.category || product.product_class || "general";
+        const name = product.product_name || product.short_description || masterCode;
+        const sku = masterCode;
+
+        // Extract from first variant: categories, image, color
+        const firstVariant = product.variants?.[0];
+        const category = [
+          firstVariant?.category_level1,
+          firstVariant?.category_level2,
+          firstVariant?.category_level3,
+        ].filter(Boolean).join(" > ") || "general";
+
+        // Image: first digital asset from first variant
+        const imageUrl = firstVariant?.digital_assets?.find((a: { url?: string }) => a.url)?.url || null;
+
+        // Aggregate stock across all variant SKUs
+        let totalStock = 0;
+        const variantSkus: string[] = [];
+        if (product.variants) {
+          for (const v of product.variants) {
+            if (v.sku) {
+              variantSkus.push(v.sku);
+              totalStock += stockMap.get(v.sku) || 0;
+            }
+          }
+        }
+
+        // Best price across variants (lowest) * multiplier
+        let bestPrice = 0;
+        for (const vSku of variantSkus) {
+          const p = priceMap.get(vSku);
+          if (p !== undefined && (bestPrice === 0 || p < bestPrice)) {
+            bestPrice = p;
+          }
+        }
+        const finalPrice = Math.round(bestPrice * PRICE_MULTIPLIER * 100) / 100;
+
         const description = product.long_description || product.description || null;
-        const imageUrl = product.master_image?.url || product.digital_assets?.[0]?.url || product.image_url || null;
-        const stockQty = stockMap.get(sku) ?? stockMap.get(masterId) ?? 0;
-        const basePrice = priceMap.get(masterId) ?? priceMap.get(sku) ?? 0;
 
         // Upsert by midocean_id
         const { data: existing } = await supabase
           .from("catalog_products")
           .select("id")
-          .eq("midocean_id", masterId)
+          .eq("midocean_id", masterCode)
           .maybeSingle();
 
+        const payload = {
+          name,
+          sku,
+          category,
+          description,
+          image_url: imageUrl,
+          stock_qty: totalStock,
+          base_price: finalPrice,
+          last_synced_at: now,
+        };
+
         if (existing) {
-          await supabase
-            .from("catalog_products")
-            .update({
-              name,
-              sku,
-              category,
-              description,
-              image_url: imageUrl,
-              stock_qty: stockQty,
-              base_price: basePrice,
-              last_synced_at: now,
-            })
-            .eq("id", existing.id);
+          await supabase.from("catalog_products").update(payload).eq("id", existing.id);
           updated++;
         } else {
           await supabase.from("catalog_products").insert({
-            midocean_id: masterId,
-            name,
-            sku,
-            category,
-            description,
-            image_url: imageUrl,
-            stock_qty: stockQty,
-            base_price: basePrice,
+            ...payload,
+            midocean_id: masterCode,
             active: true,
-            last_synced_at: now,
           });
           created++;
         }
@@ -223,17 +193,8 @@ Deno.serve(async (req) => {
     console.log(`Sync complete: ${created} created, ${updated} updated, ${errors} errors`);
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        total: products.length,
-        created,
-        updated,
-        errors,
-      }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      JSON.stringify({ success: true, total: products.length, created, updated, errors }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {
     console.error("Sync error:", error);
