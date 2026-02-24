@@ -35,3 +35,6 @@ verify_jwt = false
 
 [functions.poll-odoo-updates]
 verify_jwt = false
+
+[functions.sync-midocean]
+verify_jwt = false

@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Plus, Search, Loader2, MoreHorizontal, Pencil, Trash2, Package, Upload, Eye } from "lucide-react";
+import { Plus, Search, Loader2, MoreHorizontal, Pencil, Trash2, Package, Upload, Eye, RefreshCw } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/mock-data";
@@ -31,6 +31,9 @@ type CatalogProduct = {
   image_url: string | null;
   active: boolean;
   created_at: string;
+  midocean_id: string | null;
+  stock_qty: number;
+  last_synced_at: string | null;
 };
 
 const emptyCp = {
@@ -145,13 +148,28 @@ const CatalogProducts = () => {
   });
 
   const activeCount = products?.filter((p) => p.active).length || 0;
+  const syncedCount = products?.filter((p) => p.midocean_id).length || 0;
+
+  const syncMidocean = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("sync-midocean");
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success(`Synchronisation terminée : ${data.created} créés, ${data.updated} mis à jour`);
+      qc.invalidateQueries({ queryKey: ["catalog-products"] });
+    },
+    onError: (err: any) => toast.error(`Erreur sync Midocean : ${err.message}`),
+  });
 
   return (
     <>
       <TopBar title={t("catalogAdmin.title")} subtitle={t("catalogAdmin.subtitle")} />
       <div className="p-6 space-y-6 overflow-auto">
         {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           <div className="bg-card rounded-lg border border-border p-4 flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
               <Package className="w-5 h-5 text-primary" />
@@ -179,6 +197,15 @@ const CatalogProducts = () => {
               <p className="text-xs text-muted-foreground">{t("catalogAdmin.inactiveProducts")}</p>
             </div>
           </div>
+          <div className="bg-card rounded-lg border border-border p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
+              <RefreshCw className="w-5 h-5 text-accent-foreground" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-foreground">{syncedCount}</p>
+              <p className="text-xs text-muted-foreground">Midocean</p>
+            </div>
+          </div>
         </div>
 
         {/* Table */}
@@ -192,6 +219,10 @@ const CatalogProducts = () => {
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                     <Input placeholder={t("common.search")} value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-8 w-52 text-sm" />
                   </div>
+                  <Button size="sm" variant="outline" className="gap-1.5" onClick={() => syncMidocean.mutate()} disabled={syncMidocean.isPending}>
+                    {syncMidocean.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                    Sync Midocean
+                  </Button>
                   <Button size="sm" className="gap-1.5" onClick={openCreate}>
                     <Plus className="w-4 h-4" /> {t("catalogAdmin.addProduct")}
                   </Button>
@@ -214,8 +245,9 @@ const CatalogProducts = () => {
                   <TableHead className="text-xs">SKU</TableHead>
                   <TableHead className="text-xs">{t("common.category")}</TableHead>
                   <TableHead className="text-xs">{t("catalogAdmin.basePrice")}</TableHead>
+                  <TableHead className="text-xs">Stock</TableHead>
                   <TableHead className="text-xs">{t("common.status")}</TableHead>
-                  <TableHead className="text-xs">{t("common.createdOn")}</TableHead>
+                  <TableHead className="text-xs">Source</TableHead>
                   <TableHead className="text-xs w-10"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -242,12 +274,19 @@ const CatalogProducts = () => {
                       <Badge variant="outline" className="text-[10px] capitalize">{product.category}</Badge>
                     </TableCell>
                     <TableCell className="font-medium">{formatCurrency(product.base_price)}</TableCell>
+                    <TableCell className="text-xs font-medium">{product.stock_qty}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className={`text-[10px] ${product.active ? "bg-success/10 text-success border-success/20" : "bg-muted text-muted-foreground"}`}>
                         {product.active ? t("common.active") : t("common.inactive")}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{new Date(product.created_at).toLocaleDateString("fr-FR")}</TableCell>
+                    <TableCell>
+                      {product.midocean_id ? (
+                        <Badge variant="secondary" className="text-[9px]">Midocean</Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Manuel</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>

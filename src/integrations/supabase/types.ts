@@ -187,10 +187,13 @@ export type Database = {
           description_nl: string | null
           id: string
           image_url: string | null
+          last_synced_at: string | null
+          midocean_id: string | null
           name: string
           name_en: string | null
           name_nl: string | null
           sku: string
+          stock_qty: number
         }
         Insert: {
           active?: boolean
@@ -202,10 +205,13 @@ export type Database = {
           description_nl?: string | null
           id?: string
           image_url?: string | null
+          last_synced_at?: string | null
+          midocean_id?: string | null
           name: string
           name_en?: string | null
           name_nl?: string | null
           sku: string
+          stock_qty?: number
         }
         Update: {
           active?: boolean
@@ -217,10 +223,13 @@ export type Database = {
           description_nl?: string | null
           id?: string
           image_url?: string | null
+          last_synced_at?: string | null
+          midocean_id?: string | null
           name?: string
           name_en?: string | null
           name_nl?: string | null
           sku?: string
+          stock_qty?: number
         }
         Relationships: []
       }
