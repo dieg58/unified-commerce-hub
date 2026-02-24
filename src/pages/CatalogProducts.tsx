@@ -14,7 +14,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Search, Loader2, MoreHorizontal, Pencil, Trash2, Package, Upload, Eye, RefreshCw, Filter, Gift, Shirt, CheckCircle, XCircle, Sparkles } from "lucide-react";
+import { Plus, Search, Loader2, MoreHorizontal, Pencil, Trash2, Package, Upload, Eye, RefreshCw, Filter, Gift, Shirt, CheckCircle, XCircle, Sparkles, Printer } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/mock-data";
@@ -63,7 +63,7 @@ const CatalogProducts = () => {
   const qc = useQueryClient();
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
-  const [activeTab, setActiveTab] = useState<"goodies" | "textile">("goodies");
+  const [activeTab, setActiveTab] = useState<"goodies" | "textile" | "autre">("goodies");
   const [filterGroup, setFilterGroup] = useState<string>("all");
   const [filterSubCategory, setFilterSubCategory] = useState<string>("all");
   
@@ -130,23 +130,34 @@ const CatalogProducts = () => {
   const tabProducts = useMemo(() => {
     if (!products) return [];
     if (activeTab === "goodies") {
-      return products.filter((p) => !p.midocean_id?.startsWith("SS-") && !p.midocean_id?.startsWith("TT-"));
+      return products.filter((p) => !p.midocean_id?.startsWith("SS-") && !p.midocean_id?.startsWith("TT-") && !p.midocean_id?.startsWith("PRINT-"));
     }
-    // textile = Stanley/Stella + TopTex
-    return products.filter((p) => !!p.midocean_id?.startsWith("SS-") || !!p.midocean_id?.startsWith("TT-"));
+    if (activeTab === "textile") {
+      return products.filter((p) => !!p.midocean_id?.startsWith("SS-") || !!p.midocean_id?.startsWith("TT-"));
+    }
+    // autre = Print.com + manual without other prefixes
+    return products.filter((p) => !!p.midocean_id?.startsWith("PRINT-"));
   }, [products, activeTab]);
 
   // Goodies supplier filter
   const [goodiesSupplier, setGoodiesSupplier] = useState<"all" | "midocean" | "pfconcept" | "manual">("all");
+  const [autreSupplier, setAutreSupplier] = useState<"all" | "printcom" | "manual">("all");
 
   // Filter by supplier within goodies tab
   const supplierFilteredProducts = useMemo(() => {
-    if (activeTab !== "goodies" || goodiesSupplier === "all") return tabProducts;
-    if (goodiesSupplier === "midocean") return tabProducts.filter((p) => p.midocean_id && !p.midocean_id.startsWith("PFC-"));
-    if (goodiesSupplier === "pfconcept") return tabProducts.filter((p) => p.midocean_id?.startsWith("PFC-"));
-    // manual = no midocean_id
-    return tabProducts.filter((p) => !p.midocean_id);
-  }, [tabProducts, goodiesSupplier, activeTab]);
+    if (activeTab === "goodies") {
+      if (goodiesSupplier === "all") return tabProducts;
+      if (goodiesSupplier === "midocean") return tabProducts.filter((p) => p.midocean_id && !p.midocean_id.startsWith("PFC-"));
+      if (goodiesSupplier === "pfconcept") return tabProducts.filter((p) => p.midocean_id?.startsWith("PFC-"));
+      return tabProducts.filter((p) => !p.midocean_id);
+    }
+    if (activeTab === "autre") {
+      if (autreSupplier === "all") return tabProducts;
+      if (autreSupplier === "printcom") return tabProducts.filter((p) => p.midocean_id?.startsWith("PRINT-"));
+      return tabProducts.filter((p) => !p.midocean_id);
+    }
+    return tabProducts;
+  }, [tabProducts, goodiesSupplier, autreSupplier, activeTab]);
 
   // Parent categories with counts
   const parentCategories = useMemo(() => {
@@ -264,8 +275,9 @@ const CatalogProducts = () => {
   });
 
   const activeCount = supplierFilteredProducts.filter((p) => p.active).length;
-  const goodiesCount = products?.filter((p) => !p.midocean_id?.startsWith("SS-") && !p.midocean_id?.startsWith("TT-")).length || 0;
+  const goodiesCount = products?.filter((p) => !p.midocean_id?.startsWith("SS-") && !p.midocean_id?.startsWith("TT-") && !p.midocean_id?.startsWith("PRINT-")).length || 0;
   const textileCount = products?.filter((p) => !!p.midocean_id?.startsWith("SS-") || !!p.midocean_id?.startsWith("TT-")).length || 0;
+  const autreCount = products?.filter((p) => !!p.midocean_id?.startsWith("PRINT-")).length || 0;
 
   const syncPfConcept = useMutation({
     mutationFn: async () => {
@@ -350,13 +362,27 @@ const CatalogProducts = () => {
     onError: (err: any) => toast.error(`Erreur sync TopTex : ${err.message}`),
   });
 
+  const syncPrintcom = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("sync-printcom");
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success(`Print.com : ${data.created} créés, ${data.updated} mis à jour`);
+      qc.invalidateQueries({ queryKey: ["catalog-products"] });
+    },
+    onError: (err: any) => toast.error(`Erreur sync Print.com : ${err.message}`),
+  });
+
   return (
     <>
       <TopBar title={t("catalogAdmin.title")} subtitle={t("catalogAdmin.subtitle")} />
       <div className="p-6 space-y-6 overflow-auto">
         {/* Stats */}
         {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as "goodies" | "textile"); setFilterGroup("all"); setFilterSubCategory("all"); setSearch(""); }}>
+        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as "goodies" | "textile" | "autre"); setFilterGroup("all"); setFilterSubCategory("all"); setSearch(""); }}>
           <div className="flex items-center justify-between">
             <TabsList>
               <TabsTrigger value="goodies" className="gap-1.5">
@@ -366,6 +392,10 @@ const CatalogProducts = () => {
               <TabsTrigger value="textile" className="gap-1.5">
                 <Shirt className="w-4 h-4" />
                 Textile ({textileCount})
+              </TabsTrigger>
+              <TabsTrigger value="autre" className="gap-1.5">
+                <Printer className="w-4 h-4" />
+                Autre ({autreCount})
               </TabsTrigger>
             </TabsList>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -392,6 +422,28 @@ const CatalogProducts = () => {
                 variant={goodiesSupplier === key ? "default" : "outline"}
                 className="h-7 text-xs rounded-full px-3"
                 onClick={() => { setGoodiesSupplier(key as any); setFilterGroup("all"); setFilterSubCategory("all"); }}
+              >
+                {label} ({count})
+              </Button>
+            ))}
+          </div>
+        )}
+
+        {/* Supplier filter for autre tab */}
+        {activeTab === "autre" && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-xs text-muted-foreground mr-1">Fournisseur :</span>
+            {([
+              ["all", "Tous", tabProducts.length],
+              ["printcom", "Print.com", tabProducts.filter(p => p.midocean_id?.startsWith("PRINT-")).length],
+              ["manual", "Manuel", tabProducts.filter(p => !p.midocean_id).length],
+            ] as [string, string, number][]).filter(([, , count]) => count > 0).map(([key, label, count]) => (
+              <Button
+                key={key}
+                size="sm"
+                variant={autreSupplier === key ? "default" : "outline"}
+                className="h-7 text-xs rounded-full px-3"
+                onClick={() => { setAutreSupplier(key as any); setFilterGroup("all"); setFilterSubCategory("all"); }}
               >
                 {label} ({count})
               </Button>
@@ -515,6 +567,12 @@ const CatalogProducts = () => {
                         Sync TopTex
                       </Button>
                     </>
+                  )}
+                  {activeTab === "autre" && (
+                    <Button size="sm" variant="outline" className="gap-1.5" onClick={() => syncPrintcom.mutate()} disabled={syncPrintcom.isPending}>
+                      {syncPrintcom.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                      Sync Print.com
+                    </Button>
                   )}
                   <Button size="sm" className="gap-1.5" onClick={openCreate}>
                     <Plus className="w-4 h-4" /> {t("catalogAdmin.addProduct")}
