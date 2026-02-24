@@ -279,10 +279,10 @@ function UsersTab({ tenantId, users }: { tenantId: string; users: any[] }) {
     mutationFn: async () => {
       // Create invitation record
       const { data: { session } } = await supabase.auth.getSession();
-      const { error: invErr } = await supabase.from("invitations").insert({
+      const { error: invErr } = await supabase.from("invitations").upsert({
         tenant_id: tenantId, email: invEmail.toLowerCase(), full_name: invName,
-        role: invRole as any, invited_by: session!.user.id,
-      });
+        role: invRole as any, invited_by: session!.user.id, status: "pending", accepted_at: null,
+      }, { onConflict: "tenant_id,email" });
       if (invErr) throw invErr;
       // Call edge function
       const { data, error } = await supabase.functions.invoke("invite-user", {
