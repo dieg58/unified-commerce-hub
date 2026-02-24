@@ -15,6 +15,7 @@ import {
   Wallet,
   ExternalLink,
   ClipboardCheck,
+  Sparkles,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -41,6 +42,7 @@ const TenantAdminSidebar = () => {
     { to: "/tenant/budgets", icon: Wallet, label: t("nav.budgets") },
     { separator: t("nav.commerce") },
     { to: "/tenant/products", icon: Package, label: t("nav.products") },
+    { to: "/tenant/product-requests", icon: Sparkles, label: "Demandes produits" },
     { to: "/tenant/orders", icon: ShoppingCart, label: t("nav.orders") },
     { to: "/tenant/approvals", icon: ClipboardCheck, label: t("nav.approvals") },
     { to: "/tenant/discounts", icon: Tag, label: t("nav.promoCodes") },

@@ -908,6 +908,74 @@ export type Database = {
           },
         ]
       }
+      product_requests: {
+        Row: {
+          admin_note: string | null
+          catalog_product_id: string
+          created_at: string
+          created_product_id: string | null
+          id: string
+          note: string | null
+          requested_by: string
+          status: Database["public"]["Enums"]["product_request_status"]
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          admin_note?: string | null
+          catalog_product_id: string
+          created_at?: string
+          created_product_id?: string | null
+          id?: string
+          note?: string | null
+          requested_by: string
+          status?: Database["public"]["Enums"]["product_request_status"]
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          admin_note?: string | null
+          catalog_product_id?: string
+          created_at?: string
+          created_product_id?: string | null
+          id?: string
+          note?: string | null
+          requested_by?: string
+          status?: Database["public"]["Enums"]["product_request_status"]
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_requests_catalog_product_id_fkey"
+            columns: ["catalog_product_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_requests_created_product_id_fkey"
+            columns: ["created_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_requests_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_requests_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_variants: {
         Row: {
           active: boolean
@@ -1567,6 +1635,13 @@ export type Database = {
       address_type: "shipping" | "billing"
       app_role: "super_admin" | "shop_manager" | "dept_manager" | "employee"
       budget_period: "monthly" | "quarterly" | "yearly"
+      product_request_status:
+        | "requested"
+        | "in_discussion"
+        | "bat_sent"
+        | "validated"
+        | "added"
+        | "rejected"
       stock_movement_type: "entry" | "exit" | "adjustment"
       stock_type: "in_stock" | "made_to_order"
       store_type: "bulk" | "staff"
@@ -1700,6 +1775,14 @@ export const Constants = {
       address_type: ["shipping", "billing"],
       app_role: ["super_admin", "shop_manager", "dept_manager", "employee"],
       budget_period: ["monthly", "quarterly", "yearly"],
+      product_request_status: [
+        "requested",
+        "in_discussion",
+        "bat_sent",
+        "validated",
+        "added",
+        "rejected",
+      ],
       stock_movement_type: ["entry", "exit", "adjustment"],
       stock_type: ["in_stock", "made_to_order"],
       store_type: ["bulk", "staff"],
