@@ -81,7 +81,8 @@ const CatalogProducts = () => {
     const matchesCategory = filterCategory === "all" || p.category === filterCategory;
     const matchesSource =
       filterSource === "all" ||
-      (filterSource === "midocean" && !!p.midocean_id) ||
+      (filterSource === "midocean" && !!p.midocean_id && !p.midocean_id.startsWith("SS-")) ||
+      (filterSource === "stanleystella" && !!p.midocean_id && p.midocean_id.startsWith("SS-")) ||
       (filterSource === "manual" && !p.midocean_id);
     const matchesActive = filterActive === null || p.active === filterActive;
     return matchesSearch && matchesCategory && matchesSource && matchesActive;
@@ -176,10 +177,24 @@ const CatalogProducts = () => {
       return data;
     },
     onSuccess: (data) => {
-      toast.success(`Synchronisation terminée : ${data.created} créés, ${data.updated} mis à jour`);
+      toast.success(`Midocean : ${data.created} créés, ${data.updated} mis à jour`);
       qc.invalidateQueries({ queryKey: ["catalog-products"] });
     },
     onError: (err: any) => toast.error(`Erreur sync Midocean : ${err.message}`),
+  });
+
+  const syncStanleyStella = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("sync-stanleystella");
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success(`Stanley/Stella : ${data.created} créés, ${data.updated} mis à jour`);
+      qc.invalidateQueries({ queryKey: ["catalog-products"] });
+    },
+    onError: (err: any) => toast.error(`Erreur sync Stanley/Stella : ${err.message}`),
   });
 
   return (
@@ -239,6 +254,7 @@ const CatalogProducts = () => {
             <SelectContent>
               <SelectItem value="all">Tous les fournisseurs</SelectItem>
               <SelectItem value="midocean">Midocean</SelectItem>
+              <SelectItem value="stanleystella">Stanley/Stella</SelectItem>
               <SelectItem value="manual">Manuel</SelectItem>
             </SelectContent>
           </Select>
@@ -285,6 +301,10 @@ const CatalogProducts = () => {
                   <Button size="sm" variant="outline" className="gap-1.5" onClick={() => syncMidocean.mutate()} disabled={syncMidocean.isPending}>
                     {syncMidocean.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                     Sync Midocean
+                  </Button>
+                  <Button size="sm" variant="outline" className="gap-1.5" onClick={() => syncStanleyStella.mutate()} disabled={syncStanleyStella.isPending}>
+                    {syncStanleyStella.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                    Sync Stanley/Stella
                   </Button>
                   <Button size="sm" className="gap-1.5" onClick={openCreate}>
                     <Plus className="w-4 h-4" /> {t("catalogAdmin.addProduct")}
@@ -345,7 +365,11 @@ const CatalogProducts = () => {
                     </TableCell>
                     <TableCell>
                       {product.midocean_id ? (
-                        <Badge variant="secondary" className="text-[9px]">Midocean</Badge>
+                        product.midocean_id.startsWith("SS-") ? (
+                          <Badge variant="secondary" className="text-[9px]">Stanley/Stella</Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-[9px]">Midocean</Badge>
+                        )
                       ) : (
                         <span className="text-xs text-muted-foreground">Manuel</span>
                       )}
