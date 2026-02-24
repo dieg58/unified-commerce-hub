@@ -314,55 +314,67 @@ const CatalogProducts = () => {
           </div>
         </Tabs>
 
-        {/* Compact filters row */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Category group dropdown */}
-          <Select value={filterGroup} onValueChange={(v) => { setFilterGroup(v); setFilterSubCategory("all"); }}>
-            <SelectTrigger className="h-8 w-[200px] text-xs">
-              <div className="flex items-center gap-1.5">
-                <Filter className="w-3.5 h-3.5 text-muted-foreground" />
-                <SelectValue placeholder="Catégorie" />
-              </div>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">
-                Toutes les catégories ({tabProducts.length})
-              </SelectItem>
-              {availableGroups.map(([groupKey, count]) => {
-                const group = CATEGORY_GROUPS[groupKey];
-                const label = group?.label || "Autres";
+        {/* Category group pills → click reveals sub-categories */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <Button
+              size="sm"
+              variant={filterGroup === "all" ? "default" : "outline"}
+              className="h-7 text-xs rounded-full px-3"
+              onClick={() => { setFilterGroup("all"); setFilterSubCategory("all"); }}
+            >
+              Tout ({tabProducts.length})
+            </Button>
+            {availableGroups.map(([groupKey, count]) => {
+              const group = CATEGORY_GROUPS[groupKey];
+              const Icon = group?.icon || Package;
+              const label = group?.label || "Autres";
+              return (
+                <Button
+                  key={groupKey}
+                  size="sm"
+                  variant={filterGroup === groupKey ? "default" : "outline"}
+                  className="h-7 text-xs rounded-full px-3 gap-1"
+                  onClick={() => { setFilterGroup(groupKey); setFilterSubCategory("all"); }}
+                >
+                  <Icon className="w-3 h-3" />
+                  {label} ({count})
+                </Button>
+              );
+            })}
+          </div>
+
+          {/* Sub-categories revealed on group click */}
+          {filterGroup !== "all" && subCategories.length > 1 && (
+            <div className="flex items-center gap-1.5 flex-wrap pl-4 border-l-2 border-primary/30">
+              <Button
+                size="sm"
+                variant={filterSubCategory === "all" ? "secondary" : "ghost"}
+                className="h-6 text-[11px] rounded-full px-2.5"
+                onClick={() => setFilterSubCategory("all")}
+              >
+                Tout ({tabProducts.filter((p) => getCategoryGroup(p.category) === filterGroup).length})
+              </Button>
+              {subCategories.map((cat) => {
+                const count = tabProducts.filter((p) => p.category === cat).length;
                 return (
-                  <SelectItem key={groupKey} value={groupKey}>
-                    {label} ({count})
-                  </SelectItem>
+                  <Button
+                    key={cat}
+                    size="sm"
+                    variant={filterSubCategory === cat ? "secondary" : "ghost"}
+                    className="h-6 text-[11px] rounded-full px-2.5 font-mono"
+                    onClick={() => setFilterSubCategory(cat)}
+                  >
+                    {cat} ({count})
+                  </Button>
                 );
               })}
-            </SelectContent>
-          </Select>
-
-          {/* Sub-category dropdown */}
-          {filterGroup !== "all" && subCategories.length > 1 && (
-            <Select value={filterSubCategory} onValueChange={setFilterSubCategory}>
-              <SelectTrigger className="h-8 w-[160px] text-xs">
-                <SelectValue placeholder="Sous-catégorie" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">
-                  Tout ({tabProducts.filter((p) => getCategoryGroup(p.category) === filterGroup).length})
-                </SelectItem>
-                {subCategories.map((cat) => {
-                  const count = tabProducts.filter((p) => p.category === cat).length;
-                  return (
-                    <SelectItem key={cat} value={cat}>
-                      {cat} ({count})
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
+            </div>
           )}
+        </div>
 
-          {/* Active filter */}
+        {/* Active filter + reset */}
+        <div className="flex items-center gap-2">
           <ToggleGroup
             type="single"
             value={filterActive === null ? "all" : filterActive ? "active" : "inactive"}
@@ -374,19 +386,12 @@ const CatalogProducts = () => {
             variant="outline"
             size="sm"
           >
-            <ToggleGroupItem value="all" className="text-xs px-3 h-8">Tous</ToggleGroupItem>
-            <ToggleGroupItem value="active" className="text-xs px-3 h-8">Actifs</ToggleGroupItem>
-            <ToggleGroupItem value="inactive" className="text-xs px-3 h-8">Inactifs</ToggleGroupItem>
+            <ToggleGroupItem value="all" className="text-xs px-3 h-7">Tous</ToggleGroupItem>
+            <ToggleGroupItem value="active" className="text-xs px-3 h-7">Actifs</ToggleGroupItem>
+            <ToggleGroupItem value="inactive" className="text-xs px-3 h-7">Inactifs</ToggleGroupItem>
           </ToggleGroup>
-
-          {/* Active filter reset */}
           {(filterGroup !== "all" || filterActive !== null) && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-8 text-xs text-muted-foreground"
-              onClick={() => { setFilterGroup("all"); setFilterSubCategory("all"); setFilterActive(null); }}
-            >
+            <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground" onClick={() => { setFilterGroup("all"); setFilterSubCategory("all"); setFilterActive(null); }}>
               Réinitialiser
             </Button>
           )}
