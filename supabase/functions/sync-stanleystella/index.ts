@@ -95,9 +95,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    console.log("Fetching Stanley/Stella data...");
+    console.log("Fetching Stanley/Stella data (DEBUG MODE)...");
 
-    // Fetch products, stock, and prices in parallel
+    // Fetch only products and prices for debug (skip stock/images to be faster)
     const [productsData, stockData, pricesData, imagesData] = await Promise.all([
       ssApiCall(`${SS_BASE}/productsV2/get_json`, ssUser, ssPassword, {
         LanguageCode: "fr_FR",
@@ -109,8 +109,6 @@ Deno.serve(async (req) => {
       ssApiCall(`${SS_BASE}/products/get_prices`, ssUser, ssPassword, {}),
       ssApiCall(`${SS_BASE}/products_imagesV2/get_json`, ssUser, ssPassword, {
         LanguageCode: "fr_FR",
-        PhotoTypeCode: "Studio",
-        PhotoStyle: "Front",
       }),
     ]);
 
@@ -119,120 +117,31 @@ Deno.serve(async (req) => {
     const prices = parseResult(pricesData);
     const images = parseResult(imagesData);
 
-    console.log(`Fetched: ${products.length} products, ${stocks.length} stock entries, ${prices.length} prices, ${images.length} images`);
+    // Return sample data for field mapping
+    const sampleProduct = products.length > 0 ? products[0] : null;
+    const sampleStock = stocks.length > 0 ? stocks[0] : null;
+    const samplePrice = prices.length > 0 ? prices[0] : null;
+    const sampleImage = images.length > 0 ? images[0] : null;
 
-    // Build stock map: SKU -> qty
-    const stockMap = new Map<string, number>();
-    for (const s of stocks as Array<{ SKU?: string; sku?: string; qty?: number; Quantity?: number }>) {
-      const sku = s.SKU || s.sku;
-      if (!sku) continue;
-      stockMap.set(sku, (stockMap.get(sku) || 0) + Number(s.qty ?? s.Quantity ?? 0));
-    }
-
-    // Build price map: SKU -> price
-    const priceMap = new Map<string, number>();
-    for (const p of prices as Array<{ B2BSKUREF?: string; SKU?: string; PurchasePrice?: number; SalePrice?: number }>) {
-      const sku = p.B2BSKUREF || p.SKU;
-      if (!sku) continue;
-      const price = Number(p.PurchasePrice ?? p.SalePrice ?? 0);
-      if (price > 0) priceMap.set(sku, price);
-    }
-
-    // Build image map: StyleCode -> first image URL
-    const imageMap = new Map<string, string>();
-    for (const img of images as Array<{ StyleCode?: string; URL?: string; url?: string }>) {
-      const style = img.StyleCode;
-      const url = img.URL || img.url;
-      if (style && url && !imageMap.has(style)) {
-        imageMap.set(style, url);
-      }
-    }
-
-    // Process products - productsV2 groups variants by style
-    let created = 0;
-    let updated = 0;
-    let errors = 0;
-    const now = new Date().toISOString();
-
-    for (const product of products as Array<Record<string, unknown>>) {
-      try {
-        const styleCode = product.StyleCode as string || product.Code as string;
-        if (!styleCode) continue;
-
-        const name = product.Name as string || product.StyleName as string || styleCode;
-        const description = product.Description as string || product.LongDescription as string || null;
-        const category = product.CategoryName as string || product.MainSegment as string || "textile";
-
-        // Image from images API
-        const imageUrl = imageMap.get(styleCode) || null;
-
-        // Aggregate stock and find best price across variants
-        let totalStock = 0;
-        let bestPrice = 0;
-        const variants = product.Variants as Array<Record<string, unknown>> || product.variants as Array<Record<string, unknown>> || [];
-
-        if (variants.length > 0) {
-          for (const v of variants) {
-            const vSku = v.SKU as string || v.B2BSKUREF as string;
-            if (!vSku) continue;
-            totalStock += stockMap.get(vSku) || 0;
-            const p = priceMap.get(vSku);
-            if (p !== undefined && (bestPrice === 0 || p < bestPrice)) {
-              bestPrice = p;
-            }
-          }
-        } else {
-          // Flat product with single SKU
-          const pSku = product.SKU as string || product.B2BSKUREF as string;
-          if (pSku) {
-            totalStock = stockMap.get(pSku) || 0;
-            bestPrice = priceMap.get(pSku) || 0;
-          }
-        }
-
-        const finalPrice = Math.round(bestPrice * PRICE_MULTIPLIER * 100) / 100;
-
-        // Use midocean_id field to store SS identifier with prefix
-        const sourceId = `SS-${styleCode}`;
-
-        const { data: existing } = await supabase
-          .from("catalog_products")
-          .select("id")
-          .eq("midocean_id", sourceId)
-          .maybeSingle();
-
-        const payload = {
-          name,
-          sku: styleCode,
-          category,
-          description,
-          image_url: imageUrl,
-          stock_qty: totalStock,
-          base_price: finalPrice,
-          last_synced_at: now,
-        };
-
-        if (existing) {
-          await supabase.from("catalog_products").update(payload).eq("id", existing.id);
-          updated++;
-        } else {
-          await supabase.from("catalog_products").insert({
-            ...payload,
-            midocean_id: sourceId,
-            active: true,
-          });
-          created++;
-        }
-      } catch (e) {
-        console.error("Error processing SS product:", e);
-        errors++;
-      }
-    }
-
-    console.log(`Stanley/Stella sync complete: ${created} created, ${updated} updated, ${errors} errors`);
+    // Also get keys of each
+    const productKeys = sampleProduct ? Object.keys(sampleProduct as Record<string, unknown>) : [];
+    const stockKeys = sampleStock ? Object.keys(sampleStock as Record<string, unknown>) : [];
+    const priceKeys = samplePrice ? Object.keys(samplePrice as Record<string, unknown>) : [];
+    const imageKeys = sampleImage ? Object.keys(sampleImage as Record<string, unknown>) : [];
 
     return new Response(
-      JSON.stringify({ success: true, total: products.length, created, updated, errors }),
+      JSON.stringify({
+        debug: true,
+        counts: { products: products.length, stocks: stocks.length, prices: prices.length, images: images.length },
+        sampleProduct,
+        productKeys,
+        sampleStock,
+        stockKeys,
+        samplePrice,
+        priceKeys,
+        sampleImage,
+        imageKeys,
+      }, null, 2),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {
