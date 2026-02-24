@@ -196,6 +196,8 @@ export type Database = {
           release_date: string | null
           sku: string
           stock_qty: number
+          variant_colors: Json | null
+          variant_sizes: Json | null
         }
         Insert: {
           active?: boolean
@@ -216,6 +218,8 @@ export type Database = {
           release_date?: string | null
           sku: string
           stock_qty?: number
+          variant_colors?: Json | null
+          variant_sizes?: Json | null
         }
         Update: {
           active?: boolean
@@ -236,6 +240,8 @@ export type Database = {
           release_date?: string | null
           sku?: string
           stock_qty?: number
+          variant_colors?: Json | null
+          variant_sizes?: Json | null
         }
         Relationships: []
       }
