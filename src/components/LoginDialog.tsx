@@ -84,7 +84,7 @@ const LoginDialog = ({ open, onOpenChange, redirectTo }: LoginDialogProps) => {
     ? "Entrez votre email pour recevoir un lien de réinitialisation."
     : isSignUp
       ? "Remplissez les informations pour créer votre compte."
-      : "Connectez-vous à votre espace Inkoo.";
+      : "Connectez-vous à votre espace INKOO.";
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>

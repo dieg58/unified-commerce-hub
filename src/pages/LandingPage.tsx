@@ -3,11 +3,13 @@ import { Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
-import { ArrowRight, Loader2, Package, Truck, Warehouse, Monitor, ChevronRight } from "lucide-react";
-import heroImg from "@/assets/hero-merch.jpg";
-import webshopImg from "@/assets/services-webshop.jpg";
-import storageImg from "@/assets/services-storage.jpg";
-import shippingImg from "@/assets/services-shipping.jpg";
+import {
+  ArrowRight, Loader2, Package, Truck, Warehouse, Monitor,
+  ChevronRight, Shield, BarChart3, Globe, Users, Zap,
+  CheckCircle, Star, Clock, HeartHandshake, Palette, Settings2,
+  ShoppingBag, Box, ArrowUpRight
+} from "lucide-react";
+import heroImg from "@/assets/hero-inkoo.jpg";
 import DemoRequestDialog from "@/components/DemoRequestDialog";
 import LoginDialog from "@/components/LoginDialog";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
@@ -33,28 +35,6 @@ const LandingPage = () => {
   const [loginOpen, setLoginOpen] = useState(false);
   const { t } = useTranslation();
 
-  const services = [
-    { icon: Package, title: t("landing.service1Title"), desc: t("landing.service1Desc"), image: webshopImg },
-    { icon: Monitor, title: t("landing.service2Title"), desc: t("landing.service2Desc"), image: storageImg },
-    { icon: Warehouse, title: t("landing.service3Title"), desc: t("landing.service3Desc"), image: storageImg },
-    { icon: Truck, title: t("landing.service4Title"), desc: t("landing.service4Desc"), image: shippingImg },
-  ];
-
-  const testimonials = [
-    {
-      quote: "Inkoo a transformé notre gestion de dotation. Nos collaborateurs commandent en autonomie et nous avons divisé par 3 le temps de traitement.",
-      author: "Marie Lefèvre", role: "Directrice RH", company: "Groupe Véolia",
-    },
-    {
-      quote: "Le webshop est magnifique, parfaitement intégré à notre branding. La mise en place a été ultra rapide.",
-      author: "Thomas Durand", role: "Directeur Marketing", company: "Bouygues Telecom",
-    },
-    {
-      quote: "Enfin une solution complète : sourcing, stockage, expédition. On ne gère plus rien, Inkoo s'occupe de tout.",
-      author: "Sophie Martin", role: "Responsable Achats", company: "Accor Hotels",
-    },
-  ];
-
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -68,16 +48,71 @@ const LandingPage = () => {
     return <Navigate to="/shop" replace />;
   }
 
+  const features = [
+    {
+      icon: Palette,
+      title: "Sourcing & création",
+      desc: "Nous trouvons et personnalisons les meilleurs produits pour votre marque. Textile premium, goodies, objets — tout est brandé à votre image.",
+    },
+    {
+      icon: Monitor,
+      title: "Webshop dédié",
+      desc: "Une boutique en ligne à vos couleurs. Vos collaborateurs commandent en autonomie avec gestion des droits, budgets et catalogues.",
+    },
+    {
+      icon: Warehouse,
+      title: "Stockage & logistique",
+      desc: "Nous stockons votre merch dans nos entrepôts. Gestion des stocks en temps réel, réassort automatique, zéro contrainte.",
+    },
+    {
+      icon: Truck,
+      title: "Expédition mondiale",
+      desc: "Envoi individuel ou en masse, en France et à l'international. Suivi en temps réel et packaging soigné.",
+    },
+  ];
+
+  const platformFeatures = [
+    { icon: Users, title: "Multi-tenant", desc: "Gérez plusieurs boutiques et entités depuis une seule plateforme." },
+    { icon: Shield, title: "Approbations", desc: "Workflow de validation configurable par entité avec alertes automatiques." },
+    { icon: BarChart3, title: "Budgets & analytics", desc: "Budgets par entité et par utilisateur, statistiques temps réel." },
+    { icon: Settings2, title: "ERP intégré", desc: "Synchronisation automatique avec votre ERP (Odoo, SAP…)." },
+    { icon: Globe, title: "Multilingue", desc: "Interface disponible en français, anglais et néerlandais." },
+    { icon: ShoppingBag, title: "Boutiques Bulk & Staff", desc: "Commandes en gros et dotation individuelle dans un seul outil." },
+  ];
+
+  const stats = [
+    { value: "500+", label: "Marques accompagnées" },
+    { value: "2M+", label: "Articles expédiés" },
+    { value: "45", label: "Pays livrés" },
+    { value: "98%", label: "Clients satisfaits" },
+  ];
+
+  const testimonials = [
+    {
+      quote: "INKOO a transformé notre gestion de dotation. Nos collaborateurs commandent en autonomie et nous avons divisé par 3 le temps de traitement.",
+      author: "Marie Lefèvre", role: "Directrice RH", company: "Groupe Véolia",
+    },
+    {
+      quote: "Le webshop est magnifique, parfaitement intégré à notre branding. La mise en place a été ultra rapide.",
+      author: "Thomas Durand", role: "Directeur Marketing", company: "Bouygues Telecom",
+    },
+    {
+      quote: "Enfin une solution complète : sourcing, stockage, expédition. On ne gère plus rien, INKOO s'occupe de tout.",
+      author: "Sophie Martin", role: "Responsable Achats", company: "Accor Hotels",
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Nav */}
       <header className="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur-md">
         <div className="max-w-7xl mx-auto flex h-16 items-center justify-between px-6">
-          <span className="text-xl font-serif tracking-tight">Inkoo</span>
+          <span className="text-xl font-serif tracking-tight">INKOO</span>
           <nav className="hidden md:flex items-center gap-8 text-sm">
-            <a href="#services" className="text-muted-foreground hover:text-foreground transition-colors">{t("landing.services")}</a>
-            <a href="#how" className="text-muted-foreground hover:text-foreground transition-colors">{t("landing.howItWorks")}</a>
-            <a href="#testimonials" className="text-muted-foreground hover:text-foreground transition-colors">{t("landing.testimonials")}</a>
+            <a href="#services" className="text-muted-foreground hover:text-foreground transition-colors">Services</a>
+            <a href="#platform" className="text-muted-foreground hover:text-foreground transition-colors">Plateforme</a>
+            <a href="#how" className="text-muted-foreground hover:text-foreground transition-colors">Comment ça marche</a>
+            <a href="#testimonials" className="text-muted-foreground hover:text-foreground transition-colors">Témoignages</a>
           </nav>
           <div className="flex items-center gap-3">
             <LanguageSwitcher variant="ghost" />
@@ -92,24 +127,47 @@ const LandingPage = () => {
       </header>
 
       {/* Hero */}
-      <section className="relative">
+      <section className="relative overflow-hidden">
         <div className="max-w-7xl mx-auto px-6 py-20 md:py-32 grid md:grid-cols-2 gap-12 items-center">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-            <h1 className="text-4xl md:text-6xl lg:text-7xl font-serif leading-[1.1] tracking-tight">
-              {t("landing.heroTitle1")}<br /><em className="font-serif">{t("landing.heroTitle2")}</em>
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/10 text-accent text-sm font-medium mb-6">
+              <Zap className="w-3.5 h-3.5" />
+              La plateforme B2B de merchandising
+            </div>
+            <h1 className="text-4xl md:text-6xl lg:text-7xl font-serif leading-[1.08] tracking-tight">
+              Votre merch corporate,<br />
+              <em className="font-serif">simplifié.</em>
             </h1>
-            <p className="mt-6 text-lg text-muted-foreground max-w-md leading-relaxed">{t("landing.heroDesc")}</p>
+            <p className="mt-6 text-lg text-muted-foreground max-w-lg leading-relaxed">
+              INKOO gère tout votre merchandising d'entreprise de A à Z : sourcing, webshop dédié, stockage, logistique et expédition dans 45+ pays.
+            </p>
             <div className="mt-10 flex flex-col sm:flex-row items-start gap-4">
-              <Button size="lg" className="text-base px-8 rounded-full" onClick={() => setLoginOpen(true)}>
-                {t("landing.accessPlatform")}<ArrowRight className="ml-2 h-4 w-4" />
+              <Button size="lg" className="text-base px-8 rounded-full shadow-card-hover" onClick={() => setDemoOpen(true)}>
+                Demander une démo gratuite <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
-              <Button size="lg" variant="outline" className="text-base px-8 rounded-full" asChild>
-                <a href="#services">{t("landing.discoverServices")}</a>
+              <Button size="lg" variant="outline" className="text-base px-8 rounded-full" onClick={() => setLoginOpen(true)}>
+                Accéder à mon espace
               </Button>
             </div>
+            <div className="mt-8 flex items-center gap-6 text-sm text-muted-foreground">
+              <span className="flex items-center gap-1.5"><CheckCircle className="w-4 h-4 text-accent" /> Setup en 48h</span>
+              <span className="flex items-center gap-1.5"><CheckCircle className="w-4 h-4 text-accent" /> Sans engagement</span>
+              <span className="flex items-center gap-1.5"><CheckCircle className="w-4 h-4 text-accent" /> Support dédié</span>
+            </div>
           </motion.div>
-          <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8, delay: 0.2 }} className="relative">
-            <img src={heroImg} alt="Collection de merchandising corporate premium" className="w-full h-[400px] md:h-[520px] object-cover rounded-2xl" />
+          <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8, delay: 0.2 }} className="relative">
+            <img src={heroImg} alt="Collection de merchandising corporate premium INKOO" className="w-full h-[400px] md:h-[520px] object-cover rounded-2xl shadow-card-hover" />
+            <div className="absolute -bottom-4 -left-4 bg-card border border-border rounded-xl p-4 shadow-card-hover">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center">
+                  <Package className="w-5 h-5 text-accent" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold">+12 400 commandes</p>
+                  <p className="text-xs text-muted-foreground">Ce trimestre</p>
+                </div>
+              </div>
+            </div>
           </motion.div>
         </div>
       </section>
@@ -123,27 +181,68 @@ const LandingPage = () => {
         </div>
       </section>
 
+      {/* Stats */}
+      <section className="py-16 md:py-20">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+            {stats.map((s, i) => (
+              <motion.div key={s.label} custom={i} initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="text-center">
+                <p className="text-4xl md:text-5xl font-serif text-foreground">{s.value}</p>
+                <p className="mt-2 text-sm text-muted-foreground">{s.label}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Services */}
       <section id="services" className="py-24 md:py-32">
         <div className="max-w-7xl mx-auto px-6">
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0} className="max-w-2xl mb-16">
-            <h2 className="text-3xl md:text-5xl font-serif tracking-tight leading-tight">{t("landing.completeTitle")}</h2>
-            <p className="mt-4 text-muted-foreground text-lg">{t("landing.completeDesc")}</p>
+            <p className="text-sm font-medium text-accent uppercase tracking-wider mb-3">Services</p>
+            <h2 className="text-3xl md:text-5xl font-serif tracking-tight leading-tight">
+              Tout ce dont vous avez besoin, rien de superflu.
+            </h2>
+            <p className="mt-4 text-muted-foreground text-lg">Du sourcing à l'expédition, nous gérons chaque étape pour que vous vous concentriez sur l'essentiel.</p>
           </motion.div>
           <div className="grid md:grid-cols-2 gap-6">
-            {services.map((s, i) => (
+            {features.map((s, i) => (
               <motion.div key={s.title} custom={i} initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-40px" }} variants={fadeUp}
-                className="group relative overflow-hidden rounded-2xl bg-card border border-border hover:shadow-card-hover transition-all duration-300">
-                <div className="aspect-[16/10] overflow-hidden">
-                  <img src={s.image} alt={s.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                </div>
-                <div className="p-6 md:p-8">
-                  <div className="flex items-center gap-3 mb-3">
-                    <s.icon className="h-5 w-5 text-accent" />
-                    <h3 className="text-lg font-semibold">{s.title}</h3>
+                className="group relative overflow-hidden rounded-2xl bg-card border border-border p-8 hover:shadow-card-hover transition-all duration-300">
+                <div className="flex items-start gap-5">
+                  <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
+                    <s.icon className="h-6 w-6 text-accent" />
                   </div>
-                  <p className="text-muted-foreground text-sm leading-relaxed">{s.desc}</p>
+                  <div>
+                    <h3 className="text-lg font-semibold mb-2">{s.title}</h3>
+                    <p className="text-muted-foreground text-sm leading-relaxed">{s.desc}</p>
+                  </div>
                 </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Platform features */}
+      <section id="platform" className="py-24 md:py-32 bg-secondary/50">
+        <div className="max-w-7xl mx-auto px-6">
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0} className="max-w-2xl mb-16">
+            <p className="text-sm font-medium text-accent uppercase tracking-wider mb-3">Plateforme</p>
+            <h2 className="text-3xl md:text-5xl font-serif tracking-tight leading-tight">
+              Une plateforme pensée pour le B2B.
+            </h2>
+            <p className="mt-4 text-muted-foreground text-lg">Fonctionnalités avancées conçues spécifiquement pour la gestion de merchandising en entreprise.</p>
+          </motion.div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {platformFeatures.map((f, i) => (
+              <motion.div key={f.title} custom={i} initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-40px" }} variants={fadeUp}
+                className="bg-card rounded-xl border border-border p-6 hover:shadow-card-hover transition-all duration-300">
+                <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center mb-4">
+                  <f.icon className="h-5 w-5 text-accent" />
+                </div>
+                <h3 className="font-semibold mb-2">{f.title}</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">{f.desc}</p>
               </motion.div>
             ))}
           </div>
@@ -154,15 +253,20 @@ const LandingPage = () => {
       <section id="how" className="py-24 md:py-32 bg-primary text-primary-foreground">
         <div className="max-w-7xl mx-auto px-6">
           <motion.h2 initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0}
-            className="text-3xl md:text-5xl font-serif tracking-tight mb-16">{t("landing.howTitle")}</motion.h2>
+            className="text-3xl md:text-5xl font-serif tracking-tight mb-4">Comment ça marche ?</motion.h2>
+          <motion.p initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={1}
+            className="text-primary-foreground/70 text-lg mb-16 max-w-xl">3 étapes simples pour externaliser votre merchandising.</motion.p>
           <div className="grid md:grid-cols-3 gap-12">
             {[
-              { step: "01", title: t("landing.step1Title"), desc: t("landing.step1Desc") },
-              { step: "02", title: t("landing.step2Title"), desc: t("landing.step2Desc") },
-              { step: "03", title: t("landing.step3Title"), desc: t("landing.step3Desc") },
+              { step: "01", title: "On source & on crée", desc: "Nous sélectionnons les meilleurs produits et les personnalisons avec votre branding. Vous validez, on produit.", icon: Palette },
+              { step: "02", title: "On stocke & on gère", desc: "Votre merch est stocké dans nos entrepôts. Votre webshop dédié permet à vos équipes de commander en toute autonomie.", icon: Box },
+              { step: "03", title: "On expédie partout", desc: "Commande individuelle ou en masse, en France ou à l'international. Packaging soigné, suivi en temps réel.", icon: Globe },
             ].map((item, i) => (
-              <motion.div key={item.step} custom={i} initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}>
-                <span className="text-5xl font-serif text-primary-foreground/20">{item.step}</span>
+              <motion.div key={item.step} custom={i + 2} initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}>
+                <div className="w-12 h-12 rounded-xl bg-primary-foreground/10 flex items-center justify-center mb-6">
+                  <item.icon className="h-6 w-6 text-primary-foreground/80" />
+                </div>
+                <span className="text-5xl font-serif text-primary-foreground/15">{item.step}</span>
                 <h3 className="text-xl font-semibold mt-4 mb-3">{item.title}</h3>
                 <p className="text-primary-foreground/70 leading-relaxed">{item.desc}</p>
               </motion.div>
@@ -174,12 +278,18 @@ const LandingPage = () => {
       {/* Testimonials */}
       <section id="testimonials" className="py-24 md:py-32">
         <div className="max-w-7xl mx-auto px-6">
-          <motion.h2 initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0}
-            className="text-3xl md:text-5xl font-serif tracking-tight mb-16">{t("landing.trustTitle")}</motion.h2>
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0} className="max-w-2xl mb-16">
+            <p className="text-sm font-medium text-accent uppercase tracking-wider mb-3">Témoignages</p>
+            <h2 className="text-3xl md:text-5xl font-serif tracking-tight">Ils nous font confiance</h2>
+          </motion.div>
           <div className="grid md:grid-cols-3 gap-8">
             {testimonials.map((tt, i) => (
-              <motion.div key={tt.author} custom={i} initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-40px" }} variants={fadeUp} className="flex flex-col">
-                <p className="text-lg leading-relaxed flex-1 mb-8">"{tt.quote}"</p>
+              <motion.div key={tt.author} custom={i} initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-40px" }} variants={fadeUp}
+                className="flex flex-col bg-card rounded-xl border border-border p-8">
+                <div className="flex gap-1 mb-4">
+                  {[1,2,3,4,5].map(s => <Star key={s} className="w-4 h-4 fill-accent text-accent" />)}
+                </div>
+                <p className="text-base leading-relaxed flex-1 mb-6">"{tt.quote}"</p>
                 <div className="border-t border-border pt-4">
                   <p className="font-semibold">{tt.author}</p>
                   <p className="text-sm text-muted-foreground">{tt.role} — {tt.company}</p>
@@ -190,17 +300,52 @@ const LandingPage = () => {
         </div>
       </section>
 
+      {/* FAQ-like benefits */}
+      <section className="py-24 md:py-32 bg-secondary/50">
+        <div className="max-w-7xl mx-auto px-6">
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0} className="text-center max-w-2xl mx-auto mb-16">
+            <h2 className="text-3xl md:text-5xl font-serif tracking-tight">Pourquoi choisir INKOO ?</h2>
+          </motion.div>
+          <div className="grid md:grid-cols-2 gap-x-12 gap-y-8 max-w-4xl mx-auto">
+            {[
+              { icon: Clock, title: "Mise en place en 48h", desc: "Votre webshop personnalisé est opérationnel en moins de 2 jours. Pas de développement, pas d'intégration complexe." },
+              { icon: HeartHandshake, title: "Un interlocuteur unique", desc: "Un account manager dédié gère tout pour vous : sourcing, production, logistique, SAV." },
+              { icon: Shield, title: "Qualité garantie", desc: "Nous sélectionnons uniquement des fournisseurs certifiés. Chaque produit est contrôlé avant expédition." },
+              { icon: BarChart3, title: "Reporting complet", desc: "Statistiques en temps réel sur les commandes, budgets, stocks et performances par entité." },
+            ].map((b, i) => (
+              <motion.div key={b.title} custom={i} initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}
+                className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center shrink-0 mt-1">
+                  <b.icon className="w-5 h-5 text-accent" />
+                </div>
+                <div>
+                  <h3 className="font-semibold mb-1">{b.title}</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{b.desc}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* CTA */}
       <section className="py-24 md:py-32">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="rounded-2xl bg-primary text-primary-foreground p-12 md:p-20 flex flex-col md:flex-row items-center justify-between gap-8">
-            <div className="max-lg">
-              <h2 className="text-3xl md:text-4xl font-serif mb-4">{t("landing.ctaTitle")}</h2>
-              <p className="text-primary-foreground/70 text-lg">{t("landing.ctaDesc")}</p>
-            </div>
-            <Button size="lg" variant="secondary" className="text-base px-8 rounded-full shrink-0" onClick={() => setLoginOpen(true)}>
-              {t("landing.login")}<ChevronRight className="ml-2 h-4 w-4" />
-            </Button>
+          <div className="rounded-2xl bg-primary text-primary-foreground p-12 md:p-20 text-center">
+            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0}>
+              <h2 className="text-3xl md:text-5xl font-serif mb-4">Prêt à simplifier votre merchandising ?</h2>
+              <p className="text-primary-foreground/70 text-lg mb-10 max-w-lg mx-auto">
+                Rejoignez les 500+ marques qui font confiance à INKOO pour leur merchandising corporate.
+              </p>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <Button size="lg" variant="secondary" className="text-base px-8 rounded-full" onClick={() => setDemoOpen(true)}>
+                  Demander une démo gratuite <ArrowUpRight className="ml-2 h-4 w-4" />
+                </Button>
+                <Button size="lg" variant="outline" className="text-base px-8 rounded-full border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10" onClick={() => setLoginOpen(true)}>
+                  Se connecter <ChevronRight className="ml-2 h-4 w-4" />
+                </Button>
+              </div>
+            </motion.div>
           </div>
         </div>
       </section>
@@ -208,8 +353,8 @@ const LandingPage = () => {
       {/* Footer */}
       <footer className="border-t border-border py-10">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
-          <span className="text-lg font-serif">Inkoo</span>
-          <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} Inkoo. {t("landing.allRights")}</p>
+          <span className="text-lg font-serif">INKOO</span>
+          <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} INKOO B2B. Tous droits réservés.</p>
         </div>
       </footer>
 
