@@ -11,7 +11,18 @@ const TOPTEX_BASE = "https://api.toptex.io";
 // ── Helpers ──
 
 function ml(obj: unknown, fallback = ""): { fr: string; en: string; nl: string } {
-  if (!obj || typeof obj !== "object") return { fr: String(obj || fallback), en: "", nl: "" };
+  if (!obj) return { fr: fallback, en: "", nl: "" };
+  // Handle stringified JSON like '{"fr":"...","en":"..."}'
+  if (typeof obj === "string") {
+    try {
+      const parsed = JSON.parse(obj);
+      if (parsed && typeof parsed === "object") {
+        return { fr: parsed.fr || fallback, en: parsed.en || "", nl: parsed.nl || "" };
+      }
+    } catch { /* not JSON, use as-is */ }
+    return { fr: obj || fallback, en: "", nl: "" };
+  }
+  if (typeof obj !== "object") return { fr: String(obj || fallback), en: "", nl: "" };
   const o = obj as Record<string, string>;
   return { fr: o.fr || fallback, en: o.en || "", nl: o.nl || "" };
 }
@@ -164,15 +175,33 @@ Deno.serve(async (req) => {
             // ── Description (multilingual) ──
             const desc = ml(product.description);
 
-            // ── Image: images[0].url_image or packshot from first color ──
+            // ── Image: try multiple paths ──
             let imageUrl: string | null = null;
+            // 1. Top-level images array
             if (product.images?.length) {
-              imageUrl = product.images[0].url_image || product.images[0].url || null;
+              imageUrl = product.images[0].url_image || product.images[0].url || product.images[0].imageUrl || null;
             }
+            // 2. Packshots from colors
             if (!imageUrl && product.colors?.length) {
-              const firstColor = product.colors[0];
-              const packshot = firstColor?.packshots?.FACE;
-              imageUrl = packshot?.url_packshot || packshot?.url || null;
+              for (const c of product.colors) {
+                const packshots = c?.packshots || c?.images;
+                if (packshots) {
+                  const face = packshots.FACE || packshots.face || Object.values(packshots)[0] as any;
+                  if (face) {
+                    imageUrl = face.url_packshot || face.url || face.imageUrl || null;
+                    if (imageUrl) break;
+                  }
+                }
+                // Direct image on color
+                if (!imageUrl && (c?.url_image || c?.imageUrl || c?.image)) {
+                  imageUrl = c.url_image || c.imageUrl || c.image;
+                  break;
+                }
+              }
+            }
+            // 3. Direct product image fields
+            if (!imageUrl) {
+              imageUrl = product.imageUrl || product.image || product.url_image || null;
             }
 
             // ── Price ──
