@@ -45,11 +45,25 @@ type CatalogProduct = {
 // ── Parse hierarchical categories (uses ">" separator) ──
 function getParentCategory(category: string): string {
   const parts = category.split(">").map((s) => s.trim());
-  return parts[0] || category;
+  const parent = parts[0] || category;
+  // For Print.com: "Print > clothing-textile,clothing,..." → use first comma segment as sub-parent
+  if (parent === "Print" && parts.length > 1) {
+    const subParts = parts[1].split(",").map(s => s.trim());
+    return `Print > ${subParts[0].replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase())}`;
+  }
+  return parent;
 }
 
 function getSubCategory(category: string): string | null {
   const parts = category.split(">").map((s) => s.trim());
+  if (parts[0] === "Print" && parts.length > 1) {
+    const subParts = parts[1].split(",").map(s => s.trim());
+    if (subParts.length > 1) {
+      const last = subParts[subParts.length - 1];
+      return last.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+    }
+    return null;
+  }
   return parts.length > 1 ? parts[1] : null;
 }
 
@@ -376,6 +390,34 @@ const CatalogProducts = () => {
     onError: (err: any) => toast.error(`Erreur sync Print.com : ${err.message}`),
   });
 
+  const enrichPrintcom = useMutation({
+    mutationFn: async () => {
+      let totalEnriched = 0;
+      let offset = 0;
+      const batchSize = 30;
+      let hasMore = true;
+      while (hasMore) {
+        const { data, error } = await supabase.functions.invoke("sync-printcom", {
+          body: { action: "enrich", batchSize, offset },
+        });
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+        totalEnriched += data.enriched || 0;
+        if (!data.enriched || data.enriched === 0 || data.total < batchSize) {
+          hasMore = false;
+        } else {
+          offset = data.nextOffset;
+        }
+      }
+      return { enriched: totalEnriched };
+    },
+    onSuccess: (data) => {
+      toast.success(`Print.com : ${data.enriched} produits enrichis (catégories & noms)`);
+      qc.invalidateQueries({ queryKey: ["catalog-products"] });
+    },
+    onError: (err: any) => toast.error(`Erreur enrichissement Print.com : ${err.message}`),
+  });
+
   return (
     <>
       <TopBar title={t("catalogAdmin.title")} subtitle={t("catalogAdmin.subtitle")} />
@@ -569,10 +611,16 @@ const CatalogProducts = () => {
                     </>
                   )}
                   {activeTab === "autre" && (
-                    <Button size="sm" variant="outline" className="gap-1.5" onClick={() => syncPrintcom.mutate()} disabled={syncPrintcom.isPending}>
-                      {syncPrintcom.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                      Sync Print.com
-                    </Button>
+                    <>
+                      <Button size="sm" variant="outline" className="gap-1.5" onClick={() => syncPrintcom.mutate()} disabled={syncPrintcom.isPending}>
+                        {syncPrintcom.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                        Sync Print.com
+                      </Button>
+                      <Button size="sm" variant="outline" className="gap-1.5" onClick={() => enrichPrintcom.mutate()} disabled={enrichPrintcom.isPending}>
+                        {enrichPrintcom.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                        Enrichir catégories
+                      </Button>
+                    </>
                   )}
                   <Button size="sm" className="gap-1.5" onClick={openCreate}>
                     <Plus className="w-4 h-4" /> {t("catalogAdmin.addProduct")}
