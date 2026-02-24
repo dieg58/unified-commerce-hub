@@ -228,24 +228,35 @@ const CatalogProducts = () => {
           </div>
         </Tabs>
 
-        <div className="bg-card rounded-lg border border-border p-4 flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <Filter className="w-4 h-4" />
-            Filtres
+        {/* Category sub-tabs */}
+        {categories.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              size="sm"
+              variant={filterCategory === "all" ? "default" : "outline"}
+              className="h-7 text-xs rounded-full px-3"
+              onClick={() => setFilterCategory("all")}
+            >
+              Tout ({tabProducts.length})
+            </Button>
+            {categories.map((cat) => {
+              const count = tabProducts.filter((p) => p.category === cat).length;
+              return (
+                <Button
+                  key={cat}
+                  size="sm"
+                  variant={filterCategory === cat ? "default" : "outline"}
+                  className="h-7 text-xs rounded-full px-3 capitalize"
+                  onClick={() => setFilterCategory(cat)}
+                >
+                  {cat} ({count})
+                </Button>
+              );
+            })}
           </div>
-          <Select value={filterCategory} onValueChange={setFilterCategory}>
-            <SelectTrigger className="h-8 w-52 text-sm">
-              <SelectValue placeholder="Catégorie" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Toutes les catégories</SelectItem>
-              {categories.map((cat) => (
-                <SelectItem key={cat} value={cat}>
-                  <span className="capitalize">{cat}</span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        )}
+
+        <div className="flex items-center gap-2">
           <ToggleGroup
             type="single"
             value={filterActive === null ? "all" : filterActive ? "active" : "inactive"}
