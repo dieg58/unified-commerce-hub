@@ -312,6 +312,22 @@ function UsersTab({ tenantId, users }: { tenantId: string; users: any[] }) {
     onError: (err: any) => toast.error(err.message),
   });
 
+  const removeUser = useMutation({
+    mutationFn: async (userId: string) => {
+      // Remove roles
+      const { error: rErr } = await supabase.from("user_roles").delete().eq("user_id", userId);
+      if (rErr) throw rErr;
+      // Detach from tenant
+      const { error: pErr } = await supabase.from("profiles").update({ tenant_id: null }).eq("id", userId);
+      if (pErr) throw pErr;
+    },
+    onSuccess: () => {
+      toast.success("Utilisateur retiré de la boutique");
+      qc.invalidateQueries({ queryKey: ["boutique-users", tenantId] });
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
   return (
     <div className="space-y-4">
       {/* Invite dialog */}
@@ -373,20 +389,33 @@ function UsersTab({ tenantId, users }: { tenantId: string; users: any[] }) {
           <div className="p-8 text-center"><Users className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" /><p className="text-sm text-muted-foreground">Aucun utilisateur</p></div>
         ) : (
           <Table><TableHeader><TableRow>
-            <TableHead className="text-xs">Nom</TableHead><TableHead className="text-xs">Email</TableHead>
-            <TableHead className="text-xs">Rôle</TableHead><TableHead className="text-xs">Inscrit le</TableHead>
-          </TableRow></TableHeader><TableBody>
-            {users.map((u) => {
-              const roles = (u.user_roles as any[]) || [];
-              const role = roles[0]?.role || "employee";
-              return (<TableRow key={u.id} className="text-sm">
-                <TableCell className="font-medium">{u.full_name || "—"}</TableCell>
-                <TableCell className="text-muted-foreground">{u.email}</TableCell>
-                <TableCell><Badge variant="outline" className="text-xs">{roleLabels[role] || role}</Badge></TableCell>
-                <TableCell className="text-xs text-muted-foreground">{new Date(u.created_at).toLocaleDateString("fr-FR")}</TableCell>
-              </TableRow>);
-            })}
-          </TableBody></Table>
+             <TableHead className="text-xs">Nom</TableHead><TableHead className="text-xs">Email</TableHead>
+             <TableHead className="text-xs">Rôle</TableHead><TableHead className="text-xs">Inscrit le</TableHead>
+             <TableHead className="text-xs w-10"></TableHead>
+           </TableRow></TableHeader><TableBody>
+             {users.map((u) => {
+               const roles = (u.user_roles as any[]) || [];
+               const role = roles[0]?.role || "employee";
+               return (<TableRow key={u.id} className="text-sm">
+                 <TableCell className="font-medium">{u.full_name || "—"}</TableCell>
+                 <TableCell className="text-muted-foreground">{u.email}</TableCell>
+                 <TableCell><Badge variant="outline" className="text-xs">{roleLabels[role] || role}</Badge></TableCell>
+                 <TableCell className="text-xs text-muted-foreground">{new Date(u.created_at).toLocaleDateString("fr-FR")}</TableCell>
+                 <TableCell>
+                   <DropdownMenu>
+                     <DropdownMenuTrigger asChild>
+                       <Button variant="ghost" size="sm" className="h-8 w-8 p-0"><MoreHorizontal className="w-4 h-4" /></Button>
+                     </DropdownMenuTrigger>
+                     <DropdownMenuContent align="end">
+                       <DropdownMenuItem className="text-destructive" onClick={() => { if (confirm("Retirer cet utilisateur de la boutique ?")) removeUser.mutate(u.id); }}>
+                         <Trash2 className="w-4 h-4 mr-2" /> Retirer de la boutique
+                       </DropdownMenuItem>
+                     </DropdownMenuContent>
+                   </DropdownMenu>
+                 </TableCell>
+               </TableRow>);
+             })}
+           </TableBody></Table>
         )}
       </div>
     </div>
