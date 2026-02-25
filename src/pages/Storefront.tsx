@@ -266,14 +266,14 @@ const Storefront = () => {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => { setStoreType("bulk"); clear(); }}
+              onClick={() => { if (storeType !== "bulk" && count > 0) { if (!confirm(t("storefront.switchStoreConfirm"))) return; } setStoreType("bulk"); clear(); }}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${storeType === "bulk" ? "text-white" : "text-muted-foreground hover:text-foreground"}`}
               style={storeType === "bulk" ? { backgroundColor: primaryColor } : {}}
             >
               {t("storefront.bulkStore")}
             </button>
             <button
-              onClick={() => { setStoreType("staff"); clear(); }}
+              onClick={() => { if (storeType !== "staff" && count > 0) { if (!confirm(t("storefront.switchStoreConfirm"))) return; } setStoreType("staff"); clear(); }}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${storeType === "staff" ? "text-white" : "text-muted-foreground hover:text-foreground"}`}
               style={storeType === "staff" ? { backgroundColor: primaryColor } : {}}
             >
@@ -326,7 +326,7 @@ const Storefront = () => {
       <div className="max-w-7xl mx-auto px-6 -mt-6 relative z-10">
         <div className="bg-card border border-border rounded-xl shadow-card overflow-hidden grid grid-cols-2">
           <button
-            onClick={() => { setStoreType("bulk"); clear(); }}
+            onClick={() => { if (storeType !== "bulk" && count > 0) { if (!confirm(t("storefront.switchStoreConfirm"))) return; } setStoreType("bulk"); clear(); }}
             className={`flex flex-col items-center gap-1 py-4 transition-colors ${storeType === "bulk" ? "bg-card" : "bg-muted/30"}`}
             style={storeType === "bulk" ? { borderBottom: `3px solid ${primaryColor}` } : { borderBottom: "3px solid transparent" }}
           >
@@ -335,7 +335,7 @@ const Storefront = () => {
             <span className="text-[10px] text-muted-foreground">{t("storefront.volumeOrders")}</span>
           </button>
           <button
-            onClick={() => { setStoreType("staff"); clear(); }}
+            onClick={() => { if (storeType !== "staff" && count > 0) { if (!confirm(t("storefront.switchStoreConfirm"))) return; } setStoreType("staff"); clear(); }}
             className={`flex flex-col items-center gap-1 py-4 transition-colors ${storeType === "staff" ? "bg-card" : "bg-muted/30"}`}
             style={storeType === "staff" ? { borderBottom: `3px solid ${primaryColor}` } : { borderBottom: "3px solid transparent" }}
           >
