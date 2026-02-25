@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Globe, Mail, Settings, Shield, Save, Loader2, ExternalLink, Copy, Check, Pencil, Eye } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 const SettingsPage = () => {
   const [saving, setSaving] = useState(false);
@@ -20,6 +21,7 @@ const SettingsPage = () => {
   const [editTemplate, setEditTemplate] = useState<any>(null);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const qc = useQueryClient();
+  const { t } = useTranslation();
 
   // General
   const [platformName, setPlatformName] = useState("Inkoo B2B");
@@ -44,10 +46,9 @@ const SettingsPage = () => {
 
   const handleSave = async () => {
     setSaving(true);
-    // Simulate save
     await new Promise((r) => setTimeout(r, 800));
     setSaving(false);
-    toast.success("Paramètres enregistrés");
+    toast.success(t("settings.settingsSaved"));
   };
 
   const copyToClipboard = (text: string) => {
@@ -58,43 +59,43 @@ const SettingsPage = () => {
 
   return (
     <>
-      <TopBar title="Paramètres" subtitle="Configuration de la plateforme" />
+      <TopBar title={t("settings.title")} subtitle={t("settings.subtitle")} />
       <div className="p-6 overflow-auto">
         <Tabs defaultValue="general" className="max-w-3xl">
           <TabsList className="mb-6">
             <TabsTrigger value="general" className="gap-1.5">
-              <Settings className="w-4 h-4" /> Général
+              <Settings className="w-4 h-4" /> {t("settings.general")}
             </TabsTrigger>
             <TabsTrigger value="domain" className="gap-1.5">
-              <Globe className="w-4 h-4" /> Domaine
+              <Globe className="w-4 h-4" /> {t("settings.domain")}
             </TabsTrigger>
             <TabsTrigger value="email" className="gap-1.5">
-              <Mail className="w-4 h-4" /> Emails
+              <Mail className="w-4 h-4" /> {t("settings.emails")}
             </TabsTrigger>
             <TabsTrigger value="security" className="gap-1.5">
-              <Shield className="w-4 h-4" /> Sécurité
+              <Shield className="w-4 h-4" /> {t("settings.security")}
             </TabsTrigger>
           </TabsList>
 
           {/* GENERAL */}
           <TabsContent value="general">
             <div className="bg-card rounded-lg border border-border shadow-card animate-fade-in p-6 space-y-6">
-              <SectionHeader title="Paramètres généraux" />
+              <SectionHeader title={t("settings.generalSettings")} />
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Nom de la plateforme</Label>
+                  <Label>{t("settings.platformName")}</Label>
                   <Input value={platformName} onChange={(e) => setPlatformName(e.target.value)} className="h-9" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Email de support</Label>
+                  <Label>{t("settings.supportEmail")}</Label>
                   <Input value={supportEmail} onChange={(e) => setSupportEmail(e.target.value)} className="h-9" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Devise par défaut</Label>
+                  <Label>{t("settings.defaultCurrency")}</Label>
                   <Input value={defaultCurrency} onChange={(e) => setDefaultCurrency(e.target.value)} className="h-9" placeholder="EUR" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Langue par défaut</Label>
+                  <Label>{t("settings.defaultLanguage")}</Label>
                   <Input value={defaultLang} onChange={(e) => setDefaultLang(e.target.value)} className="h-9" placeholder="fr" />
                 </div>
               </div>
@@ -102,7 +103,7 @@ const SettingsPage = () => {
               <div className="flex justify-end">
                 <Button onClick={handleSave} disabled={saving} className="gap-1.5">
                   {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  Enregistrer
+                  {t("common.save")}
                 </Button>
               </div>
             </div>
@@ -111,25 +112,25 @@ const SettingsPage = () => {
           {/* DOMAIN */}
           <TabsContent value="domain">
             <div className="bg-card rounded-lg border border-border shadow-card animate-fade-in p-6 space-y-6">
-              <SectionHeader title="Gestion du domaine" />
+              <SectionHeader title={t("settings.domainManagement")} />
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Domaine personnalisé</Label>
+                  <Label>{t("settings.customDomain")}</Label>
                   <div className="flex gap-2">
                     <Input value={customDomain} onChange={(e) => setCustomDomain(e.target.value)} className="h-9 flex-1" placeholder="mondomaine.com" />
                     <Button variant="outline" size="sm" className="gap-1.5 h-9">
-                      <ExternalLink className="w-3.5 h-3.5" /> Vérifier
+                      <ExternalLink className="w-3.5 h-3.5" /> {t("settings.verify")}
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Pointez votre DNS vers notre serveur pour activer le domaine personnalisé.
+                    {t("settings.dnsPointNote")}
                   </p>
                 </div>
 
                 <Separator />
 
                 <div className="space-y-3">
-                  <Label className="text-sm font-semibold">Enregistrements DNS requis</Label>
+                  <Label className="text-sm font-semibold">{t("settings.requiredDNS")}</Label>
                   <div className="rounded-md bg-muted/50 border border-border p-4 space-y-3 font-mono text-xs">
                     <div className="flex items-center justify-between gap-2">
                       <div>
@@ -153,10 +154,10 @@ const SettingsPage = () => {
                 <div className="rounded-md border border-border p-4 space-y-2">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-foreground">Sous-domaines boutiques</p>
-                      <p className="text-xs text-muted-foreground">Chaque boutique est accessible via <code className="text-primary">[slug].{customDomain}</code></p>
+                      <p className="text-sm font-medium text-foreground">{t("settings.shopSubdomains")}</p>
+                      <p className="text-xs text-muted-foreground">{t("settings.shopSubdomainsDesc")} <code className="text-primary">[slug].{customDomain}</code></p>
                     </div>
-                    <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">Actif</span>
+                    <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">{t("settings.activeStatus")}</span>
                   </div>
                 </div>
               </div>
@@ -164,7 +165,7 @@ const SettingsPage = () => {
               <div className="flex justify-end">
                 <Button onClick={handleSave} disabled={saving} className="gap-1.5">
                   {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  Enregistrer
+                  {t("common.save")}
                 </Button>
               </div>
             </div>
@@ -183,30 +184,30 @@ const SettingsPage = () => {
           {/* SECURITY */}
           <TabsContent value="security">
             <div className="bg-card rounded-lg border border-border shadow-card animate-fade-in p-6 space-y-6">
-              <SectionHeader title="Sécurité & accès" />
+              <SectionHeader title={t("settings.securityAccess")} />
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between rounded-md border border-border p-3">
                   <div>
-                    <p className="text-sm font-medium text-foreground">Forcer l'authentification 2FA</p>
-                    <p className="text-xs text-muted-foreground">Tous les utilisateurs devront configurer un second facteur</p>
+                    <p className="text-sm font-medium text-foreground">{t("settings.enforce2FA")}</p>
+                    <p className="text-xs text-muted-foreground">{t("settings.enforce2FADesc")}</p>
                   </div>
                   <Switch checked={enforce2FA} onCheckedChange={setEnforce2FA} />
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Timeout de session (minutes)</Label>
+                  <Label>{t("settings.sessionTimeout")}</Label>
                   <Input value={sessionTimeout} onChange={(e) => setSessionTimeout(e.target.value)} className="h-9 max-w-[200px]" type="number" />
-                  <p className="text-xs text-muted-foreground">Durée d'inactivité avant déconnexion automatique</p>
+                  <p className="text-xs text-muted-foreground">{t("settings.sessionTimeoutDesc")}</p>
                 </div>
 
                 <Separator />
 
                 <div className="space-y-2">
-                  <Label>Whitelist d'adresses IP</Label>
+                  <Label>{t("settings.ipWhitelist")}</Label>
                   <Input value={ipWhitelist} onChange={(e) => setIpWhitelist(e.target.value)} className="h-9" placeholder="Ex: 192.168.1.0/24, 10.0.0.1" />
                   <p className="text-xs text-muted-foreground">
-                    Restreindre l'accès admin à certaines IP. Laissez vide pour autoriser tout.
+                    {t("settings.ipWhitelistDesc")}
                   </p>
                 </div>
               </div>
@@ -215,7 +216,7 @@ const SettingsPage = () => {
               <div className="flex justify-end">
                 <Button onClick={handleSave} disabled={saving} className="gap-1.5">
                   {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  Enregistrer
+                  {t("common.save")}
                 </Button>
               </div>
             </div>
@@ -235,6 +236,7 @@ const EmailTemplatesTab = ({
   editTemplate: any; setEditTemplate: (t: any) => void;
   previewHtml: string | null; setPreviewHtml: (h: string | null) => void;
 }) => {
+  const { t: tr } = useTranslation();
   const qc = useQueryClient();
 
   const { data: templates, isLoading } = useQuery({
@@ -253,21 +255,21 @@ const EmailTemplatesTab = ({
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["email-templates"] });
-      toast.success("Template mis à jour");
+      toast.success(tr("settings.templateUpdated"));
     },
   });
 
   const saveMutation = useMutation({
-    mutationFn: async (t: { id: string; subject: string; body_html: string }) => {
+    mutationFn: async (tmpl: { id: string; subject: string; body_html: string }) => {
       const { error } = await supabase.from("email_templates").update({
-        subject: t.subject, body_html: t.body_html, updated_at: new Date().toISOString(),
-      }).eq("id", t.id);
+        subject: tmpl.subject, body_html: tmpl.body_html, updated_at: new Date().toISOString(),
+      }).eq("id", tmpl.id);
       if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["email-templates"] });
       setEditTemplate(null);
-      toast.success("Template enregistré");
+      toast.success(tr("settings.templateSaved"));
     },
   });
 
@@ -304,41 +306,41 @@ const EmailTemplatesTab = ({
   return (
     <>
       <div className="bg-card rounded-lg border border-border shadow-card animate-fade-in p-6 space-y-6">
-        <SectionHeader title="Templates de notifications email" />
+        <SectionHeader title={tr("settings.emailTemplates")} />
         <p className="text-xs text-muted-foreground -mt-4">
-          Activez/désactivez et personnalisez les emails envoyés automatiquement lors des événements de commande.
-          Variables disponibles : <code className="text-primary">{"{{order_ref}}"}</code>, <code className="text-primary">{"{{customer_name}}"}</code>,
+          {tr("settings.emailTemplatesDesc")}{" "}
+          Variables : <code className="text-primary">{"{{order_ref}}"}</code>, <code className="text-primary">{"{{customer_name}}"}</code>,
           <code className="text-primary">{"{{order_total}}"}</code>, <code className="text-primary">{"{{tenant_name}}"}</code>,
           <code className="text-primary">{"{{entity_name}}"}</code>, <code className="text-primary">{"{{carrier}}"}</code>,
           <code className="text-primary">{"{{tracking_number}}"}</code>, <code className="text-primary">{"{{tracking_url}}"}</code>
         </p>
 
         <div className="space-y-3">
-          {templates?.map((t) => (
-            <div key={t.id} className="flex items-center justify-between rounded-lg border border-border p-4">
+          {templates?.map((tmpl) => (
+            <div key={tmpl.id} className="flex items-center justify-between rounded-lg border border-border p-4">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <p className="text-sm font-medium text-foreground">{t.label}</p>
-                  <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{t.event_type}</span>
+                  <p className="text-sm font-medium text-foreground">{tmpl.label}</p>
+                  <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{tmpl.event_type}</span>
                 </div>
-                <p className="text-xs text-muted-foreground mt-0.5 truncate">Objet : {t.subject}</p>
+                <p className="text-xs text-muted-foreground mt-0.5 truncate">{tr("settings.emailSubject")} : {tmpl.subject}</p>
               </div>
               <div className="flex items-center gap-2 shrink-0 ml-4">
                 <Button
                   variant="ghost" size="sm" className="h-8 w-8 p-0"
-                  onClick={() => setPreviewHtml(renderPreview(t.body_html))}
+                  onClick={() => setPreviewHtml(renderPreview(tmpl.body_html))}
                 >
                   <Eye className="w-4 h-4" />
                 </Button>
                 <Button
                   variant="ghost" size="sm" className="h-8 w-8 p-0"
-                  onClick={() => setEditTemplate({ ...t })}
+                  onClick={() => setEditTemplate({ ...tmpl })}
                 >
                   <Pencil className="w-4 h-4" />
                 </Button>
                 <Switch
-                  checked={t.enabled}
-                  onCheckedChange={(v) => toggleMutation.mutate({ id: t.id, enabled: v })}
+                  checked={tmpl.enabled}
+                  onCheckedChange={(v) => toggleMutation.mutate({ id: tmpl.id, enabled: v })}
                 />
               </div>
             </div>
@@ -350,12 +352,12 @@ const EmailTemplatesTab = ({
       <Dialog open={!!editTemplate} onOpenChange={(v) => { if (!v) setEditTemplate(null); }}>
         <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Modifier le template : {editTemplate?.label}</DialogTitle>
+            <DialogTitle>{tr("settings.editTemplate")} : {editTemplate?.label}</DialogTitle>
           </DialogHeader>
           {editTemplate && (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>Objet de l'email</Label>
+                <Label>{tr("settings.emailSubject")}</Label>
                 <Input
                   value={editTemplate.subject}
                   onChange={(e) => setEditTemplate({ ...editTemplate, subject: e.target.value })}
@@ -363,7 +365,7 @@ const EmailTemplatesTab = ({
                 />
               </div>
               <div className="space-y-2">
-                <Label>Corps HTML</Label>
+                <Label>{tr("settings.emailBody")}</Label>
                 <Textarea
                   value={editTemplate.body_html}
                   onChange={(e) => setEditTemplate({ ...editTemplate, body_html: e.target.value })}
@@ -376,19 +378,19 @@ const EmailTemplatesTab = ({
                   onClick={() => setPreviewHtml(renderPreview(editTemplate.body_html))}
                   className="gap-1.5"
                 >
-                  <Eye className="w-4 h-4" /> Prévisualiser
+                  <Eye className="w-4 h-4" /> {tr("settings.preview")}
                 </Button>
               </div>
               <Separator />
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setEditTemplate(null)}>Annuler</Button>
+                <Button variant="outline" onClick={() => setEditTemplate(null)}>{tr("common.cancel")}</Button>
                 <Button
                   onClick={() => saveMutation.mutate(editTemplate)}
                   disabled={saveMutation.isPending}
                   className="gap-1.5"
                 >
                   {saveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  Enregistrer
+                  {tr("common.save")}
                 </Button>
               </div>
             </div>
@@ -400,7 +402,7 @@ const EmailTemplatesTab = ({
       <Dialog open={!!previewHtml} onOpenChange={(v) => { if (!v) setPreviewHtml(null); }}>
         <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Prévisualisation</DialogTitle>
+            <DialogTitle>{tr("settings.previewTitle")}</DialogTitle>
           </DialogHeader>
           {previewHtml && (
             <div
