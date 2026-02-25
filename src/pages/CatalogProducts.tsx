@@ -635,22 +635,20 @@ const CatalogProducts = () => {
             <ToggleGroupItem value="inactive" className="text-xs px-3 h-7">Inactifs</ToggleGroupItem>
           </ToggleGroup>
 
-          {/* Color/Size filter toggle */}
-          {(availableColorFamilies.length > 0 || availableSizeGroups.length > 0) && (
-            <Button
-              size="sm"
-              variant={showFilters ? "secondary" : "outline"}
-              className="h-7 text-xs rounded-full px-3 gap-1.5"
-              onClick={() => setShowFilters(!showFilters)}
-            >
-              <Filter className="w-3.5 h-3.5" />
-              Filtres
-              {(filterColors.size + filterSizes.size) > 0 && (
-                <Badge className="ml-1 h-4 px-1.5 text-[9px] bg-primary text-primary-foreground">{filterColors.size + filterSizes.size}</Badge>
-              )}
-              {showFilters ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-            </Button>
-          )}
+          {/* Color/Size filter toggle – always visible */}
+          <Button
+            size="sm"
+            variant={showFilters ? "secondary" : "outline"}
+            className="h-7 text-xs rounded-full px-3 gap-1.5"
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            <Filter className="w-3.5 h-3.5" />
+            Filtres
+            {(filterColors.size + filterSizes.size) > 0 && (
+              <Badge className="ml-1 h-4 px-1.5 text-[9px] bg-primary text-primary-foreground">{filterColors.size + filterSizes.size}</Badge>
+            )}
+            {showFilters ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          </Button>
 
           {(filterGroup !== "all" || filterActive !== null || filterNew || filterColors.size > 0 || filterSizes.size > 0) && (
             <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground" onClick={() => { setFilterGroup("all"); setFilterActive(null); setFilterNew(false); setFilterColors(new Set()); setFilterSizes(new Set()); }}>
@@ -662,6 +660,11 @@ const CatalogProducts = () => {
         {/* Collapsible color/size filter panel */}
         {showFilters && (
           <div className="bg-card rounded-lg border border-border p-4 space-y-4 animate-fade-in">
+            {!variantData && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                <Loader2 className="w-4 h-4 animate-spin" /> Chargement des filtres…
+              </div>
+            )}
             {/* Color families */}
             {availableColorFamilies.length > 0 && (
               <div>
