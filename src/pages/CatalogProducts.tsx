@@ -23,6 +23,7 @@ import { formatCurrency } from "@/lib/mock-data";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { getSimplifiedCategory } from "@/lib/catalog-category-map";
+import { getColorFamily, getColorFamilyHex, getSizeGroup, getSizeGroupOrder } from "@/lib/catalog-filter-groups";
 
 
 
@@ -172,45 +173,54 @@ const CatalogProducts = () => {
     return Object.entries(counts).sort(([, a], [, b]) => b - a);
   }, [supplierFilteredProducts, activeTab]);
 
-  // Available colors across current filtered products
-  const availableColors = useMemo(() => {
-    const colorMap = new Map<string, { color: string; hex: string | null; count: number }>();
+  // Available color FAMILIES across current filtered products
+  const availableColorFamilies = useMemo(() => {
+    const familyMap = new Map<string, number>();
     supplierFilteredProducts.forEach((p) => {
       const colors = p.variant_colors as VariantColor[] | null;
       if (!Array.isArray(colors)) return;
+      // Track families already counted for this product to avoid double-counting
+      const seenFamilies = new Set<string>();
       colors.forEach((c) => {
-        const name = c.color;
-        if (!name) return;
-        const existing = colorMap.get(name);
-        if (existing) existing.count++;
-        else colorMap.set(name, { color: name, hex: c.hex, count: 1 });
+        if (!c.color) return;
+        const family = getColorFamily(c.color);
+        if (!seenFamilies.has(family)) {
+          seenFamilies.add(family);
+          familyMap.set(family, (familyMap.get(family) || 0) + 1);
+        }
       });
     });
-    return Array.from(colorMap.values()).sort((a, b) => b.count - a.count);
+    return Array.from(familyMap.entries())
+      .sort(([, a], [, b]) => b - a)
+      .map(([family, count]) => ({ family, hex: getColorFamilyHex(family), count }));
   }, [supplierFilteredProducts]);
 
-  // Available sizes across current filtered products
-  const availableSizes = useMemo(() => {
-    const sizeMap = new Map<string, number>();
+  // Available size GROUPS across current filtered products
+  const availableSizeGroups = useMemo(() => {
+    const groupMap = new Map<string, number>();
     supplierFilteredProducts.forEach((p) => {
       const sizes = p.variant_sizes as string[] | null;
       if (!Array.isArray(sizes)) return;
+      const seenGroups = new Set<string>();
       sizes.forEach((s) => {
-        sizeMap.set(s, (sizeMap.get(s) || 0) + 1);
+        const group = getSizeGroup(s);
+        if (!seenGroups.has(group)) {
+          seenGroups.add(group);
+          groupMap.set(group, (groupMap.get(group) || 0) + 1);
+        }
       });
     });
-    // Sort sizes in a logical order (XS, S, M, L, XL, XXL, then numeric, then alphabetical)
-    const sizeOrder = ["XXS", "XS", "S", "M", "L", "XL", "XXL", "2XL", "3XL", "4XL", "5XL", "6XL"];
-    return Array.from(sizeMap.entries())
+    const order = getSizeGroupOrder();
+    return Array.from(groupMap.entries())
       .sort(([a], [b]) => {
-        const ia = sizeOrder.indexOf(a.toUpperCase());
-        const ib = sizeOrder.indexOf(b.toUpperCase());
+        const ia = order.indexOf(a);
+        const ib = order.indexOf(b);
         if (ia !== -1 && ib !== -1) return ia - ib;
         if (ia !== -1) return -1;
         if (ib !== -1) return 1;
-        return a.localeCompare(b, undefined, { numeric: true });
+        return a.localeCompare(b);
       })
-      .map(([size, count]) => ({ size, count }));
+      .map(([group, count]) => ({ group, count }));
   }, [supplierFilteredProducts]);
 
   const newCount = supplierFilteredProducts.filter((p) => p.is_new).length;
@@ -229,17 +239,17 @@ const CatalogProducts = () => {
       const matchesGroup = filterGroup === "all" || getSimplifiedCategory(p.category, activeTab) === filterGroup;
       const matchesActive = filterActive === null || p.active === filterActive;
       const matchesNew = !filterNew || p.is_new;
-      // Color filter
+      // Color filter (by family)
       const matchesColor = filterColors.size === 0 || (() => {
         const colors = p.variant_colors as VariantColor[] | null;
         if (!Array.isArray(colors)) return false;
-        return colors.some((c) => filterColors.has(c.color));
+        return colors.some((c) => filterColors.has(getColorFamily(c.color)));
       })();
-      // Size filter
+      // Size filter (by group)
       const matchesSize = filterSizes.size === 0 || (() => {
         const sizes = p.variant_sizes as string[] | null;
         if (!Array.isArray(sizes)) return false;
-        return sizes.some((s) => filterSizes.has(s));
+        return sizes.some((s) => filterSizes.has(getSizeGroup(s)));
       })();
       return matchesSearch && matchesGroup && matchesActive && matchesNew && matchesColor && matchesSize;
     });
@@ -579,7 +589,7 @@ const CatalogProducts = () => {
           </ToggleGroup>
 
           {/* Color/Size filter toggle */}
-          {(availableColors.length > 0 || availableSizes.length > 0) && (
+          {(availableColorFamilies.length > 0 || availableSizeGroups.length > 0) && (
             <Button
               size="sm"
               variant={showFilters ? "secondary" : "outline"}
@@ -605,8 +615,8 @@ const CatalogProducts = () => {
         {/* Collapsible color/size filter panel */}
         {showFilters && (
           <div className="bg-card rounded-lg border border-border p-4 space-y-4 animate-fade-in">
-            {/* Colors */}
-            {availableColors.length > 0 && (
+            {/* Color families */}
+            {availableColorFamilies.length > 0 && (
               <div>
                 <div className="flex items-center gap-1.5 mb-2.5">
                   <Palette className="w-3.5 h-3.5 text-muted-foreground" />
@@ -618,15 +628,16 @@ const CatalogProducts = () => {
                   )}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {availableColors.slice(0, 30).map((c) => {
-                    const isActive = filterColors.has(c.color);
+                  {availableColorFamilies.map((c) => {
+                    const isActive = filterColors.has(c.family);
+                    const isGradient = c.hex.startsWith("linear");
                     return (
                       <button
-                        key={c.color}
+                        key={c.family}
                         onClick={() => {
                           setFilterColors((prev) => {
                             const next = new Set(prev);
-                            if (next.has(c.color)) next.delete(c.color); else next.add(c.color);
+                            if (next.has(c.family)) next.delete(c.family); else next.add(c.family);
                             return next;
                           });
                         }}
@@ -636,26 +647,21 @@ const CatalogProducts = () => {
                             : "border-border hover:border-primary/50 text-muted-foreground"
                         }`}
                       >
-                        {c.hex && (
-                          <span
-                            className="w-3.5 h-3.5 rounded-full border border-border/50 shrink-0"
-                            style={{ backgroundColor: c.hex.startsWith("#") ? c.hex : `#${c.hex}` }}
-                          />
-                        )}
-                        <span className="truncate max-w-[100px]">{c.color}</span>
+                        <span
+                          className="w-3.5 h-3.5 rounded-full border border-border/50 shrink-0"
+                          style={isGradient ? { background: c.hex } : { backgroundColor: c.hex }}
+                        />
+                        <span>{c.family}</span>
                         <span className="text-[9px] text-muted-foreground">({c.count})</span>
                       </button>
                     );
                   })}
-                  {availableColors.length > 30 && (
-                    <span className="text-[10px] text-muted-foreground self-center ml-1">+{availableColors.length - 30} autres</span>
-                  )}
                 </div>
               </div>
             )}
 
-            {/* Sizes */}
-            {availableSizes.length > 0 && (
+            {/* Size groups */}
+            {availableSizeGroups.length > 0 && (
               <div>
                 <div className="flex items-center gap-1.5 mb-2.5">
                   <Ruler className="w-3.5 h-3.5 text-muted-foreground" />
@@ -667,15 +673,15 @@ const CatalogProducts = () => {
                   )}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {availableSizes.map((s) => {
-                    const isActive = filterSizes.has(s.size);
+                  {availableSizeGroups.map((s) => {
+                    const isActive = filterSizes.has(s.group);
                     return (
                       <button
-                        key={s.size}
+                        key={s.group}
                         onClick={() => {
                           setFilterSizes((prev) => {
                             const next = new Set(prev);
-                            if (next.has(s.size)) next.delete(s.size); else next.add(s.size);
+                            if (next.has(s.group)) next.delete(s.group); else next.add(s.group);
                             return next;
                           });
                         }}
@@ -685,7 +691,7 @@ const CatalogProducts = () => {
                             : "border-border hover:border-primary/50 text-muted-foreground"
                         }`}
                       >
-                        {s.size}
+                        {s.group}
                         <span className="text-[9px] text-muted-foreground">({s.count})</span>
                       </button>
                     );
