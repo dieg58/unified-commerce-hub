@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useRef } from "react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import CatalogProductDetailDialog from "@/components/CatalogProductDetailDialog";
 import TopBar from "@/components/TopBar";
 import { SectionHeader } from "@/components/DashboardWidgets";
@@ -16,7 +17,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Search, Loader2, MoreHorizontal, Pencil, Trash2, Package, Upload, Eye, RefreshCw, Filter, Gift, Shirt, CheckCircle, XCircle, Sparkles, Printer, ChevronDown, ChevronUp, Palette, Ruler } from "lucide-react";
+import { Plus, Search, Loader2, MoreHorizontal, Pencil, Trash2, Package, Upload, Eye, RefreshCw, Filter, Gift, Shirt, CheckCircle, XCircle, Sparkles, Printer, ChevronDown, ChevronUp, Palette, Ruler, Layers } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/mock-data";
@@ -625,37 +626,14 @@ const CatalogProducts = () => {
               size="sm"
               variant={filterGroup === cat ? "default" : "outline"}
               className="h-7 text-xs rounded-full px-3"
-              onClick={() => { setFilterGroup(cat); setFilterSubCategory("all"); }}
+              onClick={() => { setFilterGroup(cat); setFilterSubCategory("all"); setShowFilters(true); }}
             >
               {cat} ({count})
             </Button>
           ))}
         </div>
 
-        {/* Subcategory pills */}
-        {subCategories.length > 0 && (
-          <div className="flex items-center gap-1.5 flex-wrap pl-4 border-l-2 border-primary/20">
-            <Button
-              size="sm"
-              variant={filterSubCategory === "all" ? "secondary" : "ghost"}
-              className="h-6 text-[11px] rounded-full px-2.5"
-              onClick={() => setFilterSubCategory("all")}
-            >
-              Tout
-            </Button>
-            {subCategories.map(([sub, count]) => (
-              <Button
-                key={sub}
-                size="sm"
-                variant={filterSubCategory === sub ? "secondary" : "ghost"}
-                className="h-6 text-[11px] rounded-full px-2.5"
-                onClick={() => setFilterSubCategory(sub)}
-              >
-                {sub} ({count})
-              </Button>
-            ))}
-          </div>
-        )}
+        {/* Subcategory pills removed – now inside filter panel */}
 
         {/* Nouveautés + Active filter + Filters toggle + reset */}
         <div className="flex items-center gap-2 flex-wrap">
@@ -693,8 +671,8 @@ const CatalogProducts = () => {
           >
             <Filter className="w-3.5 h-3.5" />
             Filtres
-            {(filterColors.size + filterSizes.size) > 0 && (
-              <Badge className="ml-1 h-4 px-1.5 text-[9px] bg-primary text-primary-foreground">{filterColors.size + filterSizes.size}</Badge>
+            {(filterColors.size + filterSizes.size + (filterSubCategory !== "all" ? 1 : 0)) > 0 && (
+              <Badge className="ml-1 h-4 px-1.5 text-[9px] bg-primary text-primary-foreground">{filterColors.size + filterSizes.size + (filterSubCategory !== "all" ? 1 : 0)}</Badge>
             )}
             {showFilters ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
           </Button>
@@ -714,89 +692,143 @@ const CatalogProducts = () => {
                 <Loader2 className="w-4 h-4 animate-spin" /> Chargement des filtres…
               </div>
             )}
-            {/* Color families */}
-            {availableColorFamilies.length > 0 && (
-              <div>
-                <div className="flex items-center gap-1.5 mb-2.5">
-                  <Palette className="w-3.5 h-3.5 text-muted-foreground" />
-                  <span className="text-xs font-medium">Couleurs</span>
-                  {filterColors.size > 0 && (
-                    <button className="text-[10px] text-primary hover:underline ml-auto" onClick={() => setFilterColors(new Set())}>
+            {/* Subcategories – collapsible */}
+            {subCategories.length > 0 && (
+              <Collapsible defaultOpen>
+                <div className="flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-xs font-medium">Sous-catégories de « {filterGroup} »</span>
+                  {filterSubCategory !== "all" && (
+                    <button className="text-[10px] text-primary hover:underline ml-1" onClick={() => setFilterSubCategory("all")}>
                       Effacer
                     </button>
                   )}
+                  <CollapsibleTrigger asChild>
+                    <button className="ml-auto text-muted-foreground hover:text-foreground">
+                      <ChevronDown className="w-3.5 h-3.5 transition-transform [[data-state=open]>&]:rotate-180" />
+                    </button>
+                  </CollapsibleTrigger>
                 </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {availableColorFamilies.map((c) => {
-                    const isActive = filterColors.has(c.family);
-                    const isGradient = c.hex.startsWith("linear");
-                    return (
-                      <button
-                        key={c.family}
-                        onClick={() => {
-                          setFilterColors((prev) => {
-                            const next = new Set(prev);
-                            if (next.has(c.family)) next.delete(c.family); else next.add(c.family);
-                            return next;
-                          });
-                        }}
-                        className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full border text-[11px] transition-all ${
-                          isActive
-                            ? "border-primary bg-primary/10 text-primary font-medium"
-                            : "border-border hover:border-primary/50 text-muted-foreground"
-                        }`}
-                      >
-                        <span
-                          className="w-3.5 h-3.5 rounded-full border border-border/50 shrink-0"
-                          style={isGradient ? { background: c.hex } : { backgroundColor: c.hex }}
-                        />
-                        <span>{c.family}</span>
-                        <span className="text-[9px] text-muted-foreground">({c.count})</span>
-                      </button>
-                    );
-                  })}
+                <CollapsibleContent>
+                  <div className="flex flex-wrap gap-1.5 mt-2.5">
+                    {subCategories.map(([sub, count]) => {
+                      const isActive = filterSubCategory === sub;
+                      return (
+                        <button
+                          key={sub}
+                          onClick={() => setFilterSubCategory(isActive ? "all" : sub)}
+                          className={`inline-flex items-center gap-1 h-6 px-2.5 rounded-full border text-[11px] transition-all ${
+                            isActive
+                              ? "border-primary bg-primary/10 text-primary font-medium"
+                              : "border-border hover:border-primary/50 text-muted-foreground"
+                          }`}
+                        >
+                          {sub}
+                          <span className="text-[9px] text-muted-foreground">({count})</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            )}
+            {/* Color families */}
+            {availableColorFamilies.length > 0 && (
+              <Collapsible defaultOpen>
+                <div className="flex items-center gap-1.5">
+                  <Palette className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-xs font-medium">Couleurs</span>
+                  {filterColors.size > 0 && (
+                    <button className="text-[10px] text-primary hover:underline ml-1" onClick={() => setFilterColors(new Set())}>
+                      Effacer
+                    </button>
+                  )}
+                  <CollapsibleTrigger asChild>
+                    <button className="ml-auto text-muted-foreground hover:text-foreground">
+                      <ChevronDown className="w-3.5 h-3.5 transition-transform [[data-state=open]>&]:rotate-180" />
+                    </button>
+                  </CollapsibleTrigger>
                 </div>
-              </div>
+                <CollapsibleContent>
+                  <div className="flex flex-wrap gap-1.5 mt-2.5">
+                    {availableColorFamilies.map((c) => {
+                      const isActive = filterColors.has(c.family);
+                      const isGradient = c.hex.startsWith("linear");
+                      return (
+                        <button
+                          key={c.family}
+                          onClick={() => {
+                            setFilterColors((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(c.family)) next.delete(c.family); else next.add(c.family);
+                              return next;
+                            });
+                          }}
+                          className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full border text-[11px] transition-all ${
+                            isActive
+                              ? "border-primary bg-primary/10 text-primary font-medium"
+                              : "border-border hover:border-primary/50 text-muted-foreground"
+                          }`}
+                        >
+                          <span
+                            className="w-3.5 h-3.5 rounded-full border border-border/50 shrink-0"
+                            style={isGradient ? { background: c.hex } : { backgroundColor: c.hex }}
+                          />
+                          <span>{c.family}</span>
+                          <span className="text-[9px] text-muted-foreground">({c.count})</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
             )}
 
             {/* Size groups */}
             {availableSizeGroups.length > 0 && (
-              <div>
-                <div className="flex items-center gap-1.5 mb-2.5">
+              <Collapsible defaultOpen>
+                <div className="flex items-center gap-1.5">
                   <Ruler className="w-3.5 h-3.5 text-muted-foreground" />
                   <span className="text-xs font-medium">Tailles</span>
                   {filterSizes.size > 0 && (
-                    <button className="text-[10px] text-primary hover:underline ml-auto" onClick={() => setFilterSizes(new Set())}>
+                    <button className="text-[10px] text-primary hover:underline ml-1" onClick={() => setFilterSizes(new Set())}>
                       Effacer
                     </button>
                   )}
+                  <CollapsibleTrigger asChild>
+                    <button className="ml-auto text-muted-foreground hover:text-foreground">
+                      <ChevronDown className="w-3.5 h-3.5 transition-transform [[data-state=open]>&]:rotate-180" />
+                    </button>
+                  </CollapsibleTrigger>
                 </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {availableSizeGroups.map((s) => {
-                    const isActive = filterSizes.has(s.group);
-                    return (
-                      <button
-                        key={s.group}
-                        onClick={() => {
-                          setFilterSizes((prev) => {
-                            const next = new Set(prev);
-                            if (next.has(s.group)) next.delete(s.group); else next.add(s.group);
-                            return next;
-                          });
-                        }}
-                        className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-md border text-[11px] transition-all ${
-                          isActive
-                            ? "border-primary bg-primary/10 text-primary font-medium"
-                            : "border-border hover:border-primary/50 text-muted-foreground"
-                        }`}
-                      >
-                        {s.group}
-                        <span className="text-[9px] text-muted-foreground">({s.count})</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+                <CollapsibleContent>
+                  <div className="flex flex-wrap gap-1.5 mt-2.5">
+                    {availableSizeGroups.map((s) => {
+                      const isActive = filterSizes.has(s.group);
+                      return (
+                        <button
+                          key={s.group}
+                          onClick={() => {
+                            setFilterSizes((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(s.group)) next.delete(s.group); else next.add(s.group);
+                              return next;
+                            });
+                          }}
+                          className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-md border text-[11px] transition-all ${
+                            isActive
+                              ? "border-primary bg-primary/10 text-primary font-medium"
+                              : "border-border hover:border-primary/50 text-muted-foreground"
+                          }`}
+                        >
+                          {s.group}
+                          <span className="text-[9px] text-muted-foreground">({s.count})</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
             )}
           </div>
         )}
