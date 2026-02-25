@@ -825,5 +825,53 @@
     "usersCount": "Users",
     "productsCount": "Products",
     "ordersCount": "Orders"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "markAllRead": "Mark all read",
+    "empty": "No notifications",
+    "now": "just now",
+    "minutesAgo": "{{count}}m ago",
+    "hoursAgo": "{{count}}h ago",
+    "daysAgo": "{{count}}d ago"
+  },
+  "stats": {
+    "title": "Statistics",
+    "subtitle": "Shop analytics",
+    "7days": "7 days",
+    "30days": "30 days",
+    "90days": "90 days",
+    "thisMonth": "This month",
+    "lastMonth": "Last month",
+    "revenue": "Revenue",
+    "orders": "Orders",
+    "avgOrder": "Avg. order",
+    "pending": "Pending",
+    "salesEvolution": "Sales evolution",
+    "noDataPeriod": "No data for this period",
+    "revenueLabel": "Revenue",
+    "previousPeriod": "Previous period",
+    "topProducts": "Top products",
+    "qty": "Quantity",
+    "entityDistribution": "Distribution by entity",
+    "budgetConsumption": "Budget consumption",
+    "int": "Int.",
+    "emp": "Emp.",
+    "compare": "Compare",
+    "comparison": "Comparison"
+  },
+  "pagination": {
+    "previous": "Previous",
+    "next": "Next",
+    "page": "Page {{page}} of {{total}}"
+  },
+  "storefront_extra": {
+    "switchStoreTitle": "Switch store?",
+    "switchStoreDesc": "Your cart contains items. Switching store will clear the cart.",
+    "switchStoreCancel": "Cancel",
+    "switchStoreConfirmBtn": "Switch",
+    "selectEntityError": "Please select a billing and shipping entity.",
+    "reorder": "Re-order",
+    "reorderSuccess": "Items added to cart"
   }
 }

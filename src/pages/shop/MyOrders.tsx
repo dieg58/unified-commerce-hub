@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useCart } from "@/hooks/useCart";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/mock-data";
@@ -9,12 +10,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ShoppingCart, Package, Eye, Loader2, Truck, ExternalLink } from "lucide-react";
+import { ShoppingCart, Package, Eye, Loader2, Truck, ExternalLink, RotateCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 
 const MyOrders = () => {
   const { profile } = useAuth();
   const { t } = useTranslation();
+  const { addItem, clear } = useCart();
   const [viewOrder, setViewOrder] = useState<any>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
@@ -23,7 +26,7 @@ const MyOrders = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
-        .select("*, order_items(qty, unit_price, variant_label, products(name, image_url)), entities(name), shipments(id, status, carrier, tracking_number, shipped_at, delivered_at)")
+        .select("*, order_items(qty, unit_price, variant_label, product_id, variant_id, products(name, image_url, sku)), entities(name), shipments(id, status, carrier, tracking_number, shipped_at, delivered_at)")
         .eq("created_by", profile!.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -31,6 +34,27 @@ const MyOrders = () => {
     },
     enabled: !!profile?.id,
   });
+
+  const handleReorder = (order: any) => {
+    const orderItems = order.order_items as any[];
+    if (!orderItems?.length) return;
+    clear();
+    for (const item of orderItems) {
+      const prod = item.products as any;
+      if (!prod) continue;
+      addItem({
+        productId: item.product_id,
+        variantId: item.variant_id || undefined,
+        variantLabel: item.variant_label || undefined,
+        name: prod.name,
+        sku: prod.sku || "",
+        price: Number(item.unit_price),
+        storeType: order.store_type,
+        imageUrl: prod.image_url || undefined,
+      }, item.qty);
+    }
+    toast.success(t("storefront_extra.reorderSuccess"));
+  };
 
   const filtered = orders?.filter((o) => statusFilter === "all" || o.status === statusFilter) || [];
 
@@ -87,7 +111,7 @@ const MyOrders = () => {
                   <TableHead className="text-xs">{t("common.total")}</TableHead>
                   <TableHead className="text-xs">{t("common.status")}</TableHead>
                   <TableHead className="text-xs">{t("common.date")}</TableHead>
-                  <TableHead className="text-xs w-10"></TableHead>
+                  <TableHead className="text-xs w-20"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -108,9 +132,14 @@ const MyOrders = () => {
                       <TableCell><StatusBadge status={o.status} /></TableCell>
                       <TableCell className="text-xs text-muted-foreground">{new Date(o.created_at).toLocaleDateString()}</TableCell>
                       <TableCell>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setViewOrder(o)}>
-                          <Eye className="w-4 h-4" />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setViewOrder(o)} title={t("common.viewDetails")}>
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleReorder(o)} title={t("storefront_extra.reorder")}>
+                            <RotateCcw className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -227,8 +256,13 @@ const MyOrders = () => {
                   })}
                 </div>
               )}
-              <div className="text-xs text-muted-foreground">
-                {t("myOrders.orderedOn")} {new Date(viewOrder.created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">
+                  {t("myOrders.orderedOn")} {new Date(viewOrder.created_at).toLocaleDateString()}
+                </span>
+                <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => { handleReorder(viewOrder); setViewOrder(null); }}>
+                  <RotateCcw className="w-3.5 h-3.5" /> {t("storefront_extra.reorder")}
+                </Button>
               </div>
             </div>
           )}

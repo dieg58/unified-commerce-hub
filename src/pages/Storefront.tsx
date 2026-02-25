@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   ShoppingCart, Plus, Minus, Trash2, Loader2, Package, CheckCircle,
@@ -41,6 +42,8 @@ const Storefront = () => {
   const [variantMatrixProduct, setVariantMatrixProduct] = useState<any | null>(null);
   const [billingAddressId, setBillingAddressId] = useState<string>("");
   const [shippingAddressId, setShippingAddressId] = useState<string>("");
+  const [switchStoreTarget, setSwitchStoreTarget] = useState<"bulk" | "staff" | null>(null);
+  const [checkoutError, setCheckoutError] = useState<string>("");
   const { t } = useTranslation();
 
   const { tenantId: paramTenantId } = useParams<{ tenantId: string }>();
@@ -96,7 +99,6 @@ const Storefront = () => {
     enabled: !!tenantId,
   });
 
-  // Employee personal budget
   const { data: userBudget } = useQuery({
     queryKey: ["user-budget", profile?.id, tenantId],
     queryFn: async () => {
@@ -221,8 +223,30 @@ const Storefront = () => {
   const requiresApproval = selectedEntity?.requires_approval || isBudgetExceeded;
   const needsApproval = requiresApproval;
 
+  const handleSwitchStore = (target: "bulk" | "staff") => {
+    if (storeType === target) return;
+    if (count > 0) {
+      setSwitchStoreTarget(target);
+    } else {
+      setStoreType(target);
+    }
+  };
+
+  const confirmSwitchStore = () => {
+    if (switchStoreTarget) {
+      setStoreType(switchStoreTarget);
+      clear();
+      setSwitchStoreTarget(null);
+    }
+  };
+
   const handleCheckout = async () => {
-    if (!billingEntityId || !shippingEntityId || !profile || !tenantId) return;
+    if (!billingEntityId || !shippingEntityId) {
+      setCheckoutError(t("storefront_extra.selectEntityError"));
+      return;
+    }
+    setCheckoutError("");
+    if (!profile || !tenantId) return;
     setPlacing(true);
     try {
       const { data: order, error: oErr } = await supabase
@@ -283,20 +307,19 @@ const Storefront = () => {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => { if (storeType !== "bulk" && count > 0) { if (!confirm(t("storefront.switchStoreConfirm"))) return; } setStoreType("bulk"); clear(); }}
+              onClick={() => handleSwitchStore("bulk")}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${storeType === "bulk" ? "text-white" : "text-muted-foreground hover:text-foreground"}`}
               style={storeType === "bulk" ? { backgroundColor: primaryColor } : {}}
             >
               {t("storefront.bulkStore")}
             </button>
             <button
-              onClick={() => { if (storeType !== "staff" && count > 0) { if (!confirm(t("storefront.switchStoreConfirm"))) return; } setStoreType("staff"); clear(); }}
+              onClick={() => handleSwitchStore("staff")}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${storeType === "staff" ? "text-white" : "text-muted-foreground hover:text-foreground"}`}
               style={storeType === "staff" ? { backgroundColor: primaryColor } : {}}
             >
               {t("storefront.staffStore")}
             </button>
-            {/* Employee budget indicator */}
             {storeType === "staff" && userBudget && userBudget.length > 0 && (() => {
               const ub = userBudget[0];
               const remaining = Number(ub.amount) - Number(ub.spent);
@@ -354,29 +377,7 @@ const Storefront = () => {
         </div>
       </section>
 
-      <div className="max-w-7xl mx-auto px-6 -mt-6 relative z-10">
-        <div className="bg-card border border-border rounded-xl shadow-card overflow-hidden grid grid-cols-2">
-          <button
-            onClick={() => { if (storeType !== "bulk" && count > 0) { if (!confirm(t("storefront.switchStoreConfirm"))) return; } setStoreType("bulk"); clear(); }}
-            className={`flex flex-col items-center gap-1 py-4 transition-colors ${storeType === "bulk" ? "bg-card" : "bg-muted/30"}`}
-            style={storeType === "bulk" ? { borderBottom: `3px solid ${primaryColor}` } : { borderBottom: "3px solid transparent" }}
-          >
-            <Store className="w-5 h-5" style={{ color: storeType === "bulk" ? primaryColor : undefined }} />
-            <span className="text-sm font-semibold" style={{ color: storeType === "bulk" ? primaryColor : undefined }}>{t("storefront.internalMerch")}</span>
-            <span className="text-[10px] text-muted-foreground">{t("storefront.volumeOrders")}</span>
-          </button>
-          <button
-            onClick={() => { if (storeType !== "staff" && count > 0) { if (!confirm(t("storefront.switchStoreConfirm"))) return; } setStoreType("staff"); clear(); }}
-            className={`flex flex-col items-center gap-1 py-4 transition-colors ${storeType === "staff" ? "bg-card" : "bg-muted/30"}`}
-            style={storeType === "staff" ? { borderBottom: `3px solid ${primaryColor}` } : { borderBottom: "3px solid transparent" }}
-          >
-            <Users className="w-5 h-5" style={{ color: storeType === "staff" ? primaryColor : undefined }} />
-            <span className="text-sm font-semibold" style={{ color: storeType === "staff" ? primaryColor : undefined }}>{t("storefront.employeeMerch")}</span>
-            <span className="text-[10px] text-muted-foreground">{t("storefront.individualOrders")}</span>
-          </button>
-        </div>
-      </div>
-
+      {/* Store type hint banner (replaces the double selector) */}
       <div className="max-w-7xl mx-auto px-6 mt-6">
         <div className="rounded-xl border border-border bg-muted/30 p-4 text-center">
           <p className="text-sm font-semibold text-foreground flex items-center justify-center gap-2">
@@ -515,6 +516,7 @@ const Storefront = () => {
         )}
       </div>
 
+      {/* Checkout Dialog */}
       <Dialog open={checkoutOpen} onOpenChange={setCheckoutOpen}>
         <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-auto">
           <DialogHeader><DialogTitle>{t("storefront.finalizeOrder")}</DialogTitle></DialogHeader>
@@ -522,8 +524,8 @@ const Storefront = () => {
             <div className="space-y-3">
               <label className="text-sm font-semibold flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5 text-primary" /> {t("storefront.billing")}</label>
               <div className="space-y-2">
-                <Select value={billingEntityId} onValueChange={(v) => { setBillingEntityId(v); setBillingAddressId(""); }}>
-                  <SelectTrigger><SelectValue placeholder={t("storefront.selectBillingEntity")} /></SelectTrigger>
+                <Select value={billingEntityId} onValueChange={(v) => { setBillingEntityId(v); setBillingAddressId(""); setCheckoutError(""); }}>
+                  <SelectTrigger className={!billingEntityId && checkoutError ? "border-destructive" : ""}><SelectValue placeholder={t("storefront.selectBillingEntity")} /></SelectTrigger>
                   <SelectContent>
                     {entities?.map((e) => (<SelectItem key={e.id} value={e.id}>{e.name} ({e.code})</SelectItem>))}
                   </SelectContent>
@@ -542,8 +544,8 @@ const Storefront = () => {
             <div className="space-y-3">
               <label className="text-sm font-semibold flex items-center gap-1.5"><Truck className="w-3.5 h-3.5 text-primary" /> {t("storefront.shipping")}</label>
               <div className="space-y-2">
-                <Select value={shippingEntityId} onValueChange={(v) => { setShippingEntityId(v); setShippingAddressId(""); }}>
-                  <SelectTrigger><SelectValue placeholder={t("storefront.selectShippingEntity")} /></SelectTrigger>
+                <Select value={shippingEntityId} onValueChange={(v) => { setShippingEntityId(v); setShippingAddressId(""); setCheckoutError(""); }}>
+                  <SelectTrigger className={!shippingEntityId && checkoutError ? "border-destructive" : ""}><SelectValue placeholder={t("storefront.selectShippingEntity")} /></SelectTrigger>
                   <SelectContent>
                     {entities?.map((e) => (<SelectItem key={e.id} value={e.id}>{e.name} ({e.code})</SelectItem>))}
                   </SelectContent>
@@ -558,6 +560,11 @@ const Storefront = () => {
                 )}
               </div>
             </div>
+            {checkoutError && (
+              <p className="text-xs text-destructive font-medium flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5" /> {checkoutError}
+              </p>
+            )}
             {billingEntityId && storeType === "staff" && budgetRemaining !== null && (
               <div className={`rounded-lg border p-3 ${isBudgetExceeded ? "border-warning bg-warning/5" : "border-border bg-muted/30"}`}>
                 <div className="flex items-center gap-2">
@@ -609,7 +616,7 @@ const Storefront = () => {
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setCheckoutOpen(false)}>{t("common.cancel")}</Button>
-            <Button onClick={handleCheckout} disabled={!billingEntityId || !shippingEntityId || placing} className="text-white" style={{ backgroundColor: primaryColor }}>
+            <Button onClick={handleCheckout} disabled={placing} className="text-white" style={{ backgroundColor: primaryColor }}>
               {placing ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <CheckCircle className="w-4 h-4 mr-1" />}
               {needsApproval ? t("storefront.submitForApproval") : t("common.confirm")}
             </Button>
@@ -677,6 +684,20 @@ const Storefront = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* AlertDialog for store switch confirmation */}
+      <AlertDialog open={!!switchStoreTarget} onOpenChange={(v) => { if (!v) setSwitchStoreTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("storefront_extra.switchStoreTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("storefront_extra.switchStoreDesc")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("storefront_extra.switchStoreCancel")}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmSwitchStore}>{t("storefront_extra.switchStoreConfirmBtn")}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

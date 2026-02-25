@@ -825,5 +825,53 @@
     "usersCount": "Utilisateurs",
     "productsCount": "Produits",
     "ordersCount": "Commandes"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "markAllRead": "Tout lire",
+    "empty": "Aucune notification",
+    "now": "à l'instant",
+    "minutesAgo": "il y a {{count}} min",
+    "hoursAgo": "il y a {{count}} h",
+    "daysAgo": "il y a {{count}} j"
+  },
+  "stats": {
+    "title": "Statistiques",
+    "subtitle": "Analyse de votre boutique",
+    "7days": "7 jours",
+    "30days": "30 jours",
+    "90days": "90 jours",
+    "thisMonth": "Ce mois",
+    "lastMonth": "Mois dernier",
+    "revenue": "Chiffre d'affaires",
+    "orders": "Commandes",
+    "avgOrder": "Panier moyen",
+    "pending": "En attente",
+    "salesEvolution": "Évolution des ventes",
+    "noDataPeriod": "Aucune donnée sur cette période",
+    "revenueLabel": "Chiffre d'affaires",
+    "previousPeriod": "Période précédente",
+    "topProducts": "Produits les plus vendus",
+    "qty": "Quantité",
+    "entityDistribution": "Répartition par entité",
+    "budgetConsumption": "Consommation des budgets",
+    "int": "Int.",
+    "emp": "Emp.",
+    "compare": "Comparer",
+    "comparison": "Comparaison"
+  },
+  "pagination": {
+    "previous": "Précédent",
+    "next": "Suivant",
+    "page": "Page {{page}} sur {{total}}"
+  },
+  "storefront_extra": {
+    "switchStoreTitle": "Changer de boutique ?",
+    "switchStoreDesc": "Votre panier contient des articles. Changer de boutique videra le panier.",
+    "switchStoreCancel": "Annuler",
+    "switchStoreConfirmBtn": "Changer",
+    "selectEntityError": "Veuillez sélectionner une entité de facturation et de livraison.",
+    "reorder": "Re-commander",
+    "reorderSuccess": "Articles ajoutés au panier"
   }
 }

@@ -825,5 +825,53 @@
     "usersCount": "Gebruikers",
     "productsCount": "Producten",
     "ordersCount": "Bestellingen"
+  },
+  "notifications": {
+    "title": "Meldingen",
+    "markAllRead": "Alles gelezen",
+    "empty": "Geen meldingen",
+    "now": "zojuist",
+    "minutesAgo": "{{count}} min geleden",
+    "hoursAgo": "{{count}} u geleden",
+    "daysAgo": "{{count}} d geleden"
+  },
+  "stats": {
+    "title": "Statistieken",
+    "subtitle": "Winkelanalyse",
+    "7days": "7 dagen",
+    "30days": "30 dagen",
+    "90days": "90 dagen",
+    "thisMonth": "Deze maand",
+    "lastMonth": "Vorige maand",
+    "revenue": "Omzet",
+    "orders": "Bestellingen",
+    "avgOrder": "Gem. bestelling",
+    "pending": "In afwachting",
+    "salesEvolution": "Verkoopevolutie",
+    "noDataPeriod": "Geen gegevens voor deze periode",
+    "revenueLabel": "Omzet",
+    "previousPeriod": "Vorige periode",
+    "topProducts": "Topproducten",
+    "qty": "Aantal",
+    "entityDistribution": "Verdeling per entiteit",
+    "budgetConsumption": "Budgetverbruik",
+    "int": "Int.",
+    "emp": "Med.",
+    "compare": "Vergelijken",
+    "comparison": "Vergelijking"
+  },
+  "pagination": {
+    "previous": "Vorige",
+    "next": "Volgende",
+    "page": "Pagina {{page}} van {{total}}"
+  },
+  "storefront_extra": {
+    "switchStoreTitle": "Van winkel wisselen?",
+    "switchStoreDesc": "Uw winkelwagen bevat artikelen. Van winkel wisselen zal de winkelwagen leegmaken.",
+    "switchStoreCancel": "Annuleren",
+    "switchStoreConfirmBtn": "Wisselen",
+    "selectEntityError": "Selecteer een facturerings- en leveringsentiteit.",
+    "reorder": "Opnieuw bestellen",
+    "reorderSuccess": "Artikelen toegevoegd aan winkelwagen"
   }
 }
