@@ -27,6 +27,38 @@ function ml(obj: unknown, fallback = ""): { fr: string; en: string; nl: string }
   return { fr: o.fr || fallback, en: o.en || "", nl: o.nl || "" };
 }
 
+function normalizeText(value: unknown): string | null {
+  if (!value) return null;
+  if (typeof value === "string") return value.trim() || null;
+  if (typeof value === "number") return String(value);
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    const candidates = [
+      obj.fr, obj.en, obj.nl, obj.de,
+      obj.label, obj.name, obj.value,
+      obj["fr-FR"], obj["en-GB"], obj["en-US"],
+    ];
+    for (const c of candidates) {
+      const text = normalizeText(c);
+      if (text) return text;
+    }
+  }
+  return null;
+}
+
+function normalizeHex(value: unknown): string | null {
+  if (!value) return null;
+  if (Array.isArray(value)) {
+    const first = value.find(Boolean);
+    return normalizeHex(first);
+  }
+  const raw = normalizeText(value);
+  if (!raw) return null;
+  const cleaned = raw.replace(/^#/, "").trim();
+  if (!cleaned) return null;
+  return cleaned;
+}
+
 async function toptexAuth(): Promise<string> {
   const res = await fetch(`${TOPTEX_BASE}/v3/authenticate`, {
     method: "POST",
@@ -189,12 +221,10 @@ Deno.serve(async (req) => {
             // 1) Try nested colors[] from first product (works if API returns full product detail)
             const productColors = product.colors || [];
             for (const colorEntry of productColors) {
-              const colorNames = colorEntry.colors;
-              const colorName = colorNames?.fr || colorNames?.en || colorNames?.de || null;
+              const colorName = normalizeText(colorEntry.colors) || normalizeText(colorEntry.colorLabel) || normalizeText(colorEntry.color);
               if (!colorName) continue;
 
-              const hexArr = colorEntry.colorsHexa;
-              const hex = Array.isArray(hexArr) && hexArr.length ? hexArr[0] : null;
+              const hex = normalizeHex(colorEntry.colorsHexa) || normalizeHex(colorEntry.colorHexa) || normalizeHex(colorEntry.hex);
 
               let colorImage: string | null = null;
               const packshots = colorEntry.packshots;
@@ -213,7 +243,7 @@ Deno.serve(async (req) => {
               const sizes = colorEntry.sizes;
               if (Array.isArray(sizes)) {
                 for (const s of sizes) {
-                  const sizeName = s.sizeLabel || s.size || s.sizeCode || null;
+                  const sizeName = normalizeText(s.sizeLabel) || normalizeText(s.size) || normalizeText(s.sizeCode);
                   if (sizeName) sizeSet.add(sizeName);
                 }
               }
@@ -222,15 +252,26 @@ Deno.serve(async (req) => {
             // 2) If no colors found from nested structure, aggregate from individual items
             if (colorMap.size === 0) {
               for (const item of items) {
-                // Color: try item.colorLabel / item.color / item.couleur
                 const colorName =
-                  (typeof item.colorLabel === "object" ? (item.colorLabel?.fr || item.colorLabel?.en) : item.colorLabel)
-                  || item.color || item.couleur || null;
+                  normalizeText(item.colorLabel)
+                  || normalizeText(item.color)
+                  || normalizeText(item.colour)
+                  || normalizeText(item.colorName)
+                  || normalizeText(item.color_name)
+                  || normalizeText(item.colors)
+                  || normalizeText(item.colorsLabel)
+                  || normalizeText(item.colorDescription)
+                  || normalizeText(item.attributes?.color);
 
                 if (colorName && !colorMap.has(colorName)) {
-                  // Hex
-                  const hex = item.colorHexa || item.hexColor || item.hex || null;
-                  // Image
+                  const hex =
+                    normalizeHex(item.colorHexa)
+                    || normalizeHex(item.colorsHexa)
+                    || normalizeHex(item.hexColor)
+                    || normalizeHex(item.colorHex)
+                    || normalizeHex(item.hex)
+                    || normalizeHex(item.attributes?.colorHex);
+
                   let img: string | null = null;
                   if (item.packshots) {
                     const face = item.packshots.FACE || item.packshots.face;
@@ -240,14 +281,30 @@ Deno.serve(async (req) => {
                       if (firstShot) img = firstShot.url_packshot || firstShot.url || null;
                     }
                   }
+                  if (!img && Array.isArray(item.images) && item.images.length) {
+                    const firstImg = item.images[0] as any;
+                    img = firstImg?.url_image || firstImg?.url || null;
+                  }
                   if (!img) img = item.imageUrl || item.image || item.url_image || null;
                   if (!firstImage && img) firstImage = img;
                   colorMap.set(colorName, { color: colorName, hex, image_url: img });
                 }
 
-                // Size: try item.sizeLabel / item.size / item.taille
-                const sizeName = item.sizeLabel || item.size || item.taille || null;
+                const sizeName =
+                  normalizeText(item.sizeLabel)
+                  || normalizeText(item.size)
+                  || normalizeText(item.taille)
+                  || normalizeText(item.sizeCode)
+                  || normalizeText(item.attributes?.size);
                 if (sizeName) sizeSet.add(sizeName);
+              }
+            }
+
+            // 3) Fallback image even if no color is detected
+            if (!firstImage) {
+              const imgs = product.images;
+              if (Array.isArray(imgs) && imgs.length) {
+                firstImage = (imgs[0] as any)?.url_image || (imgs[0] as any)?.url || null;
               }
             }
 
