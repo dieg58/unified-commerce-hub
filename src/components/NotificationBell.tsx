@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useTranslation } from "react-i18next";
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   order: <ShoppingCart className="w-4 h-4 text-primary" />,
@@ -24,6 +25,7 @@ const NotificationBell = () => {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const { t } = useTranslation();
 
   const { data: notifications } = useQuery({
     queryKey: ["notifications"],
@@ -39,7 +41,6 @@ const NotificationBell = () => {
     enabled: !!user,
   });
 
-  // Realtime subscription
   useEffect(() => {
     if (!user) return;
     const channel = supabase
@@ -74,7 +75,6 @@ const NotificationBell = () => {
   });
 
   const handleClick = (notification: any) => {
-    // Mark as read
     if (!notification.read) {
       supabase
         .from("notifications")
@@ -91,12 +91,12 @@ const NotificationBell = () => {
   const timeAgo = (dateStr: string) => {
     const diff = Date.now() - new Date(dateStr).getTime();
     const mins = Math.floor(diff / 60000);
-    if (mins < 1) return "now";
-    if (mins < 60) return `${mins}m ago`;
+    if (mins < 1) return t("notifications.now");
+    if (mins < 60) return t("notifications.minutesAgo", { count: mins });
     const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
+    if (hrs < 24) return t("notifications.hoursAgo", { count: hrs });
     const days = Math.floor(hrs / 24);
-    return `${days}d ago`;
+    return t("notifications.daysAgo", { count: days });
   };
 
   return (
@@ -113,7 +113,7 @@ const NotificationBell = () => {
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 p-0">
         <div className="flex items-center justify-between p-3 border-b border-border">
-          <h4 className="text-sm font-semibold text-foreground">Notifications</h4>
+          <h4 className="text-sm font-semibold text-foreground">{t("notifications.title")}</h4>
           {unreadCount > 0 && (
             <Button
               variant="ghost"
@@ -121,13 +121,13 @@ const NotificationBell = () => {
               className="text-xs h-7 gap-1"
               onClick={() => markAllRead.mutate()}
             >
-              <Check className="w-3 h-3" /> Tout lire
+              <Check className="w-3 h-3" /> {t("notifications.markAllRead")}
             </Button>
           )}
         </div>
         <ScrollArea className="max-h-[360px]">
           {!notifications?.length ? (
-            <p className="p-6 text-center text-sm text-muted-foreground">Aucune notification</p>
+            <p className="p-6 text-center text-sm text-muted-foreground">{t("notifications.empty")}</p>
           ) : (
             <div className="divide-y divide-border">
               {notifications.map((n: any) => (

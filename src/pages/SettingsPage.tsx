@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import TopBar from "@/components/TopBar";
@@ -15,41 +15,78 @@ import { Globe, Mail, Settings, Shield, Save, Loader2, ExternalLink, Copy, Check
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
+const SETTING_KEYS = ["platform_name", "support_email", "default_currency", "default_lang", "custom_domain", "enforce_2fa", "session_timeout", "ip_whitelist"] as const;
+
 const SettingsPage = () => {
-  const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
   const [editTemplate, setEditTemplate] = useState<any>(null);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const qc = useQueryClient();
   const { t } = useTranslation();
 
-  // General
+  // Load settings from DB
+  const { data: settings, isLoading: settingsLoading } = useQuery({
+    queryKey: ["platform-settings"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("platform_settings").select("*");
+      if (error) throw error;
+      const map: Record<string, string> = {};
+      data?.forEach((row: any) => { map[row.key] = row.value || ""; });
+      return map;
+    },
+  });
+
+  // Local state
   const [platformName, setPlatformName] = useState("Inkoo B2B");
   const [supportEmail, setSupportEmail] = useState("support@b2b-inkoo.com");
   const [defaultCurrency, setDefaultCurrency] = useState("EUR");
   const [defaultLang, setDefaultLang] = useState("fr");
-
-  // Domain
   const [customDomain, setCustomDomain] = useState("b2b-inkoo.com");
-
-  // Email
-  const [senderName, setSenderName] = useState("Inkoo B2B");
-  const [senderEmail, setSenderEmail] = useState("noreply@b2b-inkoo.com");
-  const [welcomeEnabled, setWelcomeEnabled] = useState(true);
-  const [orderNotif, setOrderNotif] = useState(true);
-  const [budgetAlert, setBudgetAlert] = useState(true);
-
-  // Security
   const [enforce2FA, setEnforce2FA] = useState(false);
   const [sessionTimeout, setSessionTimeout] = useState("480");
   const [ipWhitelist, setIpWhitelist] = useState("");
 
-  const handleSave = async () => {
-    setSaving(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setSaving(false);
-    toast.success(t("settings.settingsSaved"));
-  };
+  // Sync DB → local state
+  useEffect(() => {
+    if (!settings) return;
+    if (settings.platform_name) setPlatformName(settings.platform_name);
+    if (settings.support_email) setSupportEmail(settings.support_email);
+    if (settings.default_currency) setDefaultCurrency(settings.default_currency);
+    if (settings.default_lang) setDefaultLang(settings.default_lang);
+    if (settings.custom_domain) setCustomDomain(settings.custom_domain);
+    if (settings.enforce_2fa) setEnforce2FA(settings.enforce_2fa === "true");
+    if (settings.session_timeout) setSessionTimeout(settings.session_timeout);
+    if (settings.ip_whitelist) setIpWhitelist(settings.ip_whitelist);
+  }, [settings]);
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const entries: { key: string; value: string }[] = [
+        { key: "platform_name", value: platformName },
+        { key: "support_email", value: supportEmail },
+        { key: "default_currency", value: defaultCurrency },
+        { key: "default_lang", value: defaultLang },
+        { key: "custom_domain", value: customDomain },
+        { key: "enforce_2fa", value: String(enforce2FA) },
+        { key: "session_timeout", value: sessionTimeout },
+        { key: "ip_whitelist", value: ipWhitelist },
+      ];
+      for (const entry of entries) {
+        const { error } = await supabase
+          .from("platform_settings")
+          .upsert({ key: entry.key, value: entry.value, updated_at: new Date().toISOString() }, { onConflict: "key" });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["platform-settings"] });
+      toast.success(t("settings.settingsSaved"));
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const handleSave = () => saveMutation.mutate();
+  const saving = saveMutation.isPending;
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -122,13 +159,9 @@ const SettingsPage = () => {
                       <ExternalLink className="w-3.5 h-3.5" /> {t("settings.verify")}
                     </Button>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {t("settings.dnsPointNote")}
-                  </p>
+                  <p className="text-xs text-muted-foreground">{t("settings.dnsPointNote")}</p>
                 </div>
-
                 <Separator />
-
                 <div className="space-y-3">
                   <Label className="text-sm font-semibold">{t("settings.requiredDNS")}</Label>
                   <div className="rounded-md bg-muted/50 border border-border p-4 space-y-3 font-mono text-xs">
@@ -150,7 +183,6 @@ const SettingsPage = () => {
                     </div>
                   </div>
                 </div>
-
                 <div className="rounded-md border border-border p-4 space-y-2">
                   <div className="flex items-center justify-between">
                     <div>
@@ -185,7 +217,6 @@ const SettingsPage = () => {
           <TabsContent value="security">
             <div className="bg-card rounded-lg border border-border shadow-card animate-fade-in p-6 space-y-6">
               <SectionHeader title={t("settings.securityAccess")} />
-
               <div className="space-y-4">
                 <div className="flex items-center justify-between rounded-md border border-border p-3">
                   <div>
@@ -194,24 +225,18 @@ const SettingsPage = () => {
                   </div>
                   <Switch checked={enforce2FA} onCheckedChange={setEnforce2FA} />
                 </div>
-
                 <div className="space-y-2">
                   <Label>{t("settings.sessionTimeout")}</Label>
                   <Input value={sessionTimeout} onChange={(e) => setSessionTimeout(e.target.value)} className="h-9 max-w-[200px]" type="number" />
                   <p className="text-xs text-muted-foreground">{t("settings.sessionTimeoutDesc")}</p>
                 </div>
-
                 <Separator />
-
                 <div className="space-y-2">
                   <Label>{t("settings.ipWhitelist")}</Label>
                   <Input value={ipWhitelist} onChange={(e) => setIpWhitelist(e.target.value)} className="h-9" placeholder="Ex: 192.168.1.0/24, 10.0.0.1" />
-                  <p className="text-xs text-muted-foreground">
-                    {t("settings.ipWhitelistDesc")}
-                  </p>
+                  <p className="text-xs text-muted-foreground">{t("settings.ipWhitelistDesc")}</p>
                 </div>
               </div>
-
               <Separator />
               <div className="flex justify-end">
                 <Button onClick={handleSave} disabled={saving} className="gap-1.5">
@@ -326,22 +351,13 @@ const EmailTemplatesTab = ({
                 <p className="text-xs text-muted-foreground mt-0.5 truncate">{tr("settings.emailSubject")} : {tmpl.subject}</p>
               </div>
               <div className="flex items-center gap-2 shrink-0 ml-4">
-                <Button
-                  variant="ghost" size="sm" className="h-8 w-8 p-0"
-                  onClick={() => setPreviewHtml(renderPreview(tmpl.body_html))}
-                >
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setPreviewHtml(renderPreview(tmpl.body_html))}>
                   <Eye className="w-4 h-4" />
                 </Button>
-                <Button
-                  variant="ghost" size="sm" className="h-8 w-8 p-0"
-                  onClick={() => setEditTemplate({ ...tmpl })}
-                >
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setEditTemplate({ ...tmpl })}>
                   <Pencil className="w-4 h-4" />
                 </Button>
-                <Switch
-                  checked={tmpl.enabled}
-                  onCheckedChange={(v) => toggleMutation.mutate({ id: tmpl.id, enabled: v })}
-                />
+                <Switch checked={tmpl.enabled} onCheckedChange={(v) => toggleMutation.mutate({ id: tmpl.id, enabled: v })} />
               </div>
             </div>
           ))}
@@ -358,37 +374,21 @@ const EmailTemplatesTab = ({
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>{tr("settings.emailSubject")}</Label>
-                <Input
-                  value={editTemplate.subject}
-                  onChange={(e) => setEditTemplate({ ...editTemplate, subject: e.target.value })}
-                  className="h-9"
-                />
+                <Input value={editTemplate.subject} onChange={(e) => setEditTemplate({ ...editTemplate, subject: e.target.value })} className="h-9" />
               </div>
               <div className="space-y-2">
                 <Label>{tr("settings.emailBody")}</Label>
-                <Textarea
-                  value={editTemplate.body_html}
-                  onChange={(e) => setEditTemplate({ ...editTemplate, body_html: e.target.value })}
-                  className="min-h-[250px] font-mono text-xs"
-                />
+                <Textarea value={editTemplate.body_html} onChange={(e) => setEditTemplate({ ...editTemplate, body_html: e.target.value })} className="min-h-[250px] font-mono text-xs" />
               </div>
               <div className="flex items-center gap-2">
-                <Button
-                  variant="outline" size="sm"
-                  onClick={() => setPreviewHtml(renderPreview(editTemplate.body_html))}
-                  className="gap-1.5"
-                >
+                <Button variant="outline" size="sm" onClick={() => setPreviewHtml(renderPreview(editTemplate.body_html))} className="gap-1.5">
                   <Eye className="w-4 h-4" /> {tr("settings.preview")}
                 </Button>
               </div>
               <Separator />
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setEditTemplate(null)}>{tr("common.cancel")}</Button>
-                <Button
-                  onClick={() => saveMutation.mutate(editTemplate)}
-                  disabled={saveMutation.isPending}
-                  className="gap-1.5"
-                >
+                <Button onClick={() => saveMutation.mutate(editTemplate)} disabled={saveMutation.isPending} className="gap-1.5">
                   {saveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                   {tr("common.save")}
                 </Button>
@@ -405,10 +405,7 @@ const EmailTemplatesTab = ({
             <DialogTitle>{tr("settings.previewTitle")}</DialogTitle>
           </DialogHeader>
           {previewHtml && (
-            <div
-              className="border border-border rounded-lg p-6 bg-white text-foreground"
-              dangerouslySetInnerHTML={{ __html: previewHtml }}
-            />
+            <div className="border border-border rounded-md p-4 bg-white" dangerouslySetInnerHTML={{ __html: previewHtml }} />
           )}
         </DialogContent>
       </Dialog>

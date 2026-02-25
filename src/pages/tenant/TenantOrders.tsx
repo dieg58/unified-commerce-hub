@@ -6,7 +6,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Loader2, CheckCircle, XCircle, Package, Eye } from "lucide-react";
+import { MoreHorizontal, Loader2, CheckCircle, XCircle, Package, Eye, Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -36,6 +37,7 @@ const TenantOrders = () => {
   const qc = useQueryClient();
   const tenantId = profile?.tenant_id;
   const [exportFilters, setExportFilters] = useState<{ from?: Date; to?: Date; storeType?: string }>({});
+  const [searchQuery, setSearchQuery] = useState("");
 
   const { data: orders, isLoading } = useQuery({
     queryKey: ["tenant-orders", tenantId],
@@ -75,9 +77,20 @@ const TenantOrders = () => {
     return list;
   }, [orders, exportFilters]);
 
-  const bulkOrders = filteredOrders.filter((o) => o.store_type === "bulk");
-  const staffOrders = filteredOrders.filter((o) => o.store_type === "staff");
-  const pendingApproval = filteredOrders.filter((o) => o.status === "pending_approval" || o.status === "pending");
+  const searchedOrders = useMemo(() => {
+    if (!searchQuery.trim()) return filteredOrders;
+    const q = searchQuery.toLowerCase();
+    return filteredOrders.filter((o) => {
+      const profile = o.profiles as any;
+      return o.id.toLowerCase().includes(q) ||
+        (profile?.full_name || "").toLowerCase().includes(q) ||
+        (profile?.email || "").toLowerCase().includes(q);
+    });
+  }, [filteredOrders, searchQuery]);
+
+  const bulkOrders = searchedOrders.filter((o) => o.store_type === "bulk");
+  const staffOrders = searchedOrders.filter((o) => o.store_type === "staff");
+  const pendingApproval = searchedOrders.filter((o) => o.status === "pending_approval" || o.status === "pending");
 
   const OrderTable = ({ items }: { items: typeof orders }) => {
     if (!items?.length) return <p className="p-8 text-center text-sm text-muted-foreground">{t("tenantOrders.noOrders")}</p>;
@@ -159,21 +172,27 @@ const TenantOrders = () => {
             <Tabs defaultValue="all" className="w-full">
               <div className="p-5 border-b border-border flex items-center justify-between flex-wrap gap-2">
                 <TabsList className="bg-secondary">
-                  <TabsTrigger value="all" className="text-xs">{t("tenantOrders.all")} ({filteredOrders.length})</TabsTrigger>
+                  <TabsTrigger value="all" className="text-xs">{t("tenantOrders.all")} ({searchedOrders.length})</TabsTrigger>
                   <TabsTrigger value="pending" className="text-xs">{t("tenantOrders.pending")} ({pendingApproval.length})</TabsTrigger>
                   <TabsTrigger value="bulk" className="text-xs">{t("tenantOrders.internal")} ({bulkOrders.length})</TabsTrigger>
                   <TabsTrigger value="staff" className="text-xs">{t("tenantOrders.employee")} ({staffOrders.length})</TabsTrigger>
                 </TabsList>
-                <ExportMenu
-                  title={t("tenantOrders.title")}
-                  filename="commandes"
-                  columns={getOrderExportColumns(t)}
-                  data={filteredOrders}
-                  showStoreFilter
-                  onFilterChange={setExportFilters}
-                />
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                    <Input placeholder={t("orders.searchPlaceholder")} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-8 h-8 w-52 text-sm" />
+                  </div>
+                  <ExportMenu
+                    title={t("tenantOrders.title")}
+                    filename="commandes"
+                    columns={getOrderExportColumns(t)}
+                    data={searchedOrders}
+                    showStoreFilter
+                    onFilterChange={setExportFilters}
+                  />
+                </div>
               </div>
-              <TabsContent value="all" className="m-0"><OrderTable items={filteredOrders} /></TabsContent>
+              <TabsContent value="all" className="m-0"><OrderTable items={searchedOrders} /></TabsContent>
               <TabsContent value="pending" className="m-0"><OrderTable items={pendingApproval} /></TabsContent>
               <TabsContent value="bulk" className="m-0"><OrderTable items={bulkOrders} /></TabsContent>
               <TabsContent value="staff" className="m-0"><OrderTable items={staffOrders} /></TabsContent>
