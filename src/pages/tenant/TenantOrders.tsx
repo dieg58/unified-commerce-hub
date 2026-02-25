@@ -16,15 +16,15 @@ import ExportMenu from "@/components/ExportMenu";
 import { fmtDate, type ExportColumn } from "@/lib/export-utils";
 import { useTranslation } from "react-i18next";
 
-const orderExportColumns: ExportColumn[] = [
+const getOrderExportColumns = (t: any): ExportColumn[] => [
   { header: "ID", accessor: (r: any) => r.id.slice(0, 8) },
-  { header: "Utilisateur", accessor: (r: any) => (r.profiles as any)?.full_name || (r.profiles as any)?.email || "—" },
-  { header: "Département", accessor: (r: any) => (r.entities as any)?.name || "—" },
-  { header: "Type", accessor: (r: any) => r.store_type === "bulk" ? "Interne" : "Employé" },
-  { header: "Articles", accessor: (r: any) => (r.order_items as any[])?.reduce((s: number, it: any) => s + it.qty, 0) || 0 },
-  { header: "Total", accessor: (r: any) => formatCurrency(Number(r.total)) },
-  { header: "Statut", accessor: "status" },
-  { header: "Date", accessor: (r: any) => fmtDate(r.created_at) },
+  { header: t("common.user"), accessor: (r: any) => (r.profiles as any)?.full_name || (r.profiles as any)?.email || "—" },
+  { header: t("orders.entity"), accessor: (r: any) => (r.entities as any)?.name || "—" },
+  { header: t("common.type"), accessor: (r: any) => r.store_type === "bulk" ? t("tenantOrders.internal") : t("tenantOrders.employee") },
+  { header: t("orders.articles"), accessor: (r: any) => (r.order_items as any[])?.reduce((s: number, it: any) => s + it.qty, 0) || 0 },
+  { header: t("common.total"), accessor: (r: any) => formatCurrency(Number(r.total)) },
+  { header: t("common.status"), accessor: "status" },
+  { header: t("common.date"), accessor: (r: any) => fmtDate(r.created_at) },
 ];
 
 const TenantOrders = () => {
@@ -163,9 +163,9 @@ const TenantOrders = () => {
                   <TabsTrigger value="staff" className="text-xs">{t("tenantOrders.employee")} ({staffOrders.length})</TabsTrigger>
                 </TabsList>
                 <ExportMenu
-                  title="Commandes"
+                  title={t("tenantOrders.title")}
                   filename="commandes"
-                  columns={orderExportColumns}
+                  columns={getOrderExportColumns(t)}
                   data={filteredOrders}
                   showStoreFilter
                   onFilterChange={setExportFilters}
