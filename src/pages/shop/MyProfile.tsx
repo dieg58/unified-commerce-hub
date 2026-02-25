@@ -58,10 +58,10 @@ const MyProfile = () => {
 
   return (
     <div className="flex-1 flex flex-col overflow-auto">
-      <header className="sticky top-0 z-10 bg-background border-b border-border px-6 h-14 flex items-center gap-2">
+      <div className="bg-background border-b border-border px-6 h-14 flex items-center gap-2">
         <User className="w-5 h-5 text-primary" />
         <h1 className="text-lg font-bold text-foreground">{t("profile.title")}</h1>
-      </header>
+      </div>
 
       <div className="p-6 max-w-2xl space-y-6">
         <div className="bg-card rounded-lg border border-border p-6 space-y-4">

@@ -68,7 +68,7 @@ const MyOrders = () => {
 
   return (
     <div className="flex-1 flex flex-col overflow-auto">
-      <header className="sticky top-0 z-10 bg-background border-b border-border px-6 h-14 flex items-center justify-between">
+      <div className="bg-background border-b border-border px-6 h-14 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <ShoppingCart className="w-5 h-5 text-primary" />
           <h1 className="text-lg font-bold text-foreground">{t("myOrders.title")}</h1>
@@ -89,7 +89,7 @@ const MyOrders = () => {
             <SelectItem value="rejected">{t("status.rejected")}</SelectItem>
           </SelectContent>
         </Select>
-      </header>
+      </div>
 
       <div className="p-6">
         {!filtered.length ? (
