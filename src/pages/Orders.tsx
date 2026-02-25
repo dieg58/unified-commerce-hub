@@ -7,12 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Loader2, CheckCircle, XCircle, Package, Truck, Search } from "lucide-react";
+import { MoreHorizontal, Loader2, CheckCircle, XCircle, Package, Truck, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/mock-data";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
+
+const PAGE_SIZE = 50;
 
 const Orders = () => {
   const qc = useQueryClient();
@@ -22,6 +24,7 @@ const Orders = () => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [storeTypeFilter, setStoreTypeFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
 
   const statusOptions = [
     { value: "all", label: t("orders.allStatuses") },
@@ -49,17 +52,24 @@ const Orders = () => {
     },
   });
 
-  const { data: orders, isLoading } = useQuery({
-    queryKey: ["orders"],
+  const { data: ordersResult, isLoading } = useQuery({
+    queryKey: ["orders", page],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const from = page * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+      const { data, error, count } = await supabase
         .from("orders")
-        .select("*, profiles:created_by(full_name, email), order_items(qty), entities!orders_entity_id_fkey(name, requires_approval), tenants(name)")
-        .order("created_at", { ascending: false });
+        .select("*, profiles:created_by(full_name, email), order_items(qty), entities!orders_entity_id_fkey(name, requires_approval), tenants(name)", { count: "exact" })
+        .order("created_at", { ascending: false })
+        .range(from, to);
       if (error) throw error;
-      return data;
+      return { data: data || [], total: count || 0 };
     },
   });
+
+  const orders = ordersResult?.data;
+  const totalCount = ordersResult?.total || 0;
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
   const updateStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
@@ -201,6 +211,23 @@ const Orders = () => {
             </Table>
           )}
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">
+              {t("orders.subtitle", { count: totalCount })} — page {page + 1}/{totalPages}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
+                <ChevronLeft className="w-4 h-4 mr-1" /> {t("common.previous")}
+              </Button>
+              <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>
+                {t("common.next")} <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );

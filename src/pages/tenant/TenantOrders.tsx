@@ -83,14 +83,14 @@ const TenantOrders = () => {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="text-xs">ID</TableHead>
-            <TableHead className="text-xs">Utilisateur</TableHead>
-            <TableHead className="text-xs">Département</TableHead>
-            <TableHead className="text-xs">Type</TableHead>
-            <TableHead className="text-xs">Articles</TableHead>
-            <TableHead className="text-xs">Total</TableHead>
-            <TableHead className="text-xs">Statut</TableHead>
-            <TableHead className="text-xs">Date</TableHead>
+            <TableHead className="text-xs">{t("common.id")}</TableHead>
+            <TableHead className="text-xs">{t("common.user")}</TableHead>
+            <TableHead className="text-xs">{t("orders.entity")}</TableHead>
+            <TableHead className="text-xs">{t("common.type")}</TableHead>
+            <TableHead className="text-xs">{t("orders.articles")}</TableHead>
+            <TableHead className="text-xs">{t("common.total")}</TableHead>
+            <TableHead className="text-xs">{t("common.status")}</TableHead>
+            <TableHead className="text-xs">{t("common.date")}</TableHead>
             {isShopManager && <TableHead className="text-xs w-10"></TableHead>}
           </TableRow>
         </TableHeader>
