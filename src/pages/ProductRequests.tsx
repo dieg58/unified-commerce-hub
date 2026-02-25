@@ -146,7 +146,7 @@ const ProductRequests = () => {
                       <TableCell>
                         <Badge variant="outline" className={`text-[10px] ${st.className}`}>{st.label}</Badge>
                       </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleDateString("fr-FR")}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleDateString()}</TableCell>
                       <TableCell>
                         <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => { setEditRequest(r); setNewStatus(r.status); setAdminNote(r.admin_note || ""); }}>
                           <Eye className="w-4 h-4" />

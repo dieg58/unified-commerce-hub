@@ -27,8 +27,8 @@ const fadeUp = {
 };
 
 const clients = [
-  "Spotify", "Deloitte", "Deliveroo", "Dior", "Accenture", "Oatly",
-  "WeTransfer", "Bain & Company", "Caudalie", "Highsnobiety",
+  "Midocean", "Stanley/Stella", "PF Concept", "TopTex",
+  "Printcom", "Prodir", "Regatta", "Fruit of the Loom", "SG Accessories", "SOL'S",
 ];
 
 const LandingPage = () => {

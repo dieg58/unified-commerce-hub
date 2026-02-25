@@ -157,7 +157,7 @@ const Tenants = () => {
                           <div className="w-4 h-4 rounded-full border border-border/50" style={{ backgroundColor: accent }} />
                         </div>
                       </TableCell>
-                      <TableCell className="text-muted-foreground text-xs">{new Date(tenant.created_at).toLocaleDateString("fr-FR")}</TableCell>
+                      <TableCell className="text-muted-foreground text-xs">{new Date(tenant.created_at).toLocaleDateString()}</TableCell>
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>

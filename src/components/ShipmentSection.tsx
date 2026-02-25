@@ -186,7 +186,7 @@ const ShipmentSection = ({ orderId, tenantId }: ShipmentSectionProps) => {
                 <TableCell><StatusBadge status={s.status} /></TableCell>
                 <TableCell className="text-xs text-muted-foreground">{(s.profiles as any)?.full_name || "—"}</TableCell>
                 <TableCell className="text-xs text-muted-foreground">
-                  {new Date(s.created_at).toLocaleDateString("fr-FR")}
+                  {new Date(s.created_at).toLocaleDateString()}
                 </TableCell>
                 <TableCell>
                   {s.status === "preparing" && (

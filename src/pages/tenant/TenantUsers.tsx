@@ -217,7 +217,7 @@ const TenantUsers = () => {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground mr-2">
-                      {new Date(req.created_at).toLocaleDateString("fr-FR")}
+                      {new Date(req.created_at).toLocaleDateString()}
                     </span>
                     <Button
                       size="sm"
@@ -321,7 +321,7 @@ const TenantUsers = () => {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{new Date(user.created_at).toLocaleDateString("fr-FR")}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{new Date(user.created_at).toLocaleDateString()}</TableCell>
                       <TableCell>
                         {!isSelf && (
                           <DropdownMenu>
