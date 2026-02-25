@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import TopBar from "@/components/TopBar";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Dialog,
   DialogContent,
@@ -30,10 +31,17 @@ import {
   Gift,
   Shirt,
   Printer,
+  Filter,
+  ChevronDown,
+  ChevronUp,
+  Palette,
+  Ruler,
+  Layers,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/mock-data";
-import { getCatalogTabByCategory } from "@/lib/catalog-category-map";
+import { getCatalogTabByCategory, getSimplifiedCategory } from "@/lib/catalog-category-map";
+import { getColorFamily, getColorFamilyHex, getSizeGroup, getSizeGroupOrder } from "@/lib/catalog-filter-groups";
 
 /* ── Status config ── */
 const statusConfig: Record<string, { label: string; className: string; icon: typeof Clock }> = {
@@ -59,17 +67,7 @@ const sectionTabs: { key: CatalogSection; label: string; icon: typeof Gift }[] =
   { key: "signaletique", label: "Signalétique", icon: Printer },
 ];
 
-/* ── Category helpers ── */
-function getParentCategory(category: string): string {
-  const parts = category.split(">").map((s) => s.trim());
-  return parts[0] || category;
-}
-
-function getAllCategories(products: any[]): string[] {
-  const cats = new Set<string>();
-  products.forEach((p) => cats.add(getParentCategory(p.category)));
-  return Array.from(cats).sort();
-}
+type VariantColor = { color: string; hex: string | null; image_url: string | null };
 
 const TenantProductRequests = () => {
   const { profile } = useAuth();
@@ -79,8 +77,12 @@ const TenantProductRequests = () => {
   const [activeTab, setActiveTab] = useState("catalog");
   const [catalogSection, setCatalogSection] = useState<CatalogSection>("goodies");
   const [search, setSearch] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [filterGroup, setFilterGroup] = useState<string>("all");
+  const [filterSubCategory, setFilterSubCategory] = useState<string>("all");
+  const [filterColors, setFilterColors] = useState<Set<string>>(new Set());
+  const [filterSizes, setFilterSizes] = useState<Set<string>>(new Set());
   const [showNewOnly, setShowNewOnly] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
   const [detailProduct, setDetailProduct] = useState<any>(null);
   const [selectedColor, setSelectedColor] = useState<{ color: string; hex: string | null; image_url: string | null } | null>(null);
   const [note, setNote] = useState("");
@@ -89,17 +91,56 @@ const TenantProductRequests = () => {
   const [requestFilter, setRequestFilter] = useState<string>("all");
 
   /* ── Queries ── */
+  // Lightweight listing (no JSONB variants)
+  const LISTING_COLUMNS = "id,name,name_en,name_nl,sku,category,base_price,description,description_en,description_nl,image_url,active,created_at,midocean_id,stock_qty,last_synced_at,is_new,release_date" as const;
+
   const { data: catalogProducts, isLoading: catalogLoading } = useQuery({
     queryKey: ["catalog-for-requests"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("catalog_products")
-        .select("*")
-        .eq("active", true)
-        .order("name");
-      if (error) throw error;
-      return data;
+      const all: any[] = [];
+      const PAGE = 1000;
+      let from = 0;
+      while (true) {
+        const { data, error } = await supabase
+          .from("catalog_products")
+          .select(LISTING_COLUMNS)
+          .eq("active", true)
+          .order("name")
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        all.push(...data);
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+      return all;
     },
+  });
+
+  // Lazy load variant data for filters
+  const { data: variantData } = useQuery({
+    queryKey: ["catalog-variants-requests"],
+    queryFn: async () => {
+      const map = new Map<string, { variant_colors: VariantColor[] | null; variant_sizes: string[] | null }>();
+      const PAGE = 1000;
+      let from = 0;
+      while (true) {
+        const { data, error } = await supabase
+          .from("catalog_products")
+          .select("id,variant_colors,variant_sizes")
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        for (const d of data) {
+          map.set(d.id, { variant_colors: d.variant_colors as any, variant_sizes: d.variant_sizes as any });
+        }
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+      return map;
+    },
+    enabled: showFilters,
+    staleTime: 5 * 60 * 1000,
   });
 
   const { data: requests, isLoading: requestsLoading } = useQuery({
@@ -127,6 +168,25 @@ const TenantProductRequests = () => {
     });
     return map;
   }, [requests]);
+
+  /* ── On-demand variant loading for detail dialog ── */
+  const openDetail = useCallback(async (product: any) => {
+    try {
+      const { data, error } = await supabase
+        .from("catalog_products")
+        .select("variant_colors,variant_sizes")
+        .eq("id", product.id)
+        .single();
+      if (error) throw error;
+      setDetailProduct({
+        ...product,
+        variant_colors: (data?.variant_colors as VariantColor[] | null) ?? null,
+        variant_sizes: (data?.variant_sizes as string[] | null) ?? null,
+      });
+    } catch {
+      setDetailProduct(product);
+    }
+  }, []);
 
   /* ── Submit request ── */
   const submitRequest = useMutation({
@@ -164,8 +224,88 @@ const TenantProductRequests = () => {
     return (catalogProducts || []).filter((p) => getProductSection(p) === catalogSection);
   }, [catalogProducts, catalogSection]);
 
-  const categories = useMemo(() => getAllCategories(sectionProducts), [sectionProducts]);
+  /* ── Simplified categories ── */
+  const tabForSimplified = catalogSection === "signaletique" ? "autre" : catalogSection;
+  const simplifiedCategories = useMemo(() => {
+    const counts: Record<string, number> = {};
+    sectionProducts.forEach((p) => {
+      const simplified = getSimplifiedCategory(p.category, tabForSimplified);
+      counts[simplified] = (counts[simplified] || 0) + 1;
+    });
+    return Object.entries(counts).sort(([, a], [, b]) => b - a);
+  }, [sectionProducts, tabForSimplified]);
 
+  /* ── Subcategories ── */
+  const subCategories = useMemo(() => {
+    if (filterGroup === "all") return [];
+    const counts: Record<string, number> = {};
+    sectionProducts.forEach((p) => {
+      if (getSimplifiedCategory(p.category, tabForSimplified) === filterGroup) {
+        const parts = p.category.split(">");
+        const sub = parts.length > 1 ? parts.slice(1).join(">").trim() : p.category.trim();
+        counts[sub] = (counts[sub] || 0) + 1;
+      }
+    });
+    const entries = Object.entries(counts).sort(([, a], [, b]) => b - a);
+    return entries.length >= 2 ? entries : [];
+  }, [sectionProducts, tabForSimplified, filterGroup]);
+
+  /* ── Color families ── */
+  const availableColorFamilies = useMemo(() => {
+    if (!variantData) return [];
+    const familyMap = new Map<string, number>();
+    sectionProducts.forEach((p) => {
+      const vd = variantData.get(p.id);
+      const colors = vd?.variant_colors;
+      if (!Array.isArray(colors)) return;
+      const seenFamilies = new Set<string>();
+      colors.forEach((c) => {
+        if (!c.color) return;
+        const family = getColorFamily(c.color);
+        if (!seenFamilies.has(family)) {
+          seenFamilies.add(family);
+          familyMap.set(family, (familyMap.get(family) || 0) + 1);
+        }
+      });
+    });
+    return Array.from(familyMap.entries())
+      .sort(([, a], [, b]) => b - a)
+      .map(([family, count]) => ({ family, hex: getColorFamilyHex(family), count }));
+  }, [sectionProducts, variantData]);
+
+  /* ── Size groups ── */
+  const availableSizeGroups = useMemo(() => {
+    if (!variantData) return [];
+    const groupMap = new Map<string, number>();
+    sectionProducts.forEach((p) => {
+      const vd = variantData.get(p.id);
+      const sizes = vd?.variant_sizes;
+      if (!Array.isArray(sizes)) return;
+      const seenGroups = new Set<string>();
+      sizes.forEach((s) => {
+        const group = getSizeGroup(s);
+        if (!seenGroups.has(group)) {
+          seenGroups.add(group);
+          groupMap.set(group, (groupMap.get(group) || 0) + 1);
+        }
+      });
+    });
+    const order = getSizeGroupOrder();
+    return Array.from(groupMap.entries())
+      .sort(([a], [b]) => {
+        const ia = order.indexOf(a);
+        const ib = order.indexOf(b);
+        if (ia !== -1 && ib !== -1) return ia - ib;
+        if (ia !== -1) return -1;
+        if (ib !== -1) return 1;
+        return a.localeCompare(b);
+      })
+      .map(([group, count]) => ({ group, count }));
+  }, [sectionProducts, variantData]);
+
+  const newCount = sectionProducts.filter((p) => p.is_new).length;
+
+  /* ── Filtered catalog ── */
   const filteredCatalog = useMemo(() => {
     let list = sectionProducts;
     if (search) {
@@ -177,16 +317,35 @@ const TenantProductRequests = () => {
           p.category.toLowerCase().includes(q)
       );
     }
-    if (selectedCategory) {
-      list = list.filter((p) => getParentCategory(p.category) === selectedCategory);
+    if (filterGroup !== "all") {
+      list = list.filter((p) => getSimplifiedCategory(p.category, tabForSimplified) === filterGroup);
+    }
+    if (filterSubCategory !== "all") {
+      list = list.filter((p) => {
+        const parts = p.category.split(">");
+        const sub = parts.length > 1 ? parts.slice(1).join(">").trim() : p.category.trim();
+        return sub === filterSubCategory;
+      });
     }
     if (showNewOnly) {
       list = list.filter((p) => p.is_new);
     }
+    if (filterColors.size > 0) {
+      list = list.filter((p) => {
+        const vd = variantData?.get(p.id);
+        const colors = vd?.variant_colors;
+        return Array.isArray(colors) && colors.some((c) => filterColors.has(getColorFamily(c.color)));
+      });
+    }
+    if (filterSizes.size > 0) {
+      list = list.filter((p) => {
+        const vd = variantData?.get(p.id);
+        const sizes = vd?.variant_sizes;
+        return Array.isArray(sizes) && sizes.some((s) => filterSizes.has(getSizeGroup(s)));
+      });
+    }
     return list;
-  }, [sectionProducts, search, selectedCategory, showNewOnly]);
-
-  const newCount = sectionProducts.filter((p) => p.is_new).length;
+  }, [sectionProducts, search, filterGroup, filterSubCategory, showNewOnly, filterColors, filterSizes, variantData, tabForSimplified]);
 
   /* ── Filtered requests ── */
   const filteredRequests = useMemo(() => {
@@ -210,6 +369,15 @@ const TenantProductRequests = () => {
   }, [requests, requestSearch, requestFilter]);
 
   const activeRequestsCount = requests?.filter((r) => !["added", "rejected"].includes(r.status)).length || 0;
+  const activeFilterCount = (filterGroup !== "all" ? 1 : 0) + (filterSubCategory !== "all" ? 1 : 0) + filterColors.size + filterSizes.size;
+
+  const clearFilters = () => {
+    setFilterGroup("all");
+    setFilterSubCategory("all");
+    setFilterColors(new Set());
+    setFilterSizes(new Set());
+    setShowNewOnly(false);
+  };
 
   return (
     <>
@@ -244,9 +412,8 @@ const TenantProductRequests = () => {
                   key={s.key}
                   onClick={() => {
                     setCatalogSection(s.key);
-                    setSelectedCategory(null);
+                    clearFilters();
                     setSearch("");
-                    setShowNewOnly(false);
                   }}
                   className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                     catalogSection === s.key
@@ -261,7 +428,7 @@ const TenantProductRequests = () => {
               ))}
             </div>
 
-            {/* Search + nouveautés */}
+            {/* Search + nouveautés + filters toggle */}
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -272,54 +439,228 @@ const TenantProductRequests = () => {
                   className="pl-10 h-10"
                 />
               </div>
-              {newCount > 0 && (
+              <div className="flex items-center gap-2">
+                {newCount > 0 && (
+                  <Button
+                    variant={showNewOnly ? "default" : "outline"}
+                    size="sm"
+                    className="gap-1.5 h-10 shrink-0"
+                    onClick={() => setShowNewOnly(!showNewOnly)}
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    Nouveautés
+                    <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px]">
+                      {newCount}
+                    </Badge>
+                  </Button>
+                )}
                 <Button
-                  variant={showNewOnly ? "default" : "outline"}
+                  variant={showFilters ? "secondary" : "outline"}
                   size="sm"
-                  className="gap-1.5 h-10 shrink-0"
-                  onClick={() => setShowNewOnly(!showNewOnly)}
+                  className="h-10 text-xs gap-1.5 shrink-0"
+                  onClick={() => setShowFilters(!showFilters)}
                 >
-                  <Sparkles className="w-4 h-4" />
-                  Nouveautés
-                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px]">
-                    {newCount}
-                  </Badge>
+                  <Filter className="w-4 h-4" />
+                  Filtres
+                  {activeFilterCount > 0 && (
+                    <Badge variant="default" className="h-4 px-1 text-[10px] rounded-full ml-0.5">{activeFilterCount}</Badge>
+                  )}
+                  {showFilters ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                 </Button>
-              )}
+              </div>
             </div>
 
             {/* Category pills */}
-            {categories.length > 1 && (
-              <div className="flex flex-wrap gap-2">
+            {simplifiedCategories.length > 1 && (
+              <div className="flex flex-wrap gap-1.5">
                 <button
-                  onClick={() => setSelectedCategory(null)}
+                  onClick={() => { setFilterGroup("all"); setFilterSubCategory("all"); }}
                   className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                    !selectedCategory
-                      ? "bg-primary/20 text-primary"
+                    filterGroup === "all"
+                      ? "bg-primary text-primary-foreground"
                       : "bg-secondary text-muted-foreground hover:bg-secondary/80"
                   }`}
                 >
                   Tout ({sectionProducts.length})
                 </button>
-                {categories.map((cat) => {
-                  const count = sectionProducts.filter(
-                    (p) => getParentCategory(p.category) === cat
-                  ).length;
-                  return (
-                    <button
-                      key={cat}
-                      onClick={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                        selectedCategory === cat
-                          ? "bg-primary/20 text-primary"
-                          : "bg-secondary text-muted-foreground hover:bg-secondary/80"
-                      }`}
-                    >
-                      {cat} ({count})
-                    </button>
-                  );
-                })}
+                {simplifiedCategories.map(([cat, count]) => (
+                  <button
+                    key={cat}
+                    onClick={() => { setFilterGroup(cat); setFilterSubCategory("all"); setShowFilters(true); }}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                      filterGroup === cat
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-secondary text-muted-foreground hover:bg-secondary/80"
+                    }`}
+                  >
+                    {cat} ({count})
+                  </button>
+                ))}
               </div>
+            )}
+
+            {/* Collapsible filter panel */}
+            {showFilters && (
+              <div className="bg-card rounded-lg border border-border p-4 space-y-4 animate-fade-in">
+                {!variantData && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Chargement des filtres…
+                  </div>
+                )}
+
+                {/* Subcategories */}
+                {subCategories.length > 0 && (
+                  <Collapsible defaultOpen>
+                    <div className="flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-muted-foreground" />
+                      <span className="text-xs font-medium">Sous-catégories de « {filterGroup} »</span>
+                      {filterSubCategory !== "all" && (
+                        <button className="text-[10px] text-primary hover:underline ml-1" onClick={() => setFilterSubCategory("all")}>
+                          Effacer
+                        </button>
+                      )}
+                      <CollapsibleTrigger asChild>
+                        <button className="ml-auto text-muted-foreground hover:text-foreground">
+                          <ChevronDown className="w-3.5 h-3.5 transition-transform [[data-state=open]>&]:rotate-180" />
+                        </button>
+                      </CollapsibleTrigger>
+                    </div>
+                    <CollapsibleContent>
+                      <div className="flex flex-wrap gap-1.5 mt-2.5">
+                        {subCategories.map(([sub, count]) => {
+                          const isActive = filterSubCategory === sub;
+                          return (
+                            <button
+                              key={sub}
+                              onClick={() => setFilterSubCategory(isActive ? "all" : sub)}
+                              className={`inline-flex items-center gap-1 h-6 px-2.5 rounded-full border text-[11px] transition-all ${
+                                isActive
+                                  ? "border-primary bg-primary/10 text-primary font-medium"
+                                  : "border-border hover:border-primary/50 text-muted-foreground"
+                              }`}
+                            >
+                              {sub}
+                              <span className="text-[9px] text-muted-foreground">({count})</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                )}
+
+                {/* Color families */}
+                {availableColorFamilies.length > 0 && (
+                  <Collapsible defaultOpen>
+                    <div className="flex items-center gap-1.5">
+                      <Palette className="w-3.5 h-3.5 text-muted-foreground" />
+                      <span className="text-xs font-medium">Couleurs</span>
+                      {filterColors.size > 0 && (
+                        <button className="text-[10px] text-primary hover:underline ml-1" onClick={() => setFilterColors(new Set())}>
+                          Effacer
+                        </button>
+                      )}
+                      <CollapsibleTrigger asChild>
+                        <button className="ml-auto text-muted-foreground hover:text-foreground">
+                          <ChevronDown className="w-3.5 h-3.5 transition-transform [[data-state=open]>&]:rotate-180" />
+                        </button>
+                      </CollapsibleTrigger>
+                    </div>
+                    <CollapsibleContent>
+                      <div className="flex flex-wrap gap-1.5 mt-2.5">
+                        {availableColorFamilies.map((c) => {
+                          const isActive = filterColors.has(c.family);
+                          const isGradient = c.hex.startsWith("linear");
+                          return (
+                            <button
+                              key={c.family}
+                              onClick={() => {
+                                setFilterColors((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(c.family)) next.delete(c.family); else next.add(c.family);
+                                  return next;
+                                });
+                              }}
+                              className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full border text-[11px] transition-all ${
+                                isActive
+                                  ? "border-primary bg-primary/10 text-primary font-medium"
+                                  : "border-border hover:border-primary/50 text-muted-foreground"
+                              }`}
+                            >
+                              <span
+                                className="w-3.5 h-3.5 rounded-full border border-border/50 shrink-0"
+                                style={isGradient ? { background: c.hex } : { backgroundColor: c.hex }}
+                              />
+                              <span>{c.family}</span>
+                              <span className="text-[9px] text-muted-foreground">({c.count})</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                )}
+
+                {/* Size groups */}
+                {availableSizeGroups.length > 0 && (
+                  <Collapsible defaultOpen>
+                    <div className="flex items-center gap-1.5">
+                      <Ruler className="w-3.5 h-3.5 text-muted-foreground" />
+                      <span className="text-xs font-medium">Tailles</span>
+                      {filterSizes.size > 0 && (
+                        <button className="text-[10px] text-primary hover:underline ml-1" onClick={() => setFilterSizes(new Set())}>
+                          Effacer
+                        </button>
+                      )}
+                      <CollapsibleTrigger asChild>
+                        <button className="ml-auto text-muted-foreground hover:text-foreground">
+                          <ChevronDown className="w-3.5 h-3.5 transition-transform [[data-state=open]>&]:rotate-180" />
+                        </button>
+                      </CollapsibleTrigger>
+                    </div>
+                    <CollapsibleContent>
+                      <div className="flex flex-wrap gap-1.5 mt-2.5">
+                        {availableSizeGroups.map((s) => {
+                          const isActive = filterSizes.has(s.group);
+                          return (
+                            <button
+                              key={s.group}
+                              onClick={() => {
+                                setFilterSizes((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(s.group)) next.delete(s.group); else next.add(s.group);
+                                  return next;
+                                });
+                              }}
+                              className={`inline-flex items-center gap-1 h-6 px-2.5 rounded-full border text-[11px] transition-all ${
+                                isActive
+                                  ? "border-primary bg-primary/10 text-primary font-medium"
+                                  : "border-border hover:border-primary/50 text-muted-foreground"
+                              }`}
+                            >
+                              {s.group}
+                              <span className="text-[9px] text-muted-foreground">({s.count})</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                )}
+
+                {activeFilterCount > 0 && (
+                  <button onClick={clearFilters} className="text-xs text-primary hover:underline">
+                    Réinitialiser tous les filtres
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Results count */}
+            {(activeFilterCount > 0 || search || showNewOnly) && !catalogLoading && (
+              <p className="text-xs text-muted-foreground">
+                {filteredCatalog.length} produit{filteredCatalog.length !== 1 ? "s" : ""} affiché{filteredCatalog.length !== 1 ? "s" : ""}
+              </p>
             )}
 
             {/* Products grid */}
@@ -331,6 +672,11 @@ const TenantProductRequests = () => {
               <div className="text-center py-16">
                 <Package className="w-16 h-16 text-muted-foreground/20 mx-auto mb-3" />
                 <p className="text-sm text-muted-foreground">Aucun produit trouvé</p>
+                {activeFilterCount > 0 && (
+                  <Button variant="outline" size="sm" className="mt-3" onClick={clearFilters}>
+                    Réinitialiser les filtres
+                  </Button>
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
@@ -341,7 +687,7 @@ const TenantProductRequests = () => {
                   return (
                     <button
                       key={p.id}
-                      onClick={() => setDetailProduct(p)}
+                      onClick={() => openDetail(p)}
                       className="group text-left bg-card border border-border rounded-xl overflow-hidden hover:shadow-card-hover hover:border-primary/20 transition-all animate-fade-in"
                       style={{ animationDelay: `${Math.min(i, 20) * 30}ms` }}
                     >
@@ -502,7 +848,6 @@ const TenantProductRequests = () => {
             const st = existing ? statusConfig[existing.status] : null;
             const categoryParts = detailProduct.category?.split(">").map((s: string) => s.trim()).filter(Boolean) || [];
 
-            // Parse variant data (JSONB arrays)
             const colors: { color: string; hex: string | null; image_url: string | null }[] =
               Array.isArray(detailProduct.variant_colors) ? detailProduct.variant_colors : [];
             const sizes: string[] =
@@ -534,7 +879,6 @@ const TenantProductRequests = () => {
 
                 {/* Right: Details */}
                 <div className="sm:w-1/2 overflow-y-auto p-5 space-y-4">
-                  {/* Category breadcrumb */}
                   {categoryParts.length > 0 && (
                     <div className="flex flex-wrap gap-1">
                       {categoryParts.map((part: string, idx: number) => (
@@ -546,18 +890,15 @@ const TenantProductRequests = () => {
                     </div>
                   )}
 
-                  {/* Name */}
                   <div>
                     <h3 className="text-base font-semibold text-foreground leading-tight">{detailProduct.name}</h3>
                     <p className="text-xs text-muted-foreground font-mono mt-1">Réf. {detailProduct.sku}</p>
                   </div>
 
-                  {/* Description */}
                   {detailProduct.description && (
                     <p className="text-xs text-muted-foreground leading-relaxed">{detailProduct.description}</p>
                   )}
 
-                  {/* Price & stock */}
                   <div className="flex items-baseline gap-3">
                     <span className="text-lg font-bold text-primary">{formatCurrency(Number(detailProduct.base_price))}</span>
                     <span className="text-xs text-muted-foreground">Stock : {detailProduct.stock_qty}</span>
@@ -586,6 +927,12 @@ const TenantProductRequests = () => {
                                 <span
                                   className="w-5 h-5 rounded-full block"
                                   style={{ backgroundColor: c.hex.startsWith("#") ? c.hex : `#${c.hex}` }}
+                                />
+                              ) : c.image_url ? (
+                                <img
+                                  src={c.image_url}
+                                  alt={c.color}
+                                  className="w-5 h-5 rounded-full object-cover block"
                                 />
                               ) : (
                                 <span className="w-5 h-5 rounded-full bg-gradient-to-br from-muted to-muted-foreground/20 block" />
