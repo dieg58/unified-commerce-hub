@@ -158,19 +158,6 @@ Deno.serve(async (req) => {
 
         console.log(`Brand ${brand}: ${allProducts.length} products fetched`);
 
-        // Debug: log first product structure to identify color field names
-        if (allProducts.length > 0) {
-          const sample = allProducts[0];
-          const keys = Object.keys(sample);
-          console.log(`Sample product keys: ${keys.join(", ")}`);
-          for (const key of keys) {
-            const lk = key.toLowerCase();
-            if (lk.includes("color") || lk.includes("colour") || lk.includes("hex") || lk.includes("image") || lk.includes("pack") || lk.includes("photo") || lk.includes("visual") || lk.includes("size") || lk.includes("taille") || lk.includes("declin")) {
-              console.log(`  ${key}: ${JSON.stringify(sample[key])?.substring(0, 500)}`);
-            }
-          }
-        }
-
 
         // Build price map from price endpoint (paginated)
         const priceMap = new Map<string, number>();
@@ -234,7 +221,15 @@ Deno.serve(async (req) => {
             // 1) Try nested colors[] from first product (works if API returns full product detail)
             const productColors = product.colors || [];
             for (const colorEntry of productColors) {
-              const colorName = normalizeText(colorEntry.colors) || normalizeText(colorEntry.colorLabel) || normalizeText(colorEntry.color);
+              const dominantColor = Array.isArray(colorEntry.colorsDominant)
+                ? normalizeText(colorEntry.colorsDominant[0])
+                : normalizeText(colorEntry.colorsDominant);
+              const colorName =
+                dominantColor
+                || normalizeText(colorEntry.colors)
+                || normalizeText(colorEntry.colorLabel)
+                || normalizeText(colorEntry.color)
+                || normalizeText(colorEntry.name);
               if (!colorName) continue;
 
               const hex = normalizeHex(colorEntry.colorsHexa) || normalizeHex(colorEntry.colorHexa) || normalizeHex(colorEntry.hex);
@@ -319,6 +314,12 @@ Deno.serve(async (req) => {
               if (Array.isArray(imgs) && imgs.length) {
                 firstImage = (imgs[0] as any)?.url_image || (imgs[0] as any)?.url || null;
               }
+            }
+
+            // 4) Ensure at least one color variant exists for catalog UX
+            if (colorMap.size === 0) {
+              const fallbackImage = firstImage || product.imageUrl || product.image || product.url_image || null;
+              colorMap.set("Standard", { color: "Standard", hex: null, image_url: fallbackImage });
             }
 
             const variantColors = Array.from(colorMap.values());
