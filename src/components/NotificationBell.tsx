@@ -91,12 +91,12 @@ const NotificationBell = () => {
   const timeAgo = (dateStr: string) => {
     const diff = Date.now() - new Date(dateStr).getTime();
     const mins = Math.floor(diff / 60000);
-    if (mins < 1) return "À l'instant";
-    if (mins < 60) return `Il y a ${mins}min`;
+    if (mins < 1) return "now";
+    if (mins < 60) return `${mins}m ago`;
     const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `Il y a ${hrs}h`;
+    if (hrs < 24) return `${hrs}h ago`;
     const days = Math.floor(hrs / 24);
-    return `Il y a ${days}j`;
+    return `${days}d ago`;
   };
 
   return (
