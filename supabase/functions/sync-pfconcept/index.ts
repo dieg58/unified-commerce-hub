@@ -176,11 +176,13 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Optional limit parameter for testing
-    let limit: number | undefined;
+    // Default limit to avoid CPU timeout — caller can override
+    let limit = 500;
+    let offset = 0;
     try {
       const body = await req.json();
-      limit = body?.limit;
+      if (body?.limit) limit = Math.min(body.limit, 1000);
+      if (body?.offset) offset = body.offset;
     } catch { /* no body */ }
 
     const pfEmail = Deno.env.get("PF_CONCEPT_EMAIL");
@@ -300,7 +302,13 @@ Deno.serve(async (req) => {
     }
 
     try {
-      for await (const modelEntry of streamModels(PRODUCT_FEED, limit)) {
+      let skippedForOffset = 0;
+      for await (const modelEntry of streamModels(PRODUCT_FEED, offset + limit)) {
+        // Skip models before the offset
+        if (skippedForOffset < offset) {
+          skippedForOffset++;
+          continue;
+        }
         total++;
         try {
           // Structure: { model: { modelCode, description, items: [{item: {...}}, ...], ... } }
@@ -411,10 +419,11 @@ Deno.serve(async (req) => {
 
     await flushBatch();
 
-    console.log(`Done: ${created} created, ${updated} updated, ${skipped} skipped, ${errors} errors`);
+    const hasMore = total >= limit;
+    console.log(`Done: ${created} created, ${updated} updated, ${skipped} skipped, ${errors} errors (offset=${offset}, limit=${limit})`);
 
     return new Response(
-      JSON.stringify({ success: true, total, created, updated, skipped, errors, pricesLoaded: priceMap.size, stocksLoaded: stockMap.size }),
+      JSON.stringify({ success: true, total, created, updated, skipped, errors, pricesLoaded: priceMap.size, stocksLoaded: stockMap.size, offset, limit, hasMore, nextOffset: hasMore ? offset + limit : null }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {
