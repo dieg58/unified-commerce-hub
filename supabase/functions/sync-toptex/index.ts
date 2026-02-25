@@ -158,6 +158,19 @@ Deno.serve(async (req) => {
 
         console.log(`Brand ${brand}: ${allProducts.length} products fetched`);
 
+        // Debug: log first product structure to identify color field names
+        if (allProducts.length > 0) {
+          const sample = allProducts[0];
+          const keys = Object.keys(sample);
+          console.log(`Sample product keys: ${keys.join(", ")}`);
+          for (const key of keys) {
+            const lk = key.toLowerCase();
+            if (lk.includes("color") || lk.includes("colour") || lk.includes("hex") || lk.includes("image") || lk.includes("pack") || lk.includes("photo") || lk.includes("visual") || lk.includes("size") || lk.includes("taille") || lk.includes("declin")) {
+              console.log(`  ${key}: ${JSON.stringify(sample[key])?.substring(0, 500)}`);
+            }
+          }
+        }
+
 
         // Build price map from price endpoint (paginated)
         const priceMap = new Map<string, number>();
