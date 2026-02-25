@@ -180,6 +180,7 @@ export type Database = {
         Row: {
           active: boolean
           base_price: number
+          brand: string | null
           category: string
           created_at: string
           description: string | null
@@ -202,6 +203,7 @@ export type Database = {
         Insert: {
           active?: boolean
           base_price?: number
+          brand?: string | null
           category?: string
           created_at?: string
           description?: string | null
@@ -224,6 +226,7 @@ export type Database = {
         Update: {
           active?: boolean
           base_price?: number
+          brand?: string | null
           category?: string
           created_at?: string
           description?: string | null
