@@ -922,6 +922,16 @@ const CatalogProducts = () => {
                   <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => bulkActivateMutation.mutate(false)} disabled={bulkActivateMutation.isPending}>
                     <XCircle className="w-3.5 h-3.5" /> Désactiver
                   </Button>
+                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={async () => {
+                    const ids = Array.from(selected);
+                    const { error } = await supabase.from("catalog_products").update({ is_new: true }).in("id", ids);
+                    if (error) { toast.error(error.message); return; }
+                    toast.success(`${ids.length} produit(s) marqué(s) comme nouveau`);
+                    setSelected(new Set());
+                    qc.invalidateQueries({ queryKey: ["catalog-products"] });
+                  }}>
+                    <Sparkles className="w-3.5 h-3.5" /> Nouveau
+                  </Button>
                   <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setSelected(new Set())}>Annuler</Button>
                 </div>
               )}
@@ -1000,6 +1010,14 @@ const CatalogProducts = () => {
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => openPreview(product)}>
                               <Eye className="w-4 h-4 mr-2" /> Aperçu
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={async () => {
+                              const { error } = await supabase.from("catalog_products").update({ is_new: !product.is_new }).eq("id", product.id);
+                              if (error) { toast.error(error.message); return; }
+                              qc.invalidateQueries({ queryKey: ["catalog-products"] });
+                              toast.success(product.is_new ? "Badge « Nouveau » retiré" : "Produit marqué comme nouveau");
+                            }}>
+                              <Sparkles className="w-4 h-4 mr-2" /> {product.is_new ? "Retirer « Nouveau »" : "Marquer « Nouveau »"}
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => openEdit(product)}>
                               <Pencil className="w-4 h-4 mr-2" /> {t("common.edit")}
