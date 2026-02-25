@@ -9,7 +9,10 @@ const corsHeaders = {
 const FEED_BASE = "https://www.pfconcept.com/portal/datafeed";
 const IMAGE_BASE = "https://images.pfconcept.com/ProductImages_All/JPG/500x500";
 const PRICE_MULTIPLIER = 1.65;
-const BATCH_SIZE = 50;
+const BATCH_SIZE = 25;
+const DEFAULT_LIMIT = 100;
+const MAX_LIMIT = 300;
+const MAX_CPU_MS = 6000;
 
 function cleanCategory(groupDesc: string, catDesc: string): string {
   // Use catDesc if available, fallback to groupDesc
@@ -26,89 +29,130 @@ function cleanCategory(groupDesc: string, catDesc: string): string {
  */
 async function* streamModels(
   url: string,
-  limit?: number
+  limit?: number,
+  deadlineAt?: number,
 ): AsyncGenerator<any> {
   console.log(`Streaming product feed: ${url}`);
+
+  const controller = new AbortController();
   const res = await fetch(url, {
     headers: { Accept: "application/json", "User-Agent": "InkooBot/2.0" },
+    signal: controller.signal,
   });
+
   if (!res.ok) throw new Error(`Feed ${res.status}`);
   if (!res.body) throw new Error("No response body");
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
+
   let buffer = "";
   let yielded = 0;
+  const isTimedOut = () => deadlineAt !== undefined && performance.now() > deadlineAt;
 
   // State machine: find the "models" array, then read top-level objects from it
   let phase: "findModelsArray" | "readObjects" = "findModelsArray";
   let depth = 0;
   let objectStart = -1;
+  let inString = false;
+  let escaped = false;
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
+  try {
+    while (true) {
+      if (isTimedOut()) throw new Error("TIMEBOX_REACHED");
 
-    let i = 0;
-    while (i < buffer.length) {
-      if (phase === "findModelsArray") {
-        // Look for "models" followed by ":"  then "["
-        const idx = buffer.indexOf('"models"', i);
-        if (idx === -1) {
-          // Keep a tail to avoid missing a split keyword
-          if (buffer.length > 32) buffer = buffer.slice(-32);
-          break;
-        }
-        // Find the opening bracket of the array
-        const arrStart = buffer.indexOf("[", idx + 8);
-        if (arrStart === -1) {
-          i = idx + 8;
-          continue;
-        }
-        phase = "readObjects";
-        i = arrStart + 1;
-        depth = 0;
-        objectStart = -1;
-        continue;
-      }
+      const { done, value } = await reader.read();
+      if (done) break;
 
-      // phase === "readObjects"
-      const ch = buffer[i];
-      if (ch === "{") {
-        if (depth === 0) objectStart = i;
-        depth++;
-      } else if (ch === "}") {
-        depth--;
-        if (depth === 0 && objectStart !== -1) {
-          const objStr = buffer.substring(objectStart, i + 1);
-          objectStart = -1;
-          try {
-            const parsed = JSON.parse(objStr);
-            yield parsed;
-            yielded++;
-            if (limit && yielded >= limit) {
-              await reader.cancel();
-              return;
-            }
-          } catch {
-            // malformed, skip
+      buffer += decoder.decode(value, { stream: true });
+
+      let i = 0;
+      while (i < buffer.length) {
+        if ((i & 2047) === 0 && isTimedOut()) throw new Error("TIMEBOX_REACHED");
+
+        if (phase === "findModelsArray") {
+          const idx = buffer.indexOf('"models"', i);
+          if (idx === -1) {
+            if (buffer.length > 64) buffer = buffer.slice(-64);
+            break;
           }
-          buffer = buffer.substring(i + 1);
-          i = 0;
+
+          const arrStart = buffer.indexOf("[", idx + 8);
+          if (arrStart === -1) {
+            i = idx + 8;
+            continue;
+          }
+
+          phase = "readObjects";
+          i = arrStart + 1;
+          depth = 0;
+          objectStart = -1;
+          inString = false;
+          escaped = false;
           continue;
         }
-      } else if (ch === "]" && depth === 0) {
-        // End of models array
-        await reader.cancel();
-        return;
-      }
-      i++;
-    }
 
-    if (phase === "readObjects" && objectStart > 0) {
-      buffer = buffer.substring(objectStart);
-      objectStart = 0;
+        const ch = buffer[i];
+
+        if (inString) {
+          if (escaped) escaped = false;
+          else if (ch === "\\") escaped = true;
+          else if (ch === '"') inString = false;
+          i++;
+          continue;
+        }
+
+        if (ch === '"') {
+          inString = true;
+          i++;
+          continue;
+        }
+
+        if (ch === "{") {
+          if (depth === 0) objectStart = i;
+          depth++;
+        } else if (ch === "}") {
+          depth--;
+          if (depth === 0 && objectStart !== -1) {
+            const objStr = buffer.substring(objectStart, i + 1);
+            objectStart = -1;
+
+            try {
+              const parsed = JSON.parse(objStr);
+              yield parsed;
+              yielded++;
+              if (limit && yielded >= limit) return;
+            } catch {
+              // malformed object, skip
+            }
+
+            buffer = buffer.substring(i + 1);
+            i = 0;
+            continue;
+          }
+        } else if (ch === "]" && depth === 0) {
+          return;
+        }
+
+        i++;
+      }
+
+      if (phase === "readObjects" && objectStart > 0) {
+        buffer = buffer.substring(objectStart);
+        objectStart = 0;
+      }
+    }
+  } finally {
+    try {
+      await reader.cancel();
+    } catch {
+      // ignore
+    }
+    controller.abort();
+    try {
+      reader.releaseLock();
+    } catch {
+      // ignore
     }
   }
 }
@@ -176,13 +220,17 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Default limit to avoid CPU timeout — caller can override
-    let limit = 500;
+    // Conservative defaults to stay below worker CPU limits
+    let limit = DEFAULT_LIMIT;
     let offset = 0;
     try {
       const body = await req.json();
-      if (body?.limit) limit = Math.min(body.limit, 1000);
-      if (body?.offset) offset = body.offset;
+      if (Number.isFinite(body?.limit)) {
+        limit = Math.max(1, Math.min(Math.floor(body.limit), MAX_LIMIT));
+      }
+      if (Number.isFinite(body?.offset)) {
+        offset = Math.max(0, Math.floor(body.offset));
+      }
     } catch { /* no body */ }
 
     const pfEmail = Deno.env.get("PF_CONCEPT_EMAIL");
@@ -301,129 +349,132 @@ Deno.serve(async (req) => {
       batch = [];
     }
 
-    try {
-      let skippedForOffset = 0;
-      for await (const modelEntry of streamModels(PRODUCT_FEED, offset + limit)) {
-        // Skip models before the offset
-        if (skippedForOffset < offset) {
-          skippedForOffset++;
+    let timedOut = false;
+    const deadlineAt = performance.now() + MAX_CPU_MS;
+
+    const productData = await fetchJson(PRODUCT_FEED, pfEmail || undefined, pfPassword || undefined);
+    const allModels = productData?.pfcProductfeed?.productfeed?.models
+      || productData?.productfeed?.models
+      || productData?.models
+      || [];
+
+    if (!Array.isArray(allModels)) {
+      return new Response(JSON.stringify({ error: "Unexpected PF product feed structure" }), {
+        status: 502,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const selectedModels = allModels.slice(offset, offset + limit);
+
+    for (const modelEntry of selectedModels) {
+      if (performance.now() > deadlineAt) {
+        timedOut = true;
+        break;
+      }
+
+      total++;
+      try {
+        // Structure: { model: { modelCode, description, items: [{item: {...}}, ...], ... } }
+        const model = modelEntry?.model || modelEntry;
+        const modelCode = model?.modelCode;
+        if (!modelCode) {
+          skipped++;
+          if (skipped <= 3) {
+            console.log(`Skipped model (no modelCode). Keys: ${Object.keys(modelEntry || {}).join(", ")}`);
+          }
           continue;
         }
-        total++;
-        try {
-          // Structure: { model: { modelCode, description, items: [{item: {...}}, ...], ... } }
-          const model = modelEntry?.model || modelEntry;
-          const modelCode = model?.modelCode;
-          if (!modelCode) {
-            skipped++;
-            // Log first few skips for debugging
-            if (skipped <= 3) {
-              console.log(`Skipped model (no modelCode). Keys: ${Object.keys(modelEntry || {}).join(", ")}`);
-            }
-            continue;
-          }
 
-          const name = model?.description || modelCode;
-          const description = model?.extDesc || null;
+        const name = model?.description || modelCode;
+        const description = model?.extDesc || null;
 
-          // Category: from categoryData or category fields
-          const catData = model?.categoryData || model;
-          const groupDesc = catData?.groupDesc || model?.groupDesc || "";
-          const catDesc = catData?.catDesc || model?.catDesc || "";
-          const category = cleanCategory(groupDesc, catDesc);
+        const catData = model?.categoryData || model;
+        const groupDesc = catData?.groupDesc || model?.groupDesc || "";
+        const catDesc = catData?.catDesc || model?.catDesc || "";
+        const category = cleanCategory(groupDesc, catDesc);
 
-          // Items: structure is items: [{item: {...}}, ...] or items: [{item: [{...}, ...]}]
-          const itemsArr = model?.items || [];
-          // Get all items flattened
-          const allItems: any[] = [];
-          for (const itemWrapper of itemsArr) {
-            if (itemWrapper?.item) {
-              if (Array.isArray(itemWrapper.item)) {
-                allItems.push(...itemWrapper.item);
-              } else {
-                allItems.push(itemWrapper.item);
-              }
+        const itemsArr = model?.items || [];
+        const allItems: any[] = [];
+        for (const itemWrapper of itemsArr) {
+          if (itemWrapper?.item) {
+            if (Array.isArray(itemWrapper.item)) {
+              allItems.push(...itemWrapper.item);
             } else {
-              allItems.push(itemWrapper);
+              allItems.push(itemWrapper.item);
             }
+          } else {
+            allItems.push(itemWrapper);
           }
-
-          const firstItem = allItems.length > 0 ? allItems[0] : null;
-          const itemCode = firstItem?.itemCode || firstItem?.itemcode || modelCode;
-
-          // Extract colors from the color data within each item
-          const colorMap = new Map<string, { color: string; hex: string | null; image_url: string | null }>();
-          const sizeSet = new Set<string>();
-
-          for (const item of allItems) {
-            // Colors: item.colors.color (array or object)
-            const colorsData = item?.colors?.color || item?.colors || [];
-            const colorArr = Array.isArray(colorsData) ? colorsData : [colorsData];
-            for (const c of colorArr) {
-              const colorName = c?.colorDesc || c?.color || null;
-              if (colorName && !colorMap.has(colorName)) {
-                const ic = item?.itemCode || item?.itemcode;
-                // Image from imageData or construct from itemCode
-                const imageMain = item?.imageData?.imageMain;
-                const imgUrl = imageMain
-                  ? `${IMAGE_BASE}/${imageMain}`
-                  : ic ? `${IMAGE_BASE}/${ic}.jpg` : null;
-                colorMap.set(colorName, {
-                  color: colorName,
-                  hex: c?.hexColor || null,
-                  image_url: imgUrl,
-                });
-              }
-            }
-
-            // Sizes
-            const size = item?.size || null;
-            if (size) sizeSet.add(size);
-          }
-
-          // Main image: first item's imageMain or fallback
-          const mainImage = firstItem?.imageData?.imageMain;
-          const imageUrl = mainImage
-            ? `${IMAGE_BASE}/${mainImage}`
-            : `${IMAGE_BASE}/${itemCode}.jpg`;
-
-          batch.push({
-            pfcId: `PFC-${modelCode}`,
-            payload: {
-              name,
-              sku: itemCode,
-              category,
-              description,
-              image_url: imageUrl,
-              stock_qty: stockMap.get(itemCode) || 0,
-              base_price: Math.round((priceMap.get(itemCode) || 0) * PRICE_MULTIPLIER * 100) / 100,
-              is_new: false,
-              last_synced_at: now,
-              variant_colors: Array.from(colorMap.values()),
-              variant_sizes: Array.from(sizeSet),
-            },
-          });
-
-          if (batch.length >= BATCH_SIZE) {
-            await flushBatch();
-          }
-        } catch {
-          errors++;
         }
 
-        if (total % 500 === 0) console.log(`Progress: ${total} models processed`);
+        const firstItem = allItems.length > 0 ? allItems[0] : null;
+        const itemCode = firstItem?.itemCode || firstItem?.itemcode || modelCode;
+
+        const colorMap = new Map<string, { color: string; hex: string | null; image_url: string | null }>();
+        const sizeSet = new Set<string>();
+
+        for (const item of allItems) {
+          const colorsData = item?.colors?.color || item?.colors || [];
+          const colorArr = Array.isArray(colorsData) ? colorsData : [colorsData];
+          for (const c of colorArr) {
+            const colorName = c?.colorDesc || c?.color || null;
+            if (colorName && !colorMap.has(colorName)) {
+              const ic = item?.itemCode || item?.itemcode;
+              const imageMain = item?.imageData?.imageMain;
+              const imgUrl = imageMain
+                ? `${IMAGE_BASE}/${imageMain}`
+                : ic ? `${IMAGE_BASE}/${ic}.jpg` : null;
+              colorMap.set(colorName, {
+                color: colorName,
+                hex: c?.hexColor || null,
+                image_url: imgUrl,
+              });
+            }
+          }
+
+          const size = item?.size || null;
+          if (size) sizeSet.add(size);
+        }
+
+        const mainImage = firstItem?.imageData?.imageMain;
+        const imageUrl = mainImage
+          ? `${IMAGE_BASE}/${mainImage}`
+          : `${IMAGE_BASE}/${itemCode}.jpg`;
+
+        batch.push({
+          pfcId: `PFC-${modelCode}`,
+          payload: {
+            name,
+            sku: itemCode,
+            category,
+            description,
+            image_url: imageUrl,
+            stock_qty: stockMap.get(itemCode) || 0,
+            base_price: Math.round((priceMap.get(itemCode) || 0) * PRICE_MULTIPLIER * 100) / 100,
+            is_new: false,
+            last_synced_at: now,
+            variant_colors: Array.from(colorMap.values()),
+            variant_sizes: Array.from(sizeSet),
+          },
+        });
+
+        if (batch.length >= BATCH_SIZE) {
+          await flushBatch();
+        }
+      } catch {
+        errors++;
       }
-    } catch (err) {
-      console.error("Stream error:", err);
     }
 
     await flushBatch();
 
-    const hasMore = total >= limit;
-    console.log(`Done: ${created} created, ${updated} updated, ${skipped} skipped, ${errors} errors (offset=${offset}, limit=${limit})`);
+    const hasMore = timedOut || (offset + total) < allModels.length;
+    const nextOffset = hasMore ? offset + total : null;
+    console.log(`Done: ${created} created, ${updated} updated, ${skipped} skipped, ${errors} errors (offset=${offset}, limit=${limit}, timedOut=${timedOut}, available=${allModels.length})`);
 
     return new Response(
-      JSON.stringify({ success: true, total, created, updated, skipped, errors, pricesLoaded: priceMap.size, stocksLoaded: stockMap.size, offset, limit, hasMore, nextOffset: hasMore ? offset + limit : null }),
+      JSON.stringify({ success: true, total, created, updated, skipped, errors, pricesLoaded: priceMap.size, stocksLoaded: stockMap.size, offset, limit, hasMore, nextOffset, timedOut, available: allModels.length }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {
