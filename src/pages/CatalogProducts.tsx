@@ -51,8 +51,20 @@ type CatalogProduct = {
   variant_colors?: VariantColor[] | null;
   variant_sizes?: string[] | null;
 };
+const normalizeSourceValue = (value: string | null | undefined) => (value ?? "").trim().toUpperCase();
 
+const getCatalogTab = (product: Pick<CatalogProduct, "midocean_id" | "sku">): "goodies" | "textile" | "autre" => {
+  const sourceId = normalizeSourceValue(product.midocean_id);
+  const sku = normalizeSourceValue(product.sku);
 
+  if (sourceId.startsWith("PRINT-")) return "autre";
+  if (sourceId.startsWith("SS-") || sourceId.startsWith("TT-")) return "textile";
+
+  // Safety net: Midocean SKUs (MOxxxx) are goodies and must never leak into textile.
+  if (sourceId.startsWith("MO") || sku.startsWith("MO")) return "goodies";
+
+  return "goodies";
+};
 
 const emptyCp = {
   name: "", name_en: "", name_nl: "", sku: "", category: "general",
@@ -133,14 +145,7 @@ const CatalogProducts = () => {
 
   const tabProducts = useMemo(() => {
     if (!products) return [];
-    if (activeTab === "goodies") {
-      return products.filter((p) => !p.midocean_id?.startsWith("SS-") && !p.midocean_id?.startsWith("TT-") && !p.midocean_id?.startsWith("PRINT-"));
-    }
-    if (activeTab === "textile") {
-      return products.filter((p) => !!p.midocean_id?.startsWith("SS-") || !!p.midocean_id?.startsWith("TT-"));
-    }
-    // autre = Print.com + manual without other prefixes
-    return products.filter((p) => !!p.midocean_id?.startsWith("PRINT-"));
+    return products.filter((p) => getCatalogTab(p) === activeTab);
   }, [products, activeTab]);
 
   // Goodies supplier filter
@@ -228,9 +233,7 @@ const CatalogProducts = () => {
   const filtered = useMemo(() => {
     return supplierFilteredProducts.filter((p) => {
       // Double-check tab membership as safety net
-      if (activeTab === "textile" && !(p.midocean_id?.startsWith("SS-") || p.midocean_id?.startsWith("TT-"))) return false;
-      if (activeTab === "autre" && !p.midocean_id?.startsWith("PRINT-")) return false;
-      if (activeTab === "goodies" && (p.midocean_id?.startsWith("SS-") || p.midocean_id?.startsWith("TT-") || p.midocean_id?.startsWith("PRINT-"))) return false;
+      if (getCatalogTab(p) !== activeTab) return false;
 
       const matchesSearch =
         p.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -334,9 +337,9 @@ const CatalogProducts = () => {
   });
 
   const activeCount = supplierFilteredProducts.filter((p) => p.active).length;
-  const goodiesCount = products?.filter((p) => !p.midocean_id?.startsWith("SS-") && !p.midocean_id?.startsWith("TT-") && !p.midocean_id?.startsWith("PRINT-")).length || 0;
-  const textileCount = products?.filter((p) => !!p.midocean_id?.startsWith("SS-") || !!p.midocean_id?.startsWith("TT-")).length || 0;
-  const autreCount = products?.filter((p) => !!p.midocean_id?.startsWith("PRINT-")).length || 0;
+  const goodiesCount = products?.filter((p) => getCatalogTab(p) === "goodies").length || 0;
+  const textileCount = products?.filter((p) => getCatalogTab(p) === "textile").length || 0;
+  const autreCount = products?.filter((p) => getCatalogTab(p) === "autre").length || 0;
 
   const syncPfConcept = useMutation({
     mutationFn: async () => {
