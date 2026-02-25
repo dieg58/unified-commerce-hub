@@ -13,6 +13,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/mock-data";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
+import { useLocaleDate } from "@/hooks/useLocaleDate";
+import ExportMenu from "@/components/ExportMenu";
+import { fmtDate, type ExportColumn } from "@/lib/export-utils";
 
 const PAGE_SIZE = 50;
 
@@ -20,6 +23,7 @@ const Orders = () => {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const { formatDate } = useLocaleDate();
   const [tenantFilter, setTenantFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [storeTypeFilter, setStoreTypeFilter] = useState("all");
@@ -126,6 +130,23 @@ const Orders = () => {
             </SelectContent>
           </Select>
         </div>
+        <ExportMenu
+          title={t("orders.title")}
+          filename="orders"
+          columns={[
+            { header: "ID", accessor: (r: any) => r.id.slice(0, 8) },
+            { header: t("common.user"), accessor: (r: any) => (r.profiles as any)?.full_name || (r.profiles as any)?.email || "—" },
+            { header: t("nav.shop"), accessor: (r: any) => (r as any).tenants?.name || "—" },
+            { header: t("orders.entity"), accessor: (r: any) => (r.entities as any)?.name || "—" },
+            { header: t("common.type"), accessor: "store_type" },
+            { header: t("orders.articles"), accessor: (r: any) => (r.order_items as any[])?.reduce((s: number, it: any) => s + it.qty, 0) || 0 },
+            { header: t("common.total"), accessor: (r: any) => formatCurrency(Number(r.total)) },
+            { header: t("common.status"), accessor: "status" },
+            { header: t("common.date"), accessor: (r: any) => fmtDate(r.created_at) },
+          ]}
+          data={filtered}
+          showStoreFilter
+        />
 
         <div className="bg-card rounded-lg border border-border shadow-card animate-fade-in">
           {isLoading ? (
@@ -169,7 +190,7 @@ const Orders = () => {
                       <TableCell className="text-xs">{itemsCount}</TableCell>
                       <TableCell className="font-medium">{formatCurrency(Number(order.total))}</TableCell>
                       <TableCell><StatusBadge status={order.status} /></TableCell>
-                      <TableCell className="text-muted-foreground text-xs">{new Date(order.created_at).toLocaleDateString("fr-FR")}</TableCell>
+                      <TableCell className="text-muted-foreground text-xs">{formatDate(order.created_at)}</TableCell>
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>

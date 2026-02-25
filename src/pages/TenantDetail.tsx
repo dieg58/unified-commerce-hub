@@ -1395,9 +1395,9 @@ function StockHistoryDialog({ product, tenantId, onClose }: { product: any; tena
                   return (
                     <TableRow key={m.id} className="text-xs">
                       <TableCell className="text-muted-foreground whitespace-nowrap">
-                        {new Date(m.created_at).toLocaleDateString("fr-FR")}
+                        {new Date(m.created_at).toLocaleDateString()}
                         <br />
-                        <span className="text-[10px]">{new Date(m.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</span>
+                        <span className="text-[10px]">{new Date(m.created_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</span>
                       </TableCell>
                       <TableCell>
                         <div className={`flex items-center gap-1 ${config.color}`}>

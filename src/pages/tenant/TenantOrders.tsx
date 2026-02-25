@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import ExportMenu from "@/components/ExportMenu";
 import { fmtDate, type ExportColumn } from "@/lib/export-utils";
 import { useTranslation } from "react-i18next";
+import { useLocaleDate } from "@/hooks/useLocaleDate";
 
 const getOrderExportColumns = (t: any): ExportColumn[] => [
   { header: "ID", accessor: (r: any) => r.id.slice(0, 8) },
@@ -31,6 +32,7 @@ const TenantOrders = () => {
   const navigate = useNavigate();
   const { profile, isShopManager } = useAuth();
   const { t } = useTranslation();
+  const { formatDate } = useLocaleDate();
   const qc = useQueryClient();
   const tenantId = profile?.tenant_id;
   const [exportFilters, setExportFilters] = useState<{ from?: Date; to?: Date; storeType?: string }>({});
@@ -113,7 +115,7 @@ const TenantOrders = () => {
                 <TableCell>{itemsCount}</TableCell>
                 <TableCell className="font-medium">{formatCurrency(Number(order.total))}</TableCell>
                 <TableCell><StatusBadge status={order.status} /></TableCell>
-                <TableCell className="text-muted-foreground text-xs">{new Date(order.created_at).toLocaleDateString("fr-FR")}</TableCell>
+                <TableCell className="text-muted-foreground text-xs">{formatDate(order.created_at)}</TableCell>
                 {isShopManager && (
                   <TableCell>
                     <DropdownMenu>

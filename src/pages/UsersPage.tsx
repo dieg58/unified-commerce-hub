@@ -151,7 +151,7 @@ const UsersPage = () => {
                         )}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{tenant?.name || t("common.platform")}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{new Date(user.created_at).toLocaleDateString("fr-FR")}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{new Date(user.created_at).toLocaleDateString()}</TableCell>
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>

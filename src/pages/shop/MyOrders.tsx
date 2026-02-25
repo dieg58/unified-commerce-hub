@@ -106,7 +106,7 @@ const MyOrders = () => {
                       <TableCell className="text-xs">{t("approvals.article", { count: totalItems })}</TableCell>
                       <TableCell className="font-medium">{formatCurrency(Number(o.total))}</TableCell>
                       <TableCell><StatusBadge status={o.status} /></TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{new Date(o.created_at).toLocaleDateString("fr-FR")}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{new Date(o.created_at).toLocaleDateString()}</TableCell>
                       <TableCell>
                         <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setViewOrder(o)}>
                           <Eye className="w-4 h-4" />
@@ -213,13 +213,13 @@ const MyOrders = () => {
                         {s.shipped_at && (
                           <div className="flex items-center justify-between">
                             <span className="text-xs text-muted-foreground">{t("myOrders.shippedOn")}</span>
-                            <span className="text-xs">{new Date(s.shipped_at).toLocaleDateString("fr-FR")}</span>
+                            <span className="text-xs">{new Date(s.shipped_at).toLocaleDateString()}</span>
                           </div>
                         )}
                         {s.delivered_at && (
                           <div className="flex items-center justify-between">
                             <span className="text-xs text-muted-foreground">{t("myOrders.deliveredOn")}</span>
-                            <span className="text-xs">{new Date(s.delivered_at).toLocaleDateString("fr-FR")}</span>
+                            <span className="text-xs">{new Date(s.delivered_at).toLocaleDateString()}</span>
                           </div>
                         )}
                       </div>

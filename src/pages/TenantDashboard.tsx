@@ -10,12 +10,14 @@ import { StatusBadge } from "@/components/DashboardWidgets";
 import CatalogProductDetailDialog from "@/components/CatalogProductDetailDialog";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useLocaleDate } from "@/hooks/useLocaleDate";
 
 const TenantDashboard = () => {
   const { profile, roles, isShopManager } = useAuth();
   const navigate = useNavigate();
   const tenantId = profile?.tenant_id;
   const { t } = useTranslation();
+  const { formatDate } = useLocaleDate();
 
   const { data: tenant } = useQuery({
     queryKey: ["tenant-dash", tenantId],
@@ -234,7 +236,7 @@ const TenantDashboard = () => {
                   </div>
                   <div className="text-right">
                     <span className="text-sm font-medium text-foreground">{formatCurrency(Number(o.total))}</span>
-                    <span className="ml-2 text-xs text-muted-foreground">{new Date(o.created_at).toLocaleDateString("fr-FR")}</span>
+                    <span className="ml-2 text-xs text-muted-foreground">{formatDate(o.created_at)}</span>
                   </div>
                 </div>
               ))}

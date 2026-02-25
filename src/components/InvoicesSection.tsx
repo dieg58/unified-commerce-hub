@@ -108,10 +108,10 @@ const InvoicesSection = ({ orderId }: InvoicesSectionProps) => {
               <TableRow key={inv.id} className="text-sm">
                 <TableCell className="font-mono text-xs font-medium">{inv.invoice_number}</TableCell>
                 <TableCell className="text-xs text-muted-foreground">
-                  {new Date(inv.invoice_date).toLocaleDateString("fr-FR")}
+                  {new Date(inv.invoice_date).toLocaleDateString()}
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">
-                  {inv.due_date ? new Date(inv.due_date).toLocaleDateString("fr-FR") : "—"}
+                  {inv.due_date ? new Date(inv.due_date).toLocaleDateString() : "—"}
                 </TableCell>
                 <TableCell className="text-right">{formatCurrency(Number(inv.amount_untaxed))}</TableCell>
                 <TableCell className="text-right text-muted-foreground">{formatCurrency(Number(inv.amount_tax))}</TableCell>

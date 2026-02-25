@@ -13,12 +13,13 @@ import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
-import { fr } from "date-fns/locale";
+import { fr, enGB, nl } from "date-fns/locale";
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const dateLocale = i18n.language === "nl" ? nl : i18n.language === "en" ? enGB : fr;
 
   const { data: tenants, isLoading: tenantsLoading } = useQuery({
     queryKey: ["tenants"],
@@ -73,7 +74,7 @@ const Dashboard = () => {
       });
       const revenue = monthOrders.reduce((s, o) => s + Number(o.total), 0);
       months.push({
-        month: format(date, "MMM", { locale: fr }),
+        month: format(date, "MMM", { locale: dateLocale }),
         orders: monthOrders.length,
         revenue: Math.round(revenue),
       });
