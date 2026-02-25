@@ -9,6 +9,7 @@ export interface CartItem {
   price: number;
   storeType: "bulk" | "staff";
   qty: number;
+  imageUrl?: string;
 }
 
 interface CartContextType {
