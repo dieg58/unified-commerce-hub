@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import TopBar from "@/components/TopBar";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -37,6 +37,8 @@ import {
   Palette,
   Ruler,
   Layers,
+  X,
+  ArrowRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/mock-data";
@@ -61,13 +63,15 @@ function getProductSection(p: { midocean_id?: string | null; category?: string }
   return tab === "autre" ? "signaletique" : tab;
 }
 
-const sectionTabs: { key: CatalogSection; label: string; icon: typeof Gift }[] = [
-  { key: "goodies", label: "Goodies", icon: Gift },
-  { key: "textile", label: "Textile", icon: Shirt },
-  { key: "signaletique", label: "Signalétique", icon: Printer },
+const sectionTabs: { key: CatalogSection; label: string; icon: typeof Gift; description: string }[] = [
+  { key: "goodies", label: "Goodies", icon: Gift, description: "Objets publicitaires" },
+  { key: "textile", label: "Textile", icon: Shirt, description: "Vêtements & accessoires" },
+  { key: "signaletique", label: "Signalétique", icon: Printer, description: "Supports imprimés" },
 ];
 
 type VariantColor = { color: string; hex: string | null; image_url: string | null };
+
+const PAGE_SIZE = 60;
 
 const TenantProductRequests = () => {
   const { profile } = useAuth();
@@ -89,9 +93,9 @@ const TenantProductRequests = () => {
   const [viewRequest, setViewRequest] = useState<any>(null);
   const [requestSearch, setRequestSearch] = useState("");
   const [requestFilter, setRequestFilter] = useState<string>("all");
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   /* ── Queries ── */
-  // Lightweight listing (no JSONB variants)
   const LISTING_COLUMNS = "id,name,name_en,name_nl,sku,category,base_price,description,description_en,description_nl,image_url,active,created_at,midocean_id,stock_qty,last_synced_at,is_new,release_date" as const;
 
   const { data: catalogProducts, isLoading: catalogLoading } = useQuery({
@@ -117,7 +121,7 @@ const TenantProductRequests = () => {
     },
   });
 
-  // Lazy load variant data for filters
+  // Lazy load variant data for filters + card previews
   const { data: variantData } = useQuery({
     queryKey: ["catalog-variants-requests"],
     queryFn: async () => {
@@ -139,7 +143,6 @@ const TenantProductRequests = () => {
       }
       return map;
     },
-    enabled: showFilters,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -347,6 +350,17 @@ const TenantProductRequests = () => {
     return list;
   }, [sectionProducts, search, filterGroup, filterSubCategory, showNewOnly, filterColors, filterSizes, variantData, tabForSimplified]);
 
+  // Reset visible count when filters change
+  const filteredKey = `${catalogSection}-${filterGroup}-${filterSubCategory}-${search}-${showNewOnly}-${filterColors.size}-${filterSizes.size}`;
+  const prevFilteredKey = useRef(filteredKey);
+  if (prevFilteredKey.current !== filteredKey) {
+    prevFilteredKey.current = filteredKey;
+    if (visibleCount !== PAGE_SIZE) setVisibleCount(PAGE_SIZE);
+  }
+
+  const visibleProducts = useMemo(() => filteredCatalog.slice(0, visibleCount), [filteredCatalog, visibleCount]);
+  const hasMore = visibleCount < filteredCatalog.length;
+
   /* ── Filtered requests ── */
   const filteredRequests = useMemo(() => {
     let list = requests || [];
@@ -369,7 +383,7 @@ const TenantProductRequests = () => {
   }, [requests, requestSearch, requestFilter]);
 
   const activeRequestsCount = requests?.filter((r) => !["added", "rejected"].includes(r.status)).length || 0;
-  const activeFilterCount = (filterGroup !== "all" ? 1 : 0) + (filterSubCategory !== "all" ? 1 : 0) + filterColors.size + filterSizes.size;
+  const activeFilterCount = (filterGroup !== "all" ? 1 : 0) + (filterSubCategory !== "all" ? 1 : 0) + filterColors.size + filterSizes.size + (showNewOnly ? 1 : 0);
 
   const clearFilters = () => {
     setFilterGroup("all");
@@ -379,13 +393,24 @@ const TenantProductRequests = () => {
     setShowNewOnly(false);
   };
 
+  /* ── Active filter chips for quick removal ── */
+  const activeChips = useMemo(() => {
+    const chips: { key: string; label: string; onRemove: () => void }[] = [];
+    if (filterGroup !== "all") chips.push({ key: "cat", label: filterGroup, onRemove: () => { setFilterGroup("all"); setFilterSubCategory("all"); } });
+    if (filterSubCategory !== "all") chips.push({ key: "subcat", label: filterSubCategory, onRemove: () => setFilterSubCategory("all") });
+    if (showNewOnly) chips.push({ key: "new", label: "Nouveautés", onRemove: () => setShowNewOnly(false) });
+    filterColors.forEach((c) => chips.push({ key: `color-${c}`, label: c, onRemove: () => setFilterColors((prev) => { const n = new Set(prev); n.delete(c); return n; }) }));
+    filterSizes.forEach((s) => chips.push({ key: `size-${s}`, label: s, onRemove: () => setFilterSizes((prev) => { const n = new Set(prev); n.delete(s); return n; }) }));
+    return chips;
+  }, [filterGroup, filterSubCategory, showNewOnly, filterColors, filterSizes]);
+
   return (
     <>
       <TopBar
         title="Catalogue & Demandes"
         subtitle="Parcourez le catalogue INKOO et demandez l'ajout de produits"
       />
-      <div className="p-6 space-y-4 overflow-auto">
+      <div className="p-6 space-y-5 overflow-auto">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid w-full max-w-md grid-cols-2">
             <TabsTrigger value="catalog" className="gap-2">
@@ -404,68 +429,75 @@ const TenantProductRequests = () => {
           </TabsList>
 
           {/* ════════════ CATALOGUE TAB ════════════ */}
-          <TabsContent value="catalog" className="space-y-4 mt-4">
-            {/* Section tabs (Goodies / Textile / Signalétique) */}
-            <div className="flex gap-2">
-              {sectionTabs.map((s) => (
-                <button
-                  key={s.key}
-                  onClick={() => {
-                    setCatalogSection(s.key);
-                    clearFilters();
-                    setSearch("");
-                  }}
-                  className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    catalogSection === s.key
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "bg-secondary text-muted-foreground hover:bg-secondary/80"
-                  }`}
-                >
-                  <s.icon className="w-4 h-4" />
-                  {s.label}
-                  <span className="text-[11px] opacity-70">({sectionCounts[s.key]})</span>
-                </button>
-              ))}
+          <TabsContent value="catalog" className="space-y-5 mt-5">
+            {/* Section cards */}
+            <div className="grid grid-cols-3 gap-3">
+              {sectionTabs.map((s) => {
+                const isActive = catalogSection === s.key;
+                const count = sectionCounts[s.key];
+                return (
+                  <button
+                    key={s.key}
+                    onClick={() => { setCatalogSection(s.key); clearFilters(); setSearch(""); setVisibleCount(PAGE_SIZE); }}
+                    className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
+                      isActive
+                        ? "border-primary bg-primary/5 shadow-sm"
+                        : "border-border bg-card hover:border-primary/30 hover:shadow-sm"
+                    }`}
+                  >
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isActive ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"}`}>
+                      <s.icon className="w-5 h-5" />
+                    </div>
+                    <div className="text-center">
+                      <p className={`text-sm font-semibold ${isActive ? "text-foreground" : "text-muted-foreground"}`}>{s.label}</p>
+                      <p className="text-[11px] text-muted-foreground">{count} produits</p>
+                    </div>
+                    {isActive && <div className="absolute -bottom-px left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary rounded-full" />}
+                  </button>
+                );
+              })}
             </div>
 
-            {/* Search + nouveautés + filters toggle */}
-            <div className="flex flex-col sm:flex-row gap-3">
+            {/* Search bar */}
+            <div className="flex gap-3 items-center">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
-                  placeholder="Rechercher un produit, SKU, catégorie…"
+                  placeholder="Rechercher par nom, SKU ou catégorie…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-10 h-10"
+                  className="pl-10 pr-9 h-11 text-sm rounded-xl bg-card"
                 />
+                {search && (
+                  <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 {newCount > 0 && (
                   <Button
                     variant={showNewOnly ? "default" : "outline"}
                     size="sm"
-                    className="gap-1.5 h-10 shrink-0"
+                    className="gap-1.5 h-11 shrink-0 rounded-xl"
                     onClick={() => setShowNewOnly(!showNewOnly)}
                   >
                     <Sparkles className="w-4 h-4" />
-                    Nouveautés
-                    <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px]">
-                      {newCount}
-                    </Badge>
+                    <span className="hidden sm:inline">Nouveautés</span>
+                    <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">{newCount}</Badge>
                   </Button>
                 )}
                 <Button
                   variant={showFilters ? "secondary" : "outline"}
                   size="sm"
-                  className="h-10 text-xs gap-1.5 shrink-0"
+                  className="h-11 gap-1.5 shrink-0 rounded-xl"
                   onClick={() => setShowFilters(!showFilters)}
                 >
                   <Filter className="w-4 h-4" />
-                  Filtres
+                  <span className="hidden sm:inline">Filtres</span>
                   {activeFilterCount > 0 && (
-                    <Badge variant="default" className="h-4 px-1 text-[10px] rounded-full ml-0.5">{activeFilterCount}</Badge>
+                    <Badge variant="default" className="h-5 px-1.5 text-[10px] rounded-full">{activeFilterCount}</Badge>
                   )}
-                  {showFilters ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                 </Button>
               </div>
             </div>
@@ -475,10 +507,10 @@ const TenantProductRequests = () => {
               <div className="flex flex-wrap gap-1.5">
                 <button
                   onClick={() => { setFilterGroup("all"); setFilterSubCategory("all"); }}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
                     filterGroup === "all"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-secondary text-muted-foreground hover:bg-secondary/80"
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "bg-card border border-border text-muted-foreground hover:border-primary/30 hover:text-foreground"
                   }`}
                 >
                   Tout ({sectionProducts.length})
@@ -487,10 +519,10 @@ const TenantProductRequests = () => {
                   <button
                     key={cat}
                     onClick={() => { setFilterGroup(cat); setFilterSubCategory("all"); setShowFilters(true); }}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
                       filterGroup === cat
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-secondary text-muted-foreground hover:bg-secondary/80"
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "bg-card border border-border text-muted-foreground hover:border-primary/30 hover:text-foreground"
                     }`}
                   >
                     {cat} ({count})
@@ -501,7 +533,7 @@ const TenantProductRequests = () => {
 
             {/* Collapsible filter panel */}
             {showFilters && (
-              <div className="bg-card rounded-lg border border-border p-4 space-y-4 animate-fade-in">
+              <div className="bg-card rounded-xl border border-border p-4 space-y-4 animate-fade-in shadow-sm">
                 {!variantData && (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
                     <Loader2 className="w-4 h-4 animate-spin" /> Chargement des filtres…
@@ -515,14 +547,10 @@ const TenantProductRequests = () => {
                       <Layers className="w-3.5 h-3.5 text-muted-foreground" />
                       <span className="text-xs font-medium">Sous-catégories de « {filterGroup} »</span>
                       {filterSubCategory !== "all" && (
-                        <button className="text-[10px] text-primary hover:underline ml-1" onClick={() => setFilterSubCategory("all")}>
-                          Effacer
-                        </button>
+                        <button className="text-[10px] text-primary hover:underline ml-1" onClick={() => setFilterSubCategory("all")}>Effacer</button>
                       )}
                       <CollapsibleTrigger asChild>
-                        <button className="ml-auto text-muted-foreground hover:text-foreground">
-                          <ChevronDown className="w-3.5 h-3.5 transition-transform [[data-state=open]>&]:rotate-180" />
-                        </button>
+                        <button className="ml-auto text-muted-foreground hover:text-foreground"><ChevronDown className="w-3.5 h-3.5 transition-transform [[data-state=open]>&]:rotate-180" /></button>
                       </CollapsibleTrigger>
                     </div>
                     <CollapsibleContent>
@@ -530,17 +558,8 @@ const TenantProductRequests = () => {
                         {subCategories.map(([sub, count]) => {
                           const isActive = filterSubCategory === sub;
                           return (
-                            <button
-                              key={sub}
-                              onClick={() => setFilterSubCategory(isActive ? "all" : sub)}
-                              className={`inline-flex items-center gap-1 h-6 px-2.5 rounded-full border text-[11px] transition-all ${
-                                isActive
-                                  ? "border-primary bg-primary/10 text-primary font-medium"
-                                  : "border-border hover:border-primary/50 text-muted-foreground"
-                              }`}
-                            >
-                              {sub}
-                              <span className="text-[9px] text-muted-foreground">({count})</span>
+                            <button key={sub} onClick={() => setFilterSubCategory(isActive ? "all" : sub)} className={`inline-flex items-center gap-1 h-6 px-2.5 rounded-full border text-[11px] transition-all ${isActive ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50 text-muted-foreground"}`}>
+                              {sub} <span className="text-[9px] text-muted-foreground">({count})</span>
                             </button>
                           );
                         })}
@@ -556,14 +575,10 @@ const TenantProductRequests = () => {
                       <Palette className="w-3.5 h-3.5 text-muted-foreground" />
                       <span className="text-xs font-medium">Couleurs</span>
                       {filterColors.size > 0 && (
-                        <button className="text-[10px] text-primary hover:underline ml-1" onClick={() => setFilterColors(new Set())}>
-                          Effacer
-                        </button>
+                        <button className="text-[10px] text-primary hover:underline ml-1" onClick={() => setFilterColors(new Set())}>Effacer</button>
                       )}
                       <CollapsibleTrigger asChild>
-                        <button className="ml-auto text-muted-foreground hover:text-foreground">
-                          <ChevronDown className="w-3.5 h-3.5 transition-transform [[data-state=open]>&]:rotate-180" />
-                        </button>
+                        <button className="ml-auto text-muted-foreground hover:text-foreground"><ChevronDown className="w-3.5 h-3.5 transition-transform [[data-state=open]>&]:rotate-180" /></button>
                       </CollapsibleTrigger>
                     </div>
                     <CollapsibleContent>
@@ -574,23 +589,10 @@ const TenantProductRequests = () => {
                           return (
                             <button
                               key={c.family}
-                              onClick={() => {
-                                setFilterColors((prev) => {
-                                  const next = new Set(prev);
-                                  if (next.has(c.family)) next.delete(c.family); else next.add(c.family);
-                                  return next;
-                                });
-                              }}
-                              className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full border text-[11px] transition-all ${
-                                isActive
-                                  ? "border-primary bg-primary/10 text-primary font-medium"
-                                  : "border-border hover:border-primary/50 text-muted-foreground"
-                              }`}
+                              onClick={() => { setFilterColors((prev) => { const next = new Set(prev); if (next.has(c.family)) next.delete(c.family); else next.add(c.family); return next; }); }}
+                              className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full border text-[11px] transition-all ${isActive ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50 text-muted-foreground"}`}
                             >
-                              <span
-                                className="w-3.5 h-3.5 rounded-full border border-border/50 shrink-0"
-                                style={isGradient ? { background: c.hex } : { backgroundColor: c.hex }}
-                              />
+                              <span className="w-3.5 h-3.5 rounded-full border border-border/50 shrink-0" style={isGradient ? { background: c.hex } : { backgroundColor: c.hex }} />
                               <span>{c.family}</span>
                               <span className="text-[9px] text-muted-foreground">({c.count})</span>
                             </button>
@@ -608,14 +610,10 @@ const TenantProductRequests = () => {
                       <Ruler className="w-3.5 h-3.5 text-muted-foreground" />
                       <span className="text-xs font-medium">Tailles</span>
                       {filterSizes.size > 0 && (
-                        <button className="text-[10px] text-primary hover:underline ml-1" onClick={() => setFilterSizes(new Set())}>
-                          Effacer
-                        </button>
+                        <button className="text-[10px] text-primary hover:underline ml-1" onClick={() => setFilterSizes(new Set())}>Effacer</button>
                       )}
                       <CollapsibleTrigger asChild>
-                        <button className="ml-auto text-muted-foreground hover:text-foreground">
-                          <ChevronDown className="w-3.5 h-3.5 transition-transform [[data-state=open]>&]:rotate-180" />
-                        </button>
+                        <button className="ml-auto text-muted-foreground hover:text-foreground"><ChevronDown className="w-3.5 h-3.5 transition-transform [[data-state=open]>&]:rotate-180" /></button>
                       </CollapsibleTrigger>
                     </div>
                     <CollapsibleContent>
@@ -623,23 +621,8 @@ const TenantProductRequests = () => {
                         {availableSizeGroups.map((s) => {
                           const isActive = filterSizes.has(s.group);
                           return (
-                            <button
-                              key={s.group}
-                              onClick={() => {
-                                setFilterSizes((prev) => {
-                                  const next = new Set(prev);
-                                  if (next.has(s.group)) next.delete(s.group); else next.add(s.group);
-                                  return next;
-                                });
-                              }}
-                              className={`inline-flex items-center gap-1 h-6 px-2.5 rounded-full border text-[11px] transition-all ${
-                                isActive
-                                  ? "border-primary bg-primary/10 text-primary font-medium"
-                                  : "border-border hover:border-primary/50 text-muted-foreground"
-                              }`}
-                            >
-                              {s.group}
-                              <span className="text-[9px] text-muted-foreground">({s.count})</span>
+                            <button key={s.group} onClick={() => { setFilterSizes((prev) => { const next = new Set(prev); if (next.has(s.group)) next.delete(s.group); else next.add(s.group); return next; }); }} className={`inline-flex items-center gap-1 h-6 px-2.5 rounded-full border text-[11px] transition-all ${isActive ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50 text-muted-foreground"}`}>
+                              {s.group} <span className="text-[9px] text-muted-foreground">({s.count})</span>
                             </button>
                           );
                         })}
@@ -647,107 +630,189 @@ const TenantProductRequests = () => {
                     </CollapsibleContent>
                   </Collapsible>
                 )}
+              </div>
+            )}
 
-                {activeFilterCount > 0 && (
-                  <button onClick={clearFilters} className="text-xs text-primary hover:underline">
-                    Réinitialiser tous les filtres
+            {/* Active filter chips */}
+            {activeChips.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-muted-foreground">Filtres actifs :</span>
+                {activeChips.map((chip) => (
+                  <button
+                    key={chip.key}
+                    onClick={chip.onRemove}
+                    className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full bg-primary/10 text-primary text-[11px] font-medium hover:bg-primary/20 transition-colors"
+                  >
+                    {chip.label}
+                    <X className="w-3 h-3" />
                   </button>
-                )}
+                ))}
+                <button onClick={clearFilters} className="text-[11px] text-muted-foreground hover:text-primary transition-colors ml-1">
+                  Tout effacer
+                </button>
               </div>
             )}
 
             {/* Results count */}
-            {(activeFilterCount > 0 || search || showNewOnly) && !catalogLoading && (
-              <p className="text-xs text-muted-foreground">
-                {filteredCatalog.length} produit{filteredCatalog.length !== 1 ? "s" : ""} affiché{filteredCatalog.length !== 1 ? "s" : ""}
-              </p>
+            {!catalogLoading && (
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">{filteredCatalog.length}</span> produit{filteredCatalog.length !== 1 ? "s" : ""}
+                  {activeFilterCount > 0 && " correspondant aux filtres"}
+                </p>
+              </div>
             )}
 
             {/* Products grid */}
             {catalogLoading ? (
-              <div className="flex items-center justify-center py-20">
+              <div className="flex flex-col items-center justify-center py-20 gap-3">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">Chargement du catalogue…</p>
               </div>
             ) : !filteredCatalog.length ? (
-              <div className="text-center py-16">
-                <Package className="w-16 h-16 text-muted-foreground/20 mx-auto mb-3" />
-                <p className="text-sm text-muted-foreground">Aucun produit trouvé</p>
+              <div className="text-center py-20">
+                <div className="w-20 h-20 rounded-2xl bg-secondary flex items-center justify-center mx-auto mb-4">
+                  <Package className="w-10 h-10 text-muted-foreground/30" />
+                </div>
+                <p className="text-sm font-medium text-foreground mb-1">Aucun produit trouvé</p>
+                <p className="text-xs text-muted-foreground mb-4">Essayez d'ajuster vos filtres ou votre recherche</p>
                 {activeFilterCount > 0 && (
-                  <Button variant="outline" size="sm" className="mt-3" onClick={clearFilters}>
-                    Réinitialiser les filtres
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={clearFilters}>
+                    <X className="w-3.5 h-3.5" /> Réinitialiser les filtres
                   </Button>
                 )}
               </div>
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                {filteredCatalog.map((p, i) => {
-                  const existing = requestMap.get(p.id);
-                  const isRequested = !!existing;
-                  const st = existing ? statusConfig[existing.status] : null;
-                  return (
-                    <button
-                      key={p.id}
-                      onClick={() => openDetail(p)}
-                      className="group text-left bg-card border border-border rounded-xl overflow-hidden hover:shadow-card-hover hover:border-primary/20 transition-all animate-fade-in"
-                      style={{ animationDelay: `${Math.min(i, 20) * 30}ms` }}
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                  {visibleProducts.map((p) => {
+                    const existing = requestMap.get(p.id);
+                    const isRequested = !!existing;
+                    const st = existing ? statusConfig[existing.status] : null;
+                    const vd = variantData?.get(p.id);
+                    const colors: VariantColor[] = Array.isArray(vd?.variant_colors) ? vd!.variant_colors! : [];
+                    const sizes: string[] = Array.isArray(vd?.variant_sizes) ? vd!.variant_sizes! : [];
+                    const displayColors = colors.filter(c => c.hex || c.image_url).slice(0, 6);
+                    const extraColors = Math.max(0, colors.length - 6);
+
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => openDetail(p)}
+                        className="group text-left bg-card border border-border rounded-xl overflow-hidden hover:shadow-card-hover hover:border-primary/20 transition-all duration-200"
+                      >
+                        {/* Image */}
+                        <div className="relative aspect-square bg-muted overflow-hidden">
+                          {p.image_url ? (
+                            <img
+                              src={p.image_url}
+                              alt={p.name}
+                              loading="lazy"
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Package className="w-10 h-10 text-muted-foreground/15" />
+                            </div>
+                          )}
+                          {/* Badges */}
+                          <div className="absolute top-2 left-2 flex flex-col gap-1">
+                            {p.is_new && (
+                              <Badge className="bg-warning text-warning-foreground text-[10px] gap-0.5 shadow-sm">
+                                <Sparkles className="w-3 h-3" /> Nouveau
+                              </Badge>
+                            )}
+                          </div>
+                          {isRequested && st && (
+                            <div className="absolute top-2 right-2">
+                              <Badge variant="outline" className={`text-[9px] ${st.className} bg-card/90 backdrop-blur-sm shadow-sm`}>{st.label}</Badge>
+                            </div>
+                          )}
+                          {/* Hover overlay */}
+                          <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/5 transition-colors duration-200 flex items-center justify-center">
+                            <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-card/95 backdrop-blur-sm text-foreground text-xs font-medium px-3 py-1.5 rounded-full shadow-sm flex items-center gap-1.5">
+                              Voir le détail <ArrowRight className="w-3 h-3" />
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Info */}
+                        <div className="p-3 space-y-2">
+                          <div>
+                            <p className="text-sm font-medium text-foreground line-clamp-2 leading-tight group-hover:text-primary transition-colors">
+                              {p.name}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground font-mono mt-0.5">{p.sku}</p>
+                          </div>
+
+                          {/* Color swatches preview */}
+                          {displayColors.length > 0 && (
+                            <div className="flex items-center gap-0.5">
+                              {displayColors.map((c, idx) => (
+                                <span
+                                  key={idx}
+                                  title={c.color}
+                                  className="w-4 h-4 rounded-full border border-border/60 shrink-0"
+                                  style={c.hex ? { backgroundColor: c.hex.startsWith("#") ? c.hex : `#${c.hex}` } : undefined}
+                                >
+                                  {!c.hex && c.image_url && (
+                                    <img src={c.image_url} alt="" className="w-full h-full rounded-full object-cover" />
+                                  )}
+                                </span>
+                              ))}
+                              {extraColors > 0 && (
+                                <span className="text-[10px] text-muted-foreground ml-0.5">+{extraColors}</span>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Sizes hint */}
+                          {sizes.length > 0 && (
+                            <p className="text-[10px] text-muted-foreground">{sizes.length} taille{sizes.length > 1 ? "s" : ""}</p>
+                          )}
+
+                          <p className="text-sm font-bold text-primary">
+                            {formatCurrency(Number(p.base_price))}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Load more */}
+                {hasMore && (
+                  <div className="flex justify-center pt-4">
+                    <Button
+                      variant="outline"
+                      className="gap-2 rounded-xl"
+                      onClick={() => setVisibleCount((v) => v + PAGE_SIZE)}
                     >
-                      <div className="relative aspect-square bg-muted">
-                        {p.image_url ? (
-                          <img
-                            src={p.image_url}
-                            alt={p.name}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <Package className="w-10 h-10 text-muted-foreground/20" />
-                          </div>
-                        )}
-                        {p.is_new && (
-                          <div className="absolute top-2 left-2">
-                            <Badge className="bg-warning text-warning-foreground text-[10px] gap-1">
-                              <Sparkles className="w-3 h-3" /> Nouveau
-                            </Badge>
-                          </div>
-                        )}
-                        {isRequested && st && (
-                          <div className="absolute top-2 right-2">
-                            <Badge
-                              variant="outline"
-                              className={`text-[9px] ${st.className} bg-background/90 backdrop-blur-sm`}
-                            >
-                              {st.label}
-                            </Badge>
-                          </div>
-                        )}
-                      </div>
-                      <div className="p-3 space-y-1">
-                        <p className="text-sm font-medium text-foreground line-clamp-2 leading-tight">
-                          {p.name}
-                        </p>
-                        <p className="text-[11px] text-muted-foreground font-mono">{p.sku}</p>
-                        <p className="text-sm font-semibold text-primary">
-                          {formatCurrency(Number(p.base_price))}
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+                      Afficher plus de produits
+                      <Badge variant="secondary" className="text-[10px]">{filteredCatalog.length - visibleCount} restants</Badge>
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
           </TabsContent>
 
           {/* ════════════ REQUESTS TAB ════════════ */}
-          <TabsContent value="requests" className="space-y-4 mt-4">
+          <TabsContent value="requests" className="space-y-4 mt-5">
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   placeholder="Rechercher dans mes demandes…"
                   value={requestSearch}
                   onChange={(e) => setRequestSearch(e.target.value)}
-                  className="pl-10 h-10"
+                  className="pl-10 pr-9 h-11 rounded-xl bg-card"
                 />
+                {requestSearch && (
+                  <button onClick={() => setRequestSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -761,10 +826,10 @@ const TenantProductRequests = () => {
                 <button
                   key={f.key}
                   onClick={() => setRequestFilter(f.key)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
                     requestFilter === f.key
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-secondary text-muted-foreground hover:bg-secondary/80"
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "bg-card border border-border text-muted-foreground hover:border-primary/30"
                   }`}
                 >
                   {f.label}
@@ -777,21 +842,19 @@ const TenantProductRequests = () => {
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
               </div>
             ) : !filteredRequests.length ? (
-              <div className="text-center py-16">
-                <Package className="w-16 h-16 text-muted-foreground/20 mx-auto mb-3" />
-                <p className="text-sm text-muted-foreground">Aucune demande trouvée</p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-4 gap-2"
-                  onClick={() => setActiveTab("catalog")}
-                >
+              <div className="text-center py-20">
+                <div className="w-20 h-20 rounded-2xl bg-secondary flex items-center justify-center mx-auto mb-4">
+                  <Package className="w-10 h-10 text-muted-foreground/30" />
+                </div>
+                <p className="text-sm font-medium text-foreground mb-1">Aucune demande trouvée</p>
+                <p className="text-xs text-muted-foreground mb-4">Parcourez le catalogue pour demander des produits</p>
+                <Button variant="outline" size="sm" className="gap-2 rounded-xl" onClick={() => setActiveTab("catalog")}>
                   <ShoppingBag className="w-4 h-4" /> Parcourir le catalogue
                 </Button>
               </div>
             ) : (
-              <div className="space-y-3">
-                {filteredRequests.map((r, i) => {
+              <div className="space-y-2">
+                {filteredRequests.map((r) => {
                   const cp = r.catalog_products as any;
                   const st = statusConfig[r.status] || { label: r.status, className: "", icon: Clock };
                   const StatusIcon = st.icon;
@@ -799,8 +862,7 @@ const TenantProductRequests = () => {
                     <button
                       key={r.id}
                       onClick={() => setViewRequest(r)}
-                      className="w-full text-left bg-card border border-border rounded-xl p-4 hover:shadow-card-hover hover:border-primary/20 transition-all animate-fade-in flex items-center gap-4"
-                      style={{ animationDelay: `${Math.min(i, 15) * 30}ms` }}
+                      className="w-full text-left bg-card border border-border rounded-xl p-4 hover:shadow-card-hover hover:border-primary/20 transition-all flex items-center gap-4"
                     >
                       {cp?.image_url ? (
                         <img src={cp.image_url} alt={cp.name} className="w-14 h-14 rounded-lg object-cover shrink-0" />
@@ -841,14 +903,14 @@ const TenantProductRequests = () => {
           if (!v) { setDetailProduct(null); setNote(""); setSelectedColor(null); }
         }}
       >
-        <DialogContent className="sm:max-w-2xl p-0 gap-0 max-h-[85vh] overflow-hidden">
+        <DialogContent className="sm:max-w-2xl p-0 gap-0 max-h-[90vh] overflow-hidden">
           {detailProduct && (() => {
             const existing = requestMap.get(detailProduct.id);
             const isRequested = !!existing;
             const st = existing ? statusConfig[existing.status] : null;
             const categoryParts = detailProduct.category?.split(">").map((s: string) => s.trim()).filter(Boolean) || [];
 
-            const colors: { color: string; hex: string | null; image_url: string | null }[] =
+            const colors: VariantColor[] =
               Array.isArray(detailProduct.variant_colors) ? detailProduct.variant_colors : [];
             const sizes: string[] =
               Array.isArray(detailProduct.variant_sizes) ? detailProduct.variant_sizes : [];
@@ -856,29 +918,59 @@ const TenantProductRequests = () => {
             const displayImage = selectedColor?.image_url || detailProduct.image_url;
 
             return (
-              <div className="flex flex-col sm:flex-row max-h-[85vh]">
+              <div className="flex flex-col sm:flex-row max-h-[90vh]">
                 {/* Left: Image */}
-                <div className="sm:w-1/2 bg-muted flex items-center justify-center shrink-0 relative min-h-[200px] sm:min-h-0">
+                <div className="sm:w-1/2 bg-muted flex items-center justify-center shrink-0 relative min-h-[220px] sm:min-h-0">
                   {displayImage ? (
                     <img
                       src={displayImage}
                       alt={detailProduct.name}
-                      className="w-full h-full object-cover sm:absolute sm:inset-0"
+                      className="w-full h-full object-cover sm:absolute sm:inset-0 transition-all duration-300"
                     />
                   ) : (
                     <Package className="w-16 h-16 text-muted-foreground/20" />
                   )}
                   {detailProduct.is_new && (
                     <div className="absolute top-3 left-3">
-                      <Badge className="bg-warning text-warning-foreground text-[10px] gap-1">
+                      <Badge className="bg-warning text-warning-foreground text-[10px] gap-1 shadow-sm">
                         <Sparkles className="w-3 h-3" /> Nouveau
                       </Badge>
+                    </div>
+                  )}
+                  {/* Color thumbnail strip on image */}
+                  {colors.length > 1 && (
+                    <div className="absolute bottom-3 left-3 right-3 flex gap-1.5 flex-wrap">
+                      {colors.slice(0, 8).map((c, idx) => {
+                        const isActive = selectedColor?.color === c.color;
+                        return (
+                          <button
+                            key={idx}
+                            title={c.color}
+                            onClick={() => setSelectedColor(isActive ? null : c)}
+                            className={`w-8 h-8 rounded-lg border-2 overflow-hidden transition-all shadow-sm ${isActive ? "border-primary ring-2 ring-primary/40 scale-110" : "border-card/80 hover:border-primary/60"}`}
+                          >
+                            {c.image_url ? (
+                              <img src={c.image_url} alt={c.color} className="w-full h-full object-cover" />
+                            ) : c.hex ? (
+                              <span className="w-full h-full block" style={{ backgroundColor: c.hex.startsWith("#") ? c.hex : `#${c.hex}` }} />
+                            ) : (
+                              <span className="w-full h-full block bg-muted" />
+                            )}
+                          </button>
+                        );
+                      })}
+                      {colors.length > 8 && (
+                        <span className="w-8 h-8 rounded-lg bg-card/80 backdrop-blur-sm flex items-center justify-center text-[10px] font-medium text-muted-foreground border-2 border-card/80">
+                          +{colors.length - 8}
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>
 
                 {/* Right: Details */}
-                <div className="sm:w-1/2 overflow-y-auto p-5 space-y-4">
+                <div className="sm:w-1/2 overflow-y-auto p-6 space-y-4">
+                  {/* Category breadcrumb */}
                   {categoryParts.length > 0 && (
                     <div className="flex flex-wrap gap-1">
                       {categoryParts.map((part: string, idx: number) => (
@@ -891,24 +983,24 @@ const TenantProductRequests = () => {
                   )}
 
                   <div>
-                    <h3 className="text-base font-semibold text-foreground leading-tight">{detailProduct.name}</h3>
+                    <h3 className="text-lg font-semibold text-foreground leading-tight">{detailProduct.name}</h3>
                     <p className="text-xs text-muted-foreground font-mono mt-1">Réf. {detailProduct.sku}</p>
                   </div>
 
                   {detailProduct.description && (
-                    <p className="text-xs text-muted-foreground leading-relaxed">{detailProduct.description}</p>
+                    <p className="text-sm text-muted-foreground leading-relaxed">{detailProduct.description}</p>
                   )}
 
                   <div className="flex items-baseline gap-3">
-                    <span className="text-lg font-bold text-primary">{formatCurrency(Number(detailProduct.base_price))}</span>
-                    <span className="text-xs text-muted-foreground">Stock : {detailProduct.stock_qty}</span>
+                    <span className="text-2xl font-bold text-primary">{formatCurrency(Number(detailProduct.base_price))}</span>
+                    <span className="text-xs text-muted-foreground">prix indicatif HT</span>
                   </div>
 
                   {/* Colors */}
                   {colors.length > 0 && (
                     <div>
                       <p className="text-xs font-medium text-foreground mb-2">
-                        Couleurs disponibles
+                        {colors.length} couleur{colors.length > 1 ? "s" : ""} disponible{colors.length > 1 ? "s" : ""}
                         {selectedColor && <span className="font-normal text-muted-foreground ml-1.5">— {selectedColor.color}</span>}
                       </p>
                       <div className="flex flex-wrap gap-1.5">
@@ -919,21 +1011,12 @@ const TenantProductRequests = () => {
                               key={idx}
                               title={c.color}
                               onClick={() => setSelectedColor(isActive ? null : c)}
-                              className={`w-7 h-7 rounded-full border-2 transition-all flex items-center justify-center ${
-                                isActive ? "border-primary ring-2 ring-primary/30 scale-110" : "border-border hover:border-primary/50"
-                              }`}
+                              className={`w-7 h-7 rounded-full border-2 transition-all flex items-center justify-center ${isActive ? "border-primary ring-2 ring-primary/30 scale-110" : "border-border hover:border-primary/50"}`}
                             >
                               {c.hex ? (
-                                <span
-                                  className="w-5 h-5 rounded-full block"
-                                  style={{ backgroundColor: c.hex.startsWith("#") ? c.hex : `#${c.hex}` }}
-                                />
+                                <span className="w-5 h-5 rounded-full block" style={{ backgroundColor: c.hex.startsWith("#") ? c.hex : `#${c.hex}` }} />
                               ) : c.image_url ? (
-                                <img
-                                  src={c.image_url}
-                                  alt={c.color}
-                                  className="w-5 h-5 rounded-full object-cover block"
-                                />
+                                <img src={c.image_url} alt={c.color} className="w-5 h-5 rounded-full object-cover block" />
                               ) : (
                                 <span className="w-5 h-5 rounded-full bg-gradient-to-br from-muted to-muted-foreground/20 block" />
                               )}
@@ -947,41 +1030,41 @@ const TenantProductRequests = () => {
                   {/* Sizes */}
                   {sizes.length > 0 && (
                     <div>
-                      <p className="text-xs font-medium text-foreground mb-2">Tailles disponibles</p>
+                      <p className="text-xs font-medium text-foreground mb-2">{sizes.length} taille{sizes.length > 1 ? "s" : ""}</p>
                       <div className="flex flex-wrap gap-1.5">
                         {sizes.map((s, idx) => (
-                          <span key={idx} className="px-2.5 py-1 text-[11px] font-medium bg-secondary text-foreground rounded-md border border-border">
-                            {s}
-                          </span>
+                          <span key={idx} className="px-2.5 py-1 text-[11px] font-medium bg-secondary text-foreground rounded-md border border-border">{s}</span>
                         ))}
                       </div>
                     </div>
                   )}
 
                   {/* Request status or form */}
-                  {isRequested && st ? (
-                    <div className={`rounded-lg border p-3 ${st.className}`}>
-                      <div className="flex items-center gap-2">
-                        <st.icon className="w-4 h-4" />
-                        <span className="text-sm font-medium">Demande {st.label.toLowerCase()}</span>
+                  <div className="pt-2 border-t border-border">
+                    {isRequested && st ? (
+                      <div className={`rounded-xl border p-3.5 ${st.className}`}>
+                        <div className="flex items-center gap-2">
+                          <st.icon className="w-4 h-4" />
+                          <span className="text-sm font-medium">Demande {st.label.toLowerCase()}</span>
+                        </div>
+                        {existing.admin_note && <p className="text-xs mt-2 opacity-80">💬 {existing.admin_note}</p>}
+                        <Button variant="outline" size="sm" className="mt-2 gap-1.5 h-7 text-xs rounded-lg" onClick={() => { setDetailProduct(null); setViewRequest(existing); }}>
+                          <Eye className="w-3.5 h-3.5" /> Voir ma demande
+                        </Button>
                       </div>
-                      {existing.admin_note && <p className="text-xs mt-2 opacity-80">💬 {existing.admin_note}</p>}
-                      <Button variant="outline" size="sm" className="mt-2 gap-1.5 h-7 text-xs" onClick={() => { setDetailProduct(null); setViewRequest(existing); }}>
-                        <Eye className="w-3.5 h-3.5" /> Voir ma demande
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="space-y-3 pt-1">
-                      <div>
-                        <label className="text-xs font-medium mb-1 block">Note (optionnel)</label>
-                        <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Couleurs souhaitées, quantités, emplacement du logo…" rows={2} className="text-xs" />
+                    ) : (
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-xs font-medium mb-1.5 block text-muted-foreground">Note pour INKOO (optionnel)</label>
+                          <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Couleurs souhaitées, quantités, emplacement du logo…" rows={2} className="text-sm rounded-xl resize-none" />
+                        </div>
+                        <Button className="w-full gap-2 h-10 rounded-xl" onClick={() => submitRequest.mutate()} disabled={submitRequest.isPending}>
+                          {submitRequest.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                          Demander l'ajout à ma boutique
+                        </Button>
                       </div>
-                      <Button className="w-full gap-2" size="sm" onClick={() => submitRequest.mutate()} disabled={submitRequest.isPending}>
-                        {submitRequest.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                        Demander l'ajout
-                      </Button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
             );
@@ -1049,13 +1132,13 @@ const TenantProductRequests = () => {
                   {viewRequest.note && (
                     <div>
                       <p className="text-xs text-muted-foreground mb-1.5">Votre note</p>
-                      <div className="text-sm bg-secondary/50 rounded-lg p-3 border border-border">{viewRequest.note}</div>
+                      <div className="text-sm bg-secondary/50 rounded-xl p-3 border border-border">{viewRequest.note}</div>
                     </div>
                   )}
                   {viewRequest.admin_note && (
                     <div>
                       <p className="text-xs text-muted-foreground mb-1.5">Réponse INKOO</p>
-                      <div className="text-sm bg-primary/5 rounded-lg p-3 border border-primary/10">💬 {viewRequest.admin_note}</div>
+                      <div className="text-sm bg-primary/5 rounded-xl p-3 border border-primary/10">💬 {viewRequest.admin_note}</div>
                     </div>
                   )}
                   <p className="text-[11px] text-muted-foreground text-center">
