@@ -22,7 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/mock-data";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
-import { getSimplifiedCategory } from "@/lib/catalog-category-map";
+import { getSimplifiedCategory, getCatalogTabByCategory } from "@/lib/catalog-category-map";
 import { getColorFamily, getColorFamilyHex, getSizeGroup, getSizeGroupOrder } from "@/lib/catalog-filter-groups";
 
 
@@ -51,19 +51,8 @@ type CatalogProduct = {
   variant_colors?: VariantColor[] | null;
   variant_sizes?: string[] | null;
 };
-const normalizeSourceValue = (value: string | null | undefined) => (value ?? "").trim().toUpperCase();
-
-const getCatalogTab = (product: Pick<CatalogProduct, "midocean_id" | "sku">): "goodies" | "textile" | "autre" => {
-  const sourceId = normalizeSourceValue(product.midocean_id);
-  const sku = normalizeSourceValue(product.sku);
-
-  if (sourceId.startsWith("PRINT-")) return "autre";
-  if (sourceId.startsWith("SS-") || sourceId.startsWith("TT-")) return "textile";
-
-  // Safety net: Midocean SKUs (MOxxxx) are goodies and must never leak into textile.
-  if (sourceId.startsWith("MO") || sku.startsWith("MO")) return "goodies";
-
-  return "goodies";
+const getCatalogTab = (product: Pick<CatalogProduct, "midocean_id" | "category">): "goodies" | "textile" | "autre" => {
+  return getCatalogTabByCategory(product.category, product.midocean_id);
 };
 
 const emptyCp = {
