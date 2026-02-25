@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import TopBar from "@/components/TopBar";
 import { StatCard, StatusBadge, SectionHeader } from "@/components/DashboardWidgets";
 import { Building2, Users, ShoppingCart, TrendingUp, Clock, Loader2, CheckCircle, XCircle } from "lucide-react";
@@ -10,6 +11,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
+import { fr } from "date-fns/locale";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -55,6 +59,28 @@ const Dashboard = () => {
     onError: (err: any) => toast.error(err.message),
   });
 
+  // Chart data: orders per month (last 6 months)
+  const chartData = useMemo(() => {
+    if (!orders) return [];
+    const months = [];
+    for (let i = 5; i >= 0; i--) {
+      const date = subMonths(new Date(), i);
+      const start = startOfMonth(date);
+      const end = endOfMonth(date);
+      const monthOrders = orders.filter(o => {
+        const d = new Date(o.created_at);
+        return d >= start && d <= end;
+      });
+      const revenue = monthOrders.reduce((s, o) => s + Number(o.total), 0);
+      months.push({
+        month: format(date, "MMM", { locale: fr }),
+        orders: monthOrders.length,
+        revenue: Math.round(revenue),
+      });
+    }
+    return months;
+  }, [orders]);
+
   const loading = tenantsLoading || ordersLoading;
   const recentOrders = orders?.slice(0, 5) || [];
   const pendingApprovals = orders?.filter((o) => o.status === "pending_approval" || o.status === "pending") || [];
@@ -80,6 +106,29 @@ const Dashboard = () => {
           <StatCard label={t("dashboard.activeOrders")} value={activeOrders.length.toString()} icon={<ShoppingCart className="w-4 h-4 text-primary" />} delay={100} />
           <StatCard label={t("dashboard.revenue")} value={formatCurrency(totalRevenue)} icon={<TrendingUp className="w-4 h-4 text-primary" />} delay={150} />
         </div>
+
+        {/* Orders trend chart */}
+        {chartData.length > 0 && (
+          <div className="bg-card rounded-lg border border-border shadow-card animate-fade-in p-5" style={{ animationDelay: "175ms" }}>
+            <SectionHeader title={t("dashboard.ordersTrend")} />
+            <div className="mt-4 h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} barCategoryGap="20%">
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
+                  <YAxis yAxisId="left" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => `${v}€`} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 8, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", fontSize: 12 }}
+                    formatter={(value: number, name: string) => [name === "revenue" ? formatCurrency(value) : value, name === "revenue" ? t("dashboard.revenue") : t("common.orders")]}
+                  />
+                  <Bar yAxisId="left" dataKey="orders" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                  <Bar yAxisId="right" dataKey="revenue" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} opacity={0.7} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 bg-card rounded-lg border border-border shadow-card animate-fade-in" style={{ animationDelay: "200ms" }}>
