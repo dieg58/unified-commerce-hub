@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/mock-data";
+import { getCatalogTabByCategory } from "@/lib/catalog-category-map";
 
 /* ── Status config ── */
 const statusConfig: Record<string, { label: string; className: string; icon: typeof Clock }> = {
@@ -47,10 +48,9 @@ const statusConfig: Record<string, { label: string; className: string; icon: typ
 /* ── Catalog section helpers ── */
 type CatalogSection = "goodies" | "textile" | "signaletique";
 
-function getProductSection(p: { midocean_id?: string | null }): CatalogSection {
-  if (p.midocean_id?.startsWith("SS-") || p.midocean_id?.startsWith("TT-")) return "textile";
-  if (p.midocean_id?.startsWith("PRINT-")) return "signaletique";
-  return "goodies";
+function getProductSection(p: { midocean_id?: string | null; category?: string }): CatalogSection {
+  const tab = getCatalogTabByCategory(p.category || "", p.midocean_id);
+  return tab === "autre" ? "signaletique" : tab;
 }
 
 const sectionTabs: { key: CatalogSection; label: string; icon: typeof Gift }[] = [

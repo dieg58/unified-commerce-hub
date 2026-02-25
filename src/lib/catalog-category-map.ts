@@ -179,3 +179,40 @@ export function getSimplifiedCategory(
   const firstPart = rawCategory.split(">")[0].trim();
   return firstPart || "Autre";
 }
+
+/**
+ * Determines which catalog tab a product belongs to based on its raw category.
+ * When a category matches rules in multiple tabs, uses midocean_id prefix as tiebreaker.
+ * Falls back to midocean_id prefix if no category rule matches.
+ */
+export function getCatalogTabByCategory(
+  rawCategory: string,
+  midoceanId?: string | null
+): "goodies" | "textile" | "autre" {
+  const id = (midoceanId ?? "").toUpperCase();
+  const prefixTab: "goodies" | "textile" | "autre" =
+    (id.startsWith("SS-") || id.startsWith("TT-")) ? "textile"
+    : id.startsWith("PRINT-") ? "autre"
+    : "goodies";
+
+  if (!rawCategory || rawCategory === "general") return prefixTab;
+
+  // Check which rule sets match
+  const matchesGoodies = GOODIES_RULES.some(([regex]) => regex.test(rawCategory));
+  const matchesTextile = TEXTILE_RULES.some(([regex]) => regex.test(rawCategory));
+  const matchesSigna = SIGNALETIQUE_RULES.some(([regex]) => regex.test(rawCategory));
+
+  // Count how many sets match
+  const matches = [
+    matchesGoodies && "goodies",
+    matchesTextile && "textile",
+    matchesSigna && "autre",
+  ].filter(Boolean) as ("goodies" | "textile" | "autre")[];
+
+  if (matches.length === 0) return prefixTab; // No rule matched → use prefix
+  if (matches.length === 1) return matches[0]; // Unambiguous → use that tab
+
+  // Ambiguous: category matches multiple rule sets → use prefix as tiebreaker
+  if (matches.includes(prefixTab)) return prefixTab;
+  return matches[0]; // Shouldn't happen often, but pick first match
+}
