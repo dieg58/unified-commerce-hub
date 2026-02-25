@@ -6,13 +6,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Plus, MoreHorizontal, Loader2, Pencil, Power, PowerOff, Search, Store, ExternalLink, Globe } from "lucide-react";
+import { Plus, MoreHorizontal, Loader2, Pencil, Power, PowerOff, Search, Store, ExternalLink, Globe, ChevronLeft, ChevronRight } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import CreateTenantWizard from "@/components/tenants/CreateTenantWizard";
 import EditTenantDialog from "@/components/tenants/EditTenantDialog";
 import { useTranslation } from "react-i18next";
+
+const PAGE_SIZE = 20;
 
 const Tenants = () => {
   const navigate = useNavigate();
@@ -21,18 +23,31 @@ const Tenants = () => {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [editTenant, setEditTenant] = useState<any>(null);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
 
-  const { data: tenants, isLoading } = useQuery({
-    queryKey: ["tenants"],
+  const { data, isLoading } = useQuery({
+    queryKey: ["tenants", page, search],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("tenants")
-        .select("*, tenant_branding(primary_color, accent_color, head_title, logo_url)")
+        .select("*, tenant_branding(primary_color, accent_color, head_title, logo_url)", { count: "exact" })
         .order("created_at", { ascending: false });
+
+      if (search) {
+        query = query.or(`name.ilike.%${search}%,slug.ilike.%${search}%`);
+      }
+
+      query = query.range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+
+      const { data, error, count } = await query;
       if (error) throw error;
-      return data;
+      return { tenants: data, totalCount: count || 0 };
     },
   });
+
+  const tenants = data?.tenants || [];
+  const totalCount = data?.totalCount || 0;
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
   const toggleStatus = useMutation({
     mutationFn: async ({ id, current }: { id: string; current: string }) => {
@@ -48,13 +63,7 @@ const Tenants = () => {
     onError: (err: any) => toast.error(err.message),
   });
 
-  const filtered = tenants?.filter((t) =>
-    t.name.toLowerCase().includes(search.toLowerCase()) ||
-    t.slug.toLowerCase().includes(search.toLowerCase())
-  );
-
   const activeCount = tenants?.filter((t) => t.status === "active").length || 0;
-  const totalCount = tenants?.length || 0;
 
   return (
     <>
@@ -93,12 +102,12 @@ const Tenants = () => {
         <div className="bg-card rounded-lg border border-border shadow-card animate-fade-in">
           <div className="p-5 border-b border-border">
             <SectionHeader
-              title={`${t("tenants.allShops")} (${filtered?.length || 0})`}
+              title={`${t("tenants.allShops")} (${totalCount})`}
               action={
                 <div className="flex items-center gap-2">
                   <div className="relative">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                    <Input placeholder={t("common.search")} value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-8 w-48 text-sm" />
+                    <Input placeholder={t("common.search")} value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} className="pl-8 h-8 w-48 text-sm" />
                   </div>
                   <Button size="sm" className="gap-1.5" onClick={() => setWizardOpen(true)}>
                     <Plus className="w-4 h-4" /> {t("tenants.newShop")}
@@ -109,81 +118,98 @@ const Tenants = () => {
           </div>
           {isLoading ? (
             <div className="flex items-center justify-center p-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
-          ) : !filtered?.length ? (
+          ) : !tenants?.length ? (
             <p className="p-12 text-center text-sm text-muted-foreground">
               {search ? t("tenants.noShopFound") : t("tenants.noShopCreate")}
             </p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-xs">{t("nav.shop")}</TableHead>
-                  <TableHead className="text-xs">{t("tenants.subdomain")}</TableHead>
-                  <TableHead className="text-xs">{t("common.status")}</TableHead>
-                  <TableHead className="text-xs">{t("tenants.branding")}</TableHead>
-                  <TableHead className="text-xs">{t("common.createdOn")}</TableHead>
-                  <TableHead className="text-xs w-10"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((tenant, i) => {
-                  const branding = tenant.tenant_branding as any;
-                  const color = branding?.primary_color || "#0ea5e9";
-                  const accent = branding?.accent_color || "#10b981";
-                  return (
-                    <TableRow key={tenant.id} className="text-sm animate-fade-in cursor-pointer hover:bg-muted/50" style={{ animationDelay: `${i * 40}ms` }} onClick={() => navigate(`/tenants/${tenant.id}`)}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          {branding?.logo_url ? (
-                            <img src={branding.logo_url} alt={tenant.name} className="w-9 h-9 rounded-lg object-cover border border-border shrink-0" />
-                          ) : (
-                            <div className="w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold shrink-0" style={{ backgroundColor: color + "18", color }}>
-                              {tenant.name.charAt(0)}
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-xs">{t("nav.shop")}</TableHead>
+                    <TableHead className="text-xs">{t("tenants.subdomain")}</TableHead>
+                    <TableHead className="text-xs">{t("common.status")}</TableHead>
+                    <TableHead className="text-xs">{t("tenants.branding")}</TableHead>
+                    <TableHead className="text-xs">{t("common.createdOn")}</TableHead>
+                    <TableHead className="text-xs w-10"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {tenants.map((tenant, i) => {
+                    const branding = tenant.tenant_branding as any;
+                    const color = branding?.primary_color || "#0ea5e9";
+                    const accent = branding?.accent_color || "#10b981";
+                    return (
+                      <TableRow key={tenant.id} className="text-sm animate-fade-in cursor-pointer hover:bg-muted/50" style={{ animationDelay: `${i * 40}ms` }} onClick={() => navigate(`/tenants/${tenant.id}`)}>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            {branding?.logo_url ? (
+                              <img src={branding.logo_url} alt={tenant.name} className="w-9 h-9 rounded-lg object-cover border border-border shrink-0" />
+                            ) : (
+                              <div className="w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold shrink-0" style={{ backgroundColor: color + "18", color }}>
+                                {tenant.name.charAt(0)}
+                              </div>
+                            )}
+                            <div>
+                              <p className="font-semibold text-foreground">{tenant.name}</p>
+                              {branding?.head_title && <p className="text-[11px] text-muted-foreground">{branding.head_title}</p>}
                             </div>
-                          )}
-                          <div>
-                            <p className="font-semibold text-foreground">{tenant.name}</p>
-                            {branding?.head_title && <p className="text-[11px] text-muted-foreground">{branding.head_title}</p>}
                           </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <span className="font-mono text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded">{tenant.slug}.inkoo.eu</span>
-                      </TableCell>
-                      <TableCell><StatusBadge status={tenant.status} /></TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-4 h-4 rounded-full border border-border/50" style={{ backgroundColor: color }} />
-                          <div className="w-4 h-4 rounded-full border border-border/50" style={{ backgroundColor: accent }} />
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-xs">{new Date(tenant.created_at).toLocaleDateString()}</TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0"><MoreHorizontal className="w-4 h-4" /></Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/tenants/${tenant.id}`); }}>
-                              <ExternalLink className="w-4 h-4 mr-2" /> {t("tenants.viewDetails")}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); window.open(`/store/${tenant.id}`, '_blank'); }}>
-                              <Store className="w-4 h-4 mr-2" /> {t("tenants.viewShop")}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setEditTenant(tenant); }}>
-                              <Pencil className="w-4 h-4 mr-2" /> {t("common.edit")}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); toggleStatus.mutate({ id: tenant.id, current: tenant.status }); }}>
-                              {tenant.status === "active" ? <><PowerOff className="w-4 h-4 mr-2" /> {t("tenants.suspend")}</> : <><Power className="w-4 h-4 mr-2" /> {t("tenants.activate")}</>}
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                        </TableCell>
+                        <TableCell>
+                          <span className="font-mono text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded">{tenant.slug}.inkoo.eu</span>
+                        </TableCell>
+                        <TableCell><StatusBadge status={tenant.status} /></TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-4 h-4 rounded-full border border-border/50" style={{ backgroundColor: color }} />
+                            <div className="w-4 h-4 rounded-full border border-border/50" style={{ backgroundColor: accent }} />
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-xs">{new Date(tenant.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0"><MoreHorizontal className="w-4 h-4" /></Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/tenants/${tenant.id}`); }}>
+                                <ExternalLink className="w-4 h-4 mr-2" /> {t("tenants.viewDetails")}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); window.open(`/store/${tenant.id}`, '_blank'); }}>
+                                <Store className="w-4 h-4 mr-2" /> {t("tenants.viewShop")}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setEditTenant(tenant); }}>
+                                <Pencil className="w-4 h-4 mr-2" /> {t("common.edit")}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); toggleStatus.mutate({ id: tenant.id, current: tenant.status }); }}>
+                                {tenant.status === "active" ? <><PowerOff className="w-4 h-4 mr-2" /> {t("tenants.suspend")}</> : <><Power className="w-4 h-4 mr-2" /> {t("tenants.activate")}</>}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between px-5 py-3 border-t border-border">
+                  <p className="text-xs text-muted-foreground">
+                    {t("pagination.page", { page: page + 1, total: totalPages })}
+                  </p>
+                  <div className="flex items-center gap-1">
+                    <Button variant="outline" size="sm" className="h-8 gap-1 text-xs" disabled={page === 0} onClick={() => setPage(page - 1)}>
+                      <ChevronLeft className="w-3.5 h-3.5" /> {t("pagination.previous")}
+                    </Button>
+                    <Button variant="outline" size="sm" className="h-8 gap-1 text-xs" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>
+                      {t("pagination.next")} <ChevronRight className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
