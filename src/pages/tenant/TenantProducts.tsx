@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { formatCurrency } from "@/lib/mock-data";
 import ExportMenu from "@/components/ExportMenu";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useTranslation } from "react-i18next";
 import type { ExportColumn } from "@/lib/export-utils";
 
 const TenantProducts = () => {
@@ -23,6 +24,7 @@ const TenantProducts = () => {
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [filterVisibility, setFilterVisibility] = useState<"all" | "bulk" | "staff" | "inactive">("all");
   const [showFilters, setShowFilters] = useState(false);
+  const { t } = useTranslation();
 
   const { data: products, isLoading } = useQuery({
     queryKey: ["tenant-products-manage", tenantId],
@@ -50,7 +52,6 @@ const TenantProducts = () => {
     onError: (err: any) => toast.error(err.message),
   });
 
-  // Categories with counts
   const categories = useMemo(() => {
     if (!products) return [];
     const counts: Record<string, number> = {};
@@ -65,11 +66,8 @@ const TenantProducts = () => {
     if (!products) return [];
     const searchLower = search.toLowerCase();
     return products.filter((p) => {
-      // Search
       if (search && !p.name.toLowerCase().includes(searchLower) && !p.sku.toLowerCase().includes(searchLower)) return false;
-      // Category
       if (filterCategory !== "all" && (p.category || "general") !== filterCategory) return false;
-      // Visibility
       if (filterVisibility === "bulk" && !p.active_bulk) return false;
       if (filterVisibility === "staff" && !p.active_staff) return false;
       if (filterVisibility === "inactive" && (p.active_bulk || p.active_staff)) return false;
@@ -90,13 +88,13 @@ const TenantProducts = () => {
 
   return (
     <>
-      <TopBar title="Produits" subtitle="Gérer la visibilité et les paramètres des produits" />
+      <TopBar title={t("tenantProducts.title")} subtitle={t("tenantProducts.subtitle")} />
       <div className="p-6 space-y-6 overflow-auto">
         <div className="bg-card rounded-lg border border-border shadow-card animate-fade-in">
           <div className="p-5 border-b border-border flex items-center justify-between flex-wrap gap-2">
             <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
               <Package className="w-4 h-4 text-primary" />
-              Produits ({products?.length || 0}) — Bulk: {bulkCount} · Staff: {staffCount}
+              {t("tenantProducts.title")} ({products?.length || 0}) — Bulk: {bulkCount} · Staff: {staffCount}
             </h3>
             <div className="flex items-center gap-2">
               <Button
@@ -106,29 +104,29 @@ const TenantProducts = () => {
                 onClick={() => setShowFilters(!showFilters)}
               >
                 <Filter className="w-3.5 h-3.5" />
-                Filtres
+                {t("common.filter")}
                 {activeFilterCount > 0 && (
                   <Badge variant="default" className="h-4 px-1 text-[10px] rounded-full ml-0.5">{activeFilterCount}</Badge>
                 )}
                 {showFilters ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
               </Button>
               <ExportMenu
-                title="Produits"
+                title={t("tenantProducts.title")}
                 filename="produits"
                 columns={[
-                  { header: "Nom", accessor: "name" },
+                  { header: t("common.name"), accessor: "name" },
                   { header: "SKU", accessor: "sku" },
-                  { header: "Catégorie", accessor: "category" },
-                  { header: "Stock", accessor: "stock_qty" },
-                  { header: "Seuil alerte", accessor: "low_stock_threshold" },
-                  { header: "Bulk actif", accessor: (r: any) => r.active_bulk ? "Oui" : "Non" },
-                  { header: "Staff actif", accessor: (r: any) => r.active_staff ? "Oui" : "Non" },
+                  { header: t("common.category"), accessor: "category" },
+                  { header: t("tenantProducts.stock"), accessor: "stock_qty" },
+                  { header: t("tenantProducts.alertThreshold"), accessor: "low_stock_threshold" },
+                  { header: t("tenantProducts.bulkActive"), accessor: (r: any) => r.active_bulk ? t("common.yes") : t("common.no") },
+                  { header: t("tenantProducts.staffActive"), accessor: (r: any) => r.active_staff ? t("common.yes") : t("common.no") },
                 ]}
                 data={filtered || []}
               />
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                <Input placeholder="Rechercher…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-8 w-52 text-sm" />
+                <Input placeholder={t("common.search")} value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-8 w-52 text-sm" />
               </div>
             </div>
           </div>
@@ -137,15 +135,14 @@ const TenantProducts = () => {
           <Collapsible open={showFilters}>
             <CollapsibleContent>
               <div className="p-4 border-b border-border bg-muted/30 space-y-4">
-                {/* Visibility filter */}
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-2">Visibilité</p>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">{t("tenantProducts.visibility")}</p>
                   <div className="flex flex-wrap gap-1.5">
                     {[
-                      { key: "all" as const, label: "Tous", count: products?.length || 0 },
-                      { key: "bulk" as const, label: "Bulk actif", count: bulkCount },
-                      { key: "staff" as const, label: "Staff actif", count: staffCount },
-                      { key: "inactive" as const, label: "Inactif", count: inactiveCount },
+                      { key: "all" as const, label: t("common.all"), count: products?.length || 0 },
+                      { key: "bulk" as const, label: t("tenantProducts.bulkActive"), count: bulkCount },
+                      { key: "staff" as const, label: t("tenantProducts.staffActive"), count: staffCount },
+                      { key: "inactive" as const, label: t("common.inactive"), count: inactiveCount },
                     ].map((v) => (
                       <button
                         key={v.key}
@@ -163,10 +160,9 @@ const TenantProducts = () => {
                   </div>
                 </div>
 
-                {/* Category filter */}
                 {categories.length > 1 && (
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-2">Catégorie</p>
+                    <p className="text-xs font-medium text-muted-foreground mb-2">{t("common.category")}</p>
                     <div className="flex flex-wrap gap-1.5">
                       <button
                         onClick={() => setFilterCategory("all")}
@@ -176,7 +172,7 @@ const TenantProducts = () => {
                             : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
                         }`}
                       >
-                        Toutes
+                        {t("common.all")}
                       </button>
                       {categories.map(([cat, count]) => (
                         <button
@@ -198,18 +194,17 @@ const TenantProducts = () => {
 
                 {activeFilterCount > 0 && (
                   <button onClick={clearFilters} className="text-xs text-primary hover:underline">
-                    Réinitialiser les filtres
+                    {t("tenantProducts.resetFilters")}
                   </button>
                 )}
               </div>
             </CollapsibleContent>
           </Collapsible>
 
-          {/* Results count when filtered */}
           {activeFilterCount > 0 && !isLoading && (
             <div className="px-5 py-2 border-b border-border bg-muted/10">
               <p className="text-xs text-muted-foreground">
-                {filtered.length} produit{filtered.length !== 1 ? "s" : ""} affiché{filtered.length !== 1 ? "s" : ""}
+                {t("tenantProducts.productsShown", { count: filtered.length })}
               </p>
             </div>
           )}
@@ -217,18 +212,18 @@ const TenantProducts = () => {
           {isLoading ? (
             <div className="flex items-center justify-center p-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
           ) : !filtered?.length ? (
-            <p className="p-12 text-center text-sm text-muted-foreground">{search || activeFilterCount > 0 ? "Aucun produit trouvé" : "Aucun produit disponible"}</p>
+            <p className="p-12 text-center text-sm text-muted-foreground">{search || activeFilterCount > 0 ? t("tenantProducts.noProductFound") : t("tenantProducts.noProduct")}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-xs">Produit</TableHead>
+                  <TableHead className="text-xs">{t("common.product")}</TableHead>
                   <TableHead className="text-xs">SKU</TableHead>
-                  <TableHead className="text-xs">Catégorie</TableHead>
-                  <TableHead className="text-xs">Prix</TableHead>
+                  <TableHead className="text-xs">{t("common.category")}</TableHead>
+                  <TableHead className="text-xs">{t("common.price")}</TableHead>
                   <TableHead className="text-xs text-center">Bulk</TableHead>
                   <TableHead className="text-xs text-center">Staff</TableHead>
-                  {isSuperAdmin && <TableHead className="text-xs text-center">Min. Bulk</TableHead>}
+                  {isSuperAdmin && <TableHead className="text-xs text-center">{t("tenantProducts.minBulk")}</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>

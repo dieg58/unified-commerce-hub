@@ -14,6 +14,7 @@ import {
   Bell, Store, Info, ExternalLink, Copy, Check
 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 /* ─── Section wrapper ─────────────────────────────────────────────────── */
 const Section = ({
@@ -77,6 +78,7 @@ const TenantSettings = () => {
   const { profile } = useAuth();
   const tenantId = profile?.tenant_id;
   const qc = useQueryClient();
+  const { t } = useTranslation();
 
   /* ── Fetch tenant + branding ──────────────────────────────────── */
   const { data: tenant } = useQuery({
@@ -148,7 +150,7 @@ const TenantSettings = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Informations mises à jour");
+      toast.success(t("tenantSettings.infoUpdated"));
       qc.invalidateQueries({ queryKey: ["tenant-settings"] });
     },
     onError: (err: any) => toast.error(err.message),
@@ -170,7 +172,7 @@ const TenantSettings = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Branding mis à jour");
+      toast.success(t("tenantSettings.brandingUpdated"));
       qc.invalidateQueries({ queryKey: ["tenant-settings"] });
     },
     onError: (err: any) => toast.error(err.message),
@@ -188,9 +190,9 @@ const TenantSettings = () => {
       if (error) throw error;
       const { data: { publicUrl } } = supabase.storage.from("product-images").getPublicUrl(path);
       setLogoUrl(publicUrl);
-      toast.success("Logo uploadé");
+      toast.success(t("tenantSettings.logoUploaded"));
     } catch (err: any) {
-      toast.error(err.message || "Erreur lors de l'upload");
+      toast.error(err.message || t("common.error"));
     } finally {
       setUploading(false);
     }
@@ -201,14 +203,14 @@ const TenantSettings = () => {
 
   return (
     <>
-      <TopBar title="Paramètres" subtitle="Configuration et personnalisation de votre boutique" />
+      <TopBar title={t("tenantSettings.title")} subtitle={t("tenantSettings.subtitle")} />
       <div className="p-6 max-w-3xl mx-auto space-y-5 overflow-auto pb-12">
 
         {/* ─── Informations générales ──────────────────────────────── */}
         <Section
           icon={Building2}
-          title="Informations générales"
-          description="Nom et identifiant de votre boutique"
+          title={t("tenantSettings.generalInfo")}
+          description={t("tenantSettings.generalInfoDesc")}
           actions={
             <Button
               size="sm"
@@ -217,32 +219,31 @@ const TenantSettings = () => {
               className="gap-1.5"
             >
               {updateTenant.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-              Enregistrer
+              {t("common.save")}
             </Button>
           }
         >
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-xs font-medium">Nom de la boutique</Label>
-                <Input value={tenantName} onChange={e => setTenantName(e.target.value)} placeholder="Ma boutique" />
+                <Label className="text-xs font-medium">{t("tenantSettings.shopName")}</Label>
+                <Input value={tenantName} onChange={e => setTenantName(e.target.value)} placeholder={t("tenantSettings.shopName")} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs font-medium">Slug (identifiant URL)</Label>
+                <Label className="text-xs font-medium">{t("tenantSettings.slug")}</Label>
                 <Input value={tenant?.slug || ""} disabled className="font-mono text-xs bg-muted" />
-                <p className="text-[10px] text-muted-foreground">L'identifiant ne peut pas être modifié</p>
+                <p className="text-[10px] text-muted-foreground">{t("tenantSettings.slugReadonly")}</p>
               </div>
             </div>
 
             <Separator />
 
-            {/* Quick stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { label: "Entités", value: stats?.entities },
-                { label: "Utilisateurs", value: stats?.users },
-                { label: "Produits", value: stats?.products },
-                { label: "Commandes", value: stats?.orders },
+                { label: t("nav.entities"), value: stats?.entities },
+                { label: t("common.users"), value: stats?.users },
+                { label: t("common.products"), value: stats?.products },
+                { label: t("common.orders"), value: stats?.orders },
               ].map(s => (
                 <div key={s.label} className="rounded-md bg-muted/50 px-3 py-2.5 text-center">
                   <p className="text-lg font-bold text-foreground">{s.value ?? "—"}</p>
@@ -256,8 +257,8 @@ const TenantSettings = () => {
         {/* ─── Branding & Apparence ───────────────────────────────── */}
         <Section
           icon={Palette}
-          title="Branding & Apparence"
-          description="Logo, couleurs et titre affichés dans la boutique"
+          title={t("tenantSettings.brandingTitle")}
+          description={t("tenantSettings.brandingDesc")}
           actions={
             <Button
               size="sm"
@@ -266,25 +267,23 @@ const TenantSettings = () => {
               className="gap-1.5"
             >
               {updateBranding.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-              Enregistrer
+              {t("common.save")}
             </Button>
           }
         >
           <div className="space-y-5">
-            {/* Title */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Titre de la boutique</Label>
+              <Label className="text-xs font-medium">{t("tenantSettings.shopTitle")}</Label>
               <Input
                 value={headTitle}
                 onChange={e => setHeadTitle(e.target.value)}
-                placeholder={tenant?.name || "Ma boutique"}
+                placeholder={tenant?.name || t("tenantSettings.shopName")}
               />
-              <p className="text-[10px] text-muted-foreground">Affiché dans l'onglet du navigateur</p>
+              <p className="text-[10px] text-muted-foreground">{t("tenantSettings.shopTitleHint")}</p>
             </div>
 
-            {/* Logo upload */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Logo</Label>
+              <Label className="text-xs font-medium">{t("tenantSettings.logo")}</Label>
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-lg border border-border bg-muted/30 flex items-center justify-center overflow-hidden shrink-0">
                   {logoUrl ? (
@@ -297,7 +296,7 @@ const TenantSettings = () => {
                   <label className="cursor-pointer">
                     <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-xs font-medium text-foreground hover:bg-muted transition-colors">
                       {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-                      {uploading ? "Upload..." : "Changer le logo"}
+                      {uploading ? t("common.loading") : t("tenantSettings.changeLogo")}
                     </div>
                     <input type="file" className="hidden" accept="image/*" onChange={handleLogoUpload} disabled={uploading} />
                   </label>
@@ -306,10 +305,9 @@ const TenantSettings = () => {
               </div>
             </div>
 
-            {/* Colors */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-xs font-medium">Couleur principale</Label>
+                <Label className="text-xs font-medium">{t("tenantSettings.primaryColor")}</Label>
                 <div className="flex items-center gap-2">
                   <input
                     type="color"
@@ -321,7 +319,7 @@ const TenantSettings = () => {
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs font-medium">Couleur d'accent</Label>
+                <Label className="text-xs font-medium">{t("tenantSettings.accentColor")}</Label>
                 <div className="flex items-center gap-2">
                   <input
                     type="color"
@@ -334,7 +332,6 @@ const TenantSettings = () => {
               </div>
             </div>
 
-            {/* Preview */}
             <div
               className="rounded-lg p-4 flex items-center gap-3"
               style={{ background: `linear-gradient(135deg, ${primaryColor}, ${accentColor})` }}
@@ -343,25 +340,25 @@ const TenantSettings = () => {
                 <img src={logoUrl} alt="Logo" className="w-8 h-8 rounded object-contain bg-white/20 p-0.5" />
               )}
               <div>
-                <p className="text-white font-bold text-sm">{headTitle || tenant?.name || "Aperçu"}</p>
-                <p className="text-white/70 text-xs mt-0.5">Aperçu du branding de votre boutique</p>
+                <p className="text-white font-bold text-sm">{headTitle || tenant?.name || t("common.preview")}</p>
+                <p className="text-white/70 text-xs mt-0.5">{t("tenantSettings.brandingPreview")}</p>
               </div>
             </div>
           </div>
         </Section>
 
         {/* ─── Accès & URL ────────────────────────────────────────── */}
-        <Section icon={Globe} title="Accès & URL" description="Liens d'accès à votre boutique">
+        <Section icon={Globe} title={t("tenantSettings.accessUrl")} description={t("tenantSettings.accessUrlDesc")}>
           <div className="space-y-1 divide-y divide-border">
-            <InfoRow label="Identifiant boutique" value={tenant?.slug} mono />
-            <InfoRow label="Domaine" value={storeUrl || "—"} mono />
-            <InfoRow label="Statut" value={tenant?.status === "active" ? "✅ Active" : "⏸️ Inactive"} />
-            <InfoRow label="Créée le" value={createdAt} />
+            <InfoRow label={t("tenantSettings.shopId")} value={tenant?.slug} mono />
+            <InfoRow label={t("tenantSettings.domain")} value={storeUrl || "—"} mono />
+            <InfoRow label={t("common.status")} value={tenant?.status === "active" ? "✅ " + t("common.active") : "⏸️ " + t("common.inactive")} />
+            <InfoRow label={t("common.createdOn")} value={createdAt} />
           </div>
           {tenant?.slug && (
             <div className="mt-4 rounded-md bg-muted/50 px-4 py-3 flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-foreground">URL de la boutique</p>
+                <p className="text-xs font-medium text-foreground">{t("tenantSettings.shopUrl")}</p>
                 <p className="text-xs text-muted-foreground font-mono mt-0.5">
                   {tenant.slug}.inkoo.eu
                 </p>
@@ -369,7 +366,7 @@ const TenantSettings = () => {
               <Button variant="outline" size="sm" className="gap-1.5 text-xs" asChild>
                 <a href={storeUrl || "#"} target="_blank" rel="noreferrer">
                   <ExternalLink className="w-3.5 h-3.5" />
-                  Ouvrir
+                  {t("tenantSettings.open")}
                 </a>
               </Button>
             </div>
@@ -377,70 +374,70 @@ const TenantSettings = () => {
         </Section>
 
         {/* ─── Sécurité ───────────────────────────────────────────── */}
-        <Section icon={ShieldCheck} title="Sécurité" description="Paramètres de sécurité de votre espace">
+        <Section icon={ShieldCheck} title={t("tenantSettings.security")} description={t("tenantSettings.securityDesc")}>
           <div className="space-y-4">
             <div className="flex items-center justify-between rounded-md bg-muted/30 px-4 py-3">
               <div>
-                <p className="text-sm font-medium text-foreground">Authentification à deux facteurs</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Ajouter une couche de sécurité supplémentaire pour les utilisateurs</p>
+                <p className="text-sm font-medium text-foreground">{t("tenantSettings.twoFactor")}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{t("tenantSettings.twoFactorDesc")}</p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium bg-muted px-2 py-0.5 rounded">Bientôt</span>
+                <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium bg-muted px-2 py-0.5 rounded">{t("tenantSettings.comingSoon")}</span>
               </div>
             </div>
             <div className="flex items-center justify-between rounded-md bg-muted/30 px-4 py-3">
               <div>
-                <p className="text-sm font-medium text-foreground">Expiration de session</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Durée maximale d'inactivité avant déconnexion automatique</p>
+                <p className="text-sm font-medium text-foreground">{t("tenantSettings.sessionExpiry")}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{t("tenantSettings.sessionExpiryDesc")}</p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium bg-muted px-2 py-0.5 rounded">Bientôt</span>
+                <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium bg-muted px-2 py-0.5 rounded">{t("tenantSettings.comingSoon")}</span>
               </div>
             </div>
           </div>
         </Section>
 
         {/* ─── Notifications ──────────────────────────────────────── */}
-        <Section icon={Bell} title="Notifications" description="Gérer les notifications de votre boutique">
+        <Section icon={Bell} title={t("tenantSettings.notifications")} description={t("tenantSettings.notificationsDesc")}>
           <div className="space-y-4">
             <div className="flex items-center justify-between rounded-md bg-muted/30 px-4 py-3">
               <div>
-                <p className="text-sm font-medium text-foreground">Nouvelle commande</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Recevoir un email à chaque nouvelle commande</p>
+                <p className="text-sm font-medium text-foreground">{t("tenantSettings.newOrder")}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{t("tenantSettings.newOrderDesc")}</p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium bg-muted px-2 py-0.5 rounded">Bientôt</span>
+                <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium bg-muted px-2 py-0.5 rounded">{t("tenantSettings.comingSoon")}</span>
               </div>
             </div>
             <div className="flex items-center justify-between rounded-md bg-muted/30 px-4 py-3">
               <div>
-                <p className="text-sm font-medium text-foreground">Dépassement de budget</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Alerte lorsqu'une entité dépasse son budget</p>
+                <p className="text-sm font-medium text-foreground">{t("tenantSettings.budgetExceeded")}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{t("tenantSettings.budgetExceededDesc")}</p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium bg-muted px-2 py-0.5 rounded">Bientôt</span>
+                <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium bg-muted px-2 py-0.5 rounded">{t("tenantSettings.comingSoon")}</span>
               </div>
             </div>
             <div className="flex items-center justify-between rounded-md bg-muted/30 px-4 py-3">
               <div>
-                <p className="text-sm font-medium text-foreground">Approbation requise</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Notification lorsqu'une commande nécessite une approbation</p>
+                <p className="text-sm font-medium text-foreground">{t("tenantSettings.approvalRequired")}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{t("tenantSettings.approvalRequiredDesc")}</p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium bg-muted px-2 py-0.5 rounded">Bientôt</span>
+                <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium bg-muted px-2 py-0.5 rounded">{t("tenantSettings.comingSoon")}</span>
               </div>
             </div>
           </div>
         </Section>
 
         {/* ─── Informations techniques ────────────────────────────── */}
-        <Section icon={Info} title="Informations techniques" description="Détails techniques de votre espace">
+        <Section icon={Info} title={t("tenantSettings.technicalInfo")} description={t("tenantSettings.technicalInfoDesc")}>
           <div className="space-y-1 divide-y divide-border">
-            <InfoRow label="ID Boutique" value={tenantId} mono />
-            <InfoRow label="Nombre d'entités" value={String(stats?.entities ?? "—")} />
-            <InfoRow label="Nombre d'utilisateurs" value={String(stats?.users ?? "—")} />
-            <InfoRow label="Nombre de produits" value={String(stats?.products ?? "—")} />
-            <InfoRow label="Commandes totales" value={String(stats?.orders ?? "—")} />
+            <InfoRow label={t("tenantSettings.shopIdLabel")} value={tenantId} mono />
+            <InfoRow label={t("tenantSettings.entitiesCount")} value={String(stats?.entities ?? "—")} />
+            <InfoRow label={t("tenantSettings.usersCount")} value={String(stats?.users ?? "—")} />
+            <InfoRow label={t("tenantSettings.productsCount")} value={String(stats?.products ?? "—")} />
+            <InfoRow label={t("tenantSettings.ordersCount")} value={String(stats?.orders ?? "—")} />
           </div>
         </Section>
       </div>
