@@ -34,6 +34,7 @@ import OrderDetail from "./pages/OrderDetail";
 import MyOrders from "./pages/shop/MyOrders";
 import MyWishlist from "./pages/shop/MyWishlist";
 import MyProfile from "./pages/shop/MyProfile";
+import ProductDetail from "./pages/shop/ProductDetail";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import LandingPage from "./pages/LandingPage";
@@ -73,6 +74,7 @@ const SubdomainAwareRoutes = () => {
         <Route element={<RequireEmployee><StorefrontLayout /></RequireEmployee>}>
           <Route path="/" element={<Storefront />} />
           <Route path="/shop" element={<Storefront />} />
+          <Route path="/shop/product/:productId" element={<ProductDetail />} />
           <Route path="/shop/wishlist" element={<MyWishlist />} />
           <Route path="/shop/orders" element={<MyOrders />} />
           <Route path="/shop/profile" element={<MyProfile />} />
@@ -126,6 +128,7 @@ const SubdomainAwareRoutes = () => {
       {/* Employee storefront routes – shop_managers & dept_managers are redirected to /tenant */}
         <Route element={<RequireEmployee><StorefrontLayout /></RequireEmployee>}>
           <Route path="/shop" element={<Storefront />} />
+          <Route path="/shop/product/:productId" element={<ProductDetail />} />
           <Route path="/shop/wishlist" element={<MyWishlist />} />
           <Route path="/shop/orders" element={<MyOrders />} />
           <Route path="/shop/profile" element={<MyProfile />} />

@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import VariantMatrixDialog from "@/components/VariantMatrixDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useCart } from "@/hooks/useCart";
@@ -24,6 +24,7 @@ import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
 const Storefront = () => {
+  const navigate = useNavigate();
   const { profile } = useAuth();
   const { items, addItem, removeItem, updateQty, clear, total, count } = useCart();
   const { isFavorite, toggleFavorite } = useWishlist();
@@ -434,7 +435,7 @@ const Storefront = () => {
               const totalInCart = (inCart?.qty || 0) + variantItemsInCart.reduce((s, i) => s + i.qty, 0);
               const imageUrl = product.image_url;
               return (
-                <div key={product.id} className="group bg-card rounded-xl border border-border shadow-card hover:shadow-card-hover transition-all duration-300 overflow-hidden flex flex-col">
+                <div key={product.id} className="group bg-card rounded-xl border border-border shadow-card hover:shadow-card-hover transition-all duration-300 overflow-hidden flex flex-col cursor-pointer" onClick={() => navigate(`/shop/product/${product.id}`)}>
                   <div className="relative aspect-square bg-muted/30 overflow-hidden">
                     {imageUrl ? (
                       <img src={imageUrl} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
@@ -456,7 +457,7 @@ const Storefront = () => {
                       </div>
                     ) : (
                       <button onClick={(e) => { e.stopPropagation(); toggleFavorite(product.id); }} className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-sm hover:scale-110 transition-transform">
-                        <Heart className={`w-4 h-4 ${isFavorite(product.id) ? "text-red-500 fill-red-500" : "text-muted-foreground"}`} />
+                        <Heart className={`w-4 h-4 ${isFavorite(product.id) ? "text-destructive fill-destructive" : "text-muted-foreground"}`} />
                       </button>
                     )}
                   </div>
@@ -474,14 +475,14 @@ const Storefront = () => {
                         totalInCart > 0 ? (
                           <>
                             <span className="text-xs font-medium text-muted-foreground">{totalInCart} {t("storefront.inCart")}</span>
-                            <Button size="sm" variant="outline" className="gap-1 text-xs rounded-lg" onClick={() => setVariantMatrixProduct(product)}>
+                            <Button size="sm" variant="outline" className="gap-1 text-xs rounded-lg" onClick={(e) => { e.stopPropagation(); setVariantMatrixProduct(product); }}>
                               <Plus className="w-3 h-3" /> {t("storefront.modify")}
                             </Button>
                           </>
                         ) : (
                           <>
                             <span />
-                            <Button size="sm" className="gap-1.5 text-white rounded-lg" style={{ backgroundColor: primaryColor }} onClick={() => setVariantMatrixProduct(product)}>
+                            <Button size="sm" className="gap-1.5 text-white rounded-lg" style={{ backgroundColor: primaryColor }} onClick={(e) => { e.stopPropagation(); setVariantMatrixProduct(product); }}>
                               <Plus className="w-3.5 h-3.5" /> {t("storefront.choose")}
                             </Button>
                           </>
@@ -490,15 +491,15 @@ const Storefront = () => {
                         <>
                           <span />
                           <div className="flex items-center gap-1">
-                            <button onClick={() => { const minQty = storeType === "bulk" ? product.min_bulk_qty : 1; const newQty = inCart.qty - 1; updateQty(product.id, newQty < minQty ? 0 : newQty); }} className="w-8 h-8 rounded-lg border border-border flex items-center justify-center hover:bg-muted transition-colors"><Minus className="w-3 h-3" /></button>
+                            <button onClick={(e) => { e.stopPropagation(); const minQty = storeType === "bulk" ? product.min_bulk_qty : 1; const newQty = inCart.qty - 1; updateQty(product.id, newQty < minQty ? 0 : newQty); }} className="w-8 h-8 rounded-lg border border-border flex items-center justify-center hover:bg-muted transition-colors"><Minus className="w-3 h-3" /></button>
                             <span className="text-sm font-bold w-6 text-center">{inCart.qty}</span>
-                            <button onClick={() => updateQty(product.id, inCart.qty + 1)} className="w-8 h-8 rounded-lg border border-border flex items-center justify-center hover:bg-muted transition-colors"><Plus className="w-3 h-3" /></button>
+                            <button onClick={(e) => { e.stopPropagation(); updateQty(product.id, inCart.qty + 1); }} className="w-8 h-8 rounded-lg border border-border flex items-center justify-center hover:bg-muted transition-colors"><Plus className="w-3 h-3" /></button>
                           </div>
                         </>
                       ) : (
                         <>
                           <span />
-                          <Button size="sm" className="gap-1.5 text-white rounded-lg" style={{ backgroundColor: primaryColor }} onClick={() => { addItem({ productId: product.id, name: product.name, sku: product.sku, price, storeType }, storeType === "bulk" ? Math.max(1, product.min_bulk_qty) : 1); setCartOpen(true); }}>
+                          <Button size="sm" className="gap-1.5 text-white rounded-lg" style={{ backgroundColor: primaryColor }} onClick={(e) => { e.stopPropagation(); addItem({ productId: product.id, name: product.name, sku: product.sku, price, storeType, imageUrl: product.image_url || undefined }, storeType === "bulk" ? Math.max(1, product.min_bulk_qty) : 1); setCartOpen(true); }}>
                             <Plus className="w-3.5 h-3.5" /> {t("storefront.addToCart")}
                           </Button>
                         </>
@@ -629,7 +630,7 @@ const Storefront = () => {
             const existingVariantItems = items.filter((i) => i.productId === variantMatrixProduct.id && i.variantId);
             for (const item of existingVariantItems) { removeItem(item.productId, item.variantId); }
             for (const sel of selections) {
-              addItem({ productId: variantMatrixProduct.id, variantId: sel.variantId, variantLabel: sel.variantValue, name: variantMatrixProduct.name, sku: variantMatrixProduct.sku, price: getPrice(variantMatrixProduct), storeType }, sel.qty);
+              addItem({ productId: variantMatrixProduct.id, variantId: sel.variantId, variantLabel: sel.variantValue, name: variantMatrixProduct.name, sku: variantMatrixProduct.sku, price: getPrice(variantMatrixProduct), storeType, imageUrl: variantMatrixProduct.image_url || undefined }, sel.qty);
             }
             setCartOpen(true);
           }}
@@ -659,7 +660,13 @@ function CartPanel({ items, updateQty, removeItem, total, onCheckout, primaryCol
             const isFree = freeProductIds.has(item.productId);
             return (
             <div key={`${item.productId}__${item.variantId || ''}`} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card">
-              <div className="w-12 h-12 rounded-md bg-muted/50 flex items-center justify-center shrink-0"><Package className="w-5 h-5 text-muted-foreground/30" /></div>
+              <div className="w-12 h-12 rounded-md bg-muted/50 overflow-hidden flex items-center justify-center shrink-0">
+                {item.imageUrl ? (
+                  <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                ) : (
+                  <Package className="w-5 h-5 text-muted-foreground/30" />
+                )}
+              </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
                 {item.variantLabel && <p className="text-[11px] text-primary font-medium truncate">{item.variantLabel}</p>}
