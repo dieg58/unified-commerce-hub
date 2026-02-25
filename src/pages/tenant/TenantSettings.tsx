@@ -300,7 +300,7 @@ const TenantSettings = () => {
                     </div>
                     <input type="file" className="hidden" accept="image/*" onChange={handleLogoUpload} disabled={uploading} />
                   </label>
-                  <p className="text-[10px] text-muted-foreground">PNG, JPG ou SVG. Max 2 Mo.</p>
+                  <p className="text-[10px] text-muted-foreground">PNG, JPG, SVG. Max 2 MB.</p>
                 </div>
               </div>
             </div>
