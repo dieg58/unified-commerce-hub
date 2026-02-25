@@ -179,23 +179,23 @@ Deno.serve(async (req) => {
             // ── Description (multilingual) ──
             const desc = ml(product.description);
 
-            // ── Extract variant colors and sizes from product.colors[] ──
+            // ── Extract variant colors and sizes ──
+            // Strategy: try nested product.colors[] first (detail endpoint),
+            // then fall back to aggregating across all items (listing endpoint)
             const colorMap = new Map<string, { color: string; hex: string | null; image_url: string | null }>();
             const sizeSet = new Set<string>();
             let firstImage: string | null = null;
 
+            // 1) Try nested colors[] from first product (works if API returns full product detail)
             const productColors = product.colors || [];
             for (const colorEntry of productColors) {
-              // Color name: multilingual object in colorEntry.colors
               const colorNames = colorEntry.colors;
               const colorName = colorNames?.fr || colorNames?.en || colorNames?.de || null;
               if (!colorName) continue;
 
-              // Hex: colorsHexa is an array like ["C6BFB2"]
               const hexArr = colorEntry.colorsHexa;
               const hex = Array.isArray(hexArr) && hexArr.length ? hexArr[0] : null;
 
-              // Image: packshots.FACE.url_packshot
               let colorImage: string | null = null;
               const packshots = colorEntry.packshots;
               if (packshots) {
@@ -208,10 +208,8 @@ Deno.serve(async (req) => {
               }
 
               if (!firstImage && colorImage) firstImage = colorImage;
-
               colorMap.set(colorName, { color: colorName, hex, image_url: colorImage });
 
-              // Sizes: colorEntry.sizes[] array with size objects
               const sizes = colorEntry.sizes;
               if (Array.isArray(sizes)) {
                 for (const s of sizes) {
@@ -221,11 +219,35 @@ Deno.serve(async (req) => {
               }
             }
 
-            // Fallback: product-level images if no color packshots
-            if (!firstImage) {
-              const imgs = product.images;
-              if (Array.isArray(imgs) && imgs.length) {
-                firstImage = imgs[0].url_image || imgs[0].url || null;
+            // 2) If no colors found from nested structure, aggregate from individual items
+            if (colorMap.size === 0) {
+              for (const item of items) {
+                // Color: try item.colorLabel / item.color / item.couleur
+                const colorName =
+                  (typeof item.colorLabel === "object" ? (item.colorLabel?.fr || item.colorLabel?.en) : item.colorLabel)
+                  || item.color || item.couleur || null;
+
+                if (colorName && !colorMap.has(colorName)) {
+                  // Hex
+                  const hex = item.colorHexa || item.hexColor || item.hex || null;
+                  // Image
+                  let img: string | null = null;
+                  if (item.packshots) {
+                    const face = item.packshots.FACE || item.packshots.face;
+                    if (face) img = face.url_packshot || face.url || null;
+                    if (!img) {
+                      const firstShot = Object.values(item.packshots)[0] as any;
+                      if (firstShot) img = firstShot.url_packshot || firstShot.url || null;
+                    }
+                  }
+                  if (!img) img = item.imageUrl || item.image || item.url_image || null;
+                  if (!firstImage && img) firstImage = img;
+                  colorMap.set(colorName, { color: colorName, hex, image_url: img });
+                }
+
+                // Size: try item.sizeLabel / item.size / item.taille
+                const sizeName = item.sizeLabel || item.size || item.taille || null;
+                if (sizeName) sizeSet.add(sizeName);
               }
             }
 
