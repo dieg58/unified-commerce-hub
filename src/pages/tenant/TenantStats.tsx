@@ -11,34 +11,40 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { format, subDays, subMonths, startOfMonth, endOfMonth, isWithinInterval, startOfDay, endOfDay } from "date-fns";
-import { fr } from "date-fns/locale";
+import { fr, enGB, nl } from "date-fns/locale";
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from "recharts";
-
-const PERIOD_PRESETS = [
-  { label: "7 jours", days: 7 },
-  { label: "30 jours", days: 30 },
-  { label: "90 jours", days: 90 },
-  { label: "Ce mois", key: "month" as const },
-  { label: "Mois dernier", key: "last_month" as const },
-];
+import { useTranslation } from "react-i18next";
+import { useLocaleDate } from "@/hooks/useLocaleDate";
 
 const CHART_COLORS = [
-  "hsl(24, 10%, 10%)",    // primary
-  "hsl(36, 45%, 60%)",    // accent
-  "hsl(142, 71%, 45%)",   // success
-  "hsl(38, 92%, 50%)",    // warning
-  "hsl(0, 72%, 51%)",     // destructive
+  "hsl(24, 10%, 10%)",
+  "hsl(36, 45%, 60%)",
+  "hsl(142, 71%, 45%)",
+  "hsl(38, 92%, 50%)",
+  "hsl(0, 72%, 51%)",
   "hsl(220, 70%, 55%)",
   "hsl(280, 60%, 55%)",
   "hsl(170, 60%, 45%)",
 ];
 
+const dateFnsLocales: Record<string, any> = { fr, en: enGB, nl };
+
 const TenantStats = () => {
   const { profile } = useAuth();
   const tenantId = profile?.tenant_id;
+  const { t, i18n } = useTranslation();
+  const dfLocale = dateFnsLocales[i18n.language] || fr;
+
+  const PERIOD_PRESETS = useMemo(() => [
+    { label: t("stats.7days"), days: 7 },
+    { label: t("stats.30days"), days: 30 },
+    { label: t("stats.90days"), days: 90 },
+    { label: t("stats.thisMonth"), key: "month" as const },
+    { label: t("stats.lastMonth"), key: "last_month" as const },
+  ], [t]);
 
   const now = new Date();
   const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>({
@@ -47,7 +53,6 @@ const TenantStats = () => {
   });
   const [compareRange, setCompareRange] = useState<{ from: Date; to: Date } | null>(null);
 
-  // Fetch all orders
   const { data: orders, isLoading: ordersLoading } = useQuery({
     queryKey: ["analytics-orders", tenantId],
     queryFn: async () => {
@@ -62,7 +67,6 @@ const TenantStats = () => {
     enabled: !!tenantId,
   });
 
-  // Fetch budgets
   const { data: budgets } = useQuery({
     queryKey: ["analytics-budgets", tenantId],
     queryFn: async () => {
@@ -76,22 +80,6 @@ const TenantStats = () => {
     enabled: !!tenantId,
   });
 
-  // Fetch products
-  const { data: products } = useQuery({
-    queryKey: ["analytics-products", tenantId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("products")
-        .select("id, name")
-        .eq("tenant_id", tenantId!)
-        .eq("active", true);
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!tenantId,
-  });
-
-  // Filter orders in range
   const filteredOrders = useMemo(() => {
     if (!orders) return [];
     return orders.filter((o) =>
@@ -112,7 +100,6 @@ const TenantStats = () => {
     );
   }, [orders, compareRange]);
 
-  // KPIs
   const totalRevenue = filteredOrders.reduce((s, o) => s + Number(o.total), 0);
   const totalOrders = filteredOrders.length;
   const avgOrder = totalOrders > 0 ? totalRevenue / totalOrders : 0;
@@ -123,7 +110,6 @@ const TenantStats = () => {
     ? `${((totalRevenue - prevRevenue) / prevRevenue * 100).toFixed(1)}%`
     : undefined;
 
-  // 1. Sales evolution (daily aggregation)
   const salesEvolution = useMemo(() => {
     const byDay: Record<string, { date: string; revenue: number; orders: number; prevRevenue?: number }> = {};
     const rangeDays = Math.ceil((dateRange.to.getTime() - dateRange.from.getTime()) / 86400000) + 1;
@@ -132,7 +118,7 @@ const TenantStats = () => {
       const d = new Date(dateRange.from);
       d.setDate(d.getDate() + i);
       const key = format(d, "yyyy-MM-dd");
-      byDay[key] = { date: format(d, "dd/MM", { locale: fr }), revenue: 0, orders: 0 };
+      byDay[key] = { date: format(d, "dd/MM", { locale: dfLocale }), revenue: 0, orders: 0 };
     }
 
     filteredOrders.forEach((o) => {
@@ -143,7 +129,6 @@ const TenantStats = () => {
       }
     });
 
-    // Add comparison data if available
     if (comparedOrders && compareRange) {
       const compDays = Math.ceil((compareRange.to.getTime() - compareRange.from.getTime()) / 86400000) + 1;
       const compByDay: Record<number, number> = {};
@@ -161,44 +146,41 @@ const TenantStats = () => {
     }
 
     return Object.values(byDay);
-  }, [filteredOrders, comparedOrders, dateRange, compareRange]);
+  }, [filteredOrders, comparedOrders, dateRange, compareRange, dfLocale]);
 
-  // 2. Top products
   const topProducts = useMemo(() => {
     const productTotals: Record<string, { name: string; revenue: number; qty: number }> = {};
     filteredOrders.forEach((o) => {
       (o.order_items as any[])?.forEach((item) => {
         const prod = (item.products as any);
-        const name = prod?.name || "Inconnu";
+        const name = prod?.name || t("common.noData");
         if (!productTotals[name]) productTotals[name] = { name, revenue: 0, qty: 0 };
         productTotals[name].revenue += Number(item.unit_price) * item.qty;
         productTotals[name].qty += item.qty;
       });
     });
     return Object.values(productTotals).sort((a, b) => b.revenue - a.revenue).slice(0, 8);
-  }, [filteredOrders]);
+  }, [filteredOrders, t]);
 
-  // 3. Distribution by entity (pie)
   const entityDistribution = useMemo(() => {
     const byEntity: Record<string, { name: string; value: number }> = {};
     filteredOrders.forEach((o) => {
-      const name = (o.entities as any)?.name || "Inconnu";
+      const name = (o.entities as any)?.name || t("common.noData");
       if (!byEntity[name]) byEntity[name] = { name, value: 0 };
       byEntity[name].value += Number(o.total);
     });
     return Object.values(byEntity).sort((a, b) => b.value - a.value);
-  }, [filteredOrders]);
+  }, [filteredOrders, t]);
 
-  // 4. Budget consumption
   const budgetData = useMemo(() => {
     if (!budgets) return [];
     return budgets.map((b) => ({
-      name: `${(b as any).entities?.name || "—"} (${b.store_type === "bulk" ? "Int." : "Emp."})`,
+      name: `${(b as any).entities?.name || "—"} (${b.store_type === "bulk" ? t("stats.int") : t("stats.emp")})`,
       budget: Number(b.amount),
       spent: Number(b.spent),
       pct: Number(b.amount) > 0 ? Math.round((Number(b.spent) / Number(b.amount)) * 100) : 0,
     }));
-  }, [budgets]);
+  }, [budgets, t]);
 
   const setPreset = (preset: typeof PERIOD_PRESETS[number]) => {
     if ("days" in preset) {
@@ -226,7 +208,7 @@ const TenantStats = () => {
   if (ordersLoading) {
     return (
       <>
-        <TopBar title="Statistiques" subtitle="Analytics avancés" />
+        <TopBar title={t("stats.title")} subtitle={t("stats.subtitle")} />
         <div className="flex-1 flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
       </>
     );
@@ -234,7 +216,7 @@ const TenantStats = () => {
 
   return (
     <>
-      <TopBar title="Statistiques" subtitle="Analytics avancés de votre boutique" />
+      <TopBar title={t("stats.title")} subtitle={t("stats.subtitle")} />
       <div className="p-6 space-y-6 overflow-auto">
         {/* Period selector */}
         <div className="flex flex-wrap items-center gap-2 animate-fade-in">
@@ -258,7 +240,7 @@ const TenantStats = () => {
                   if (range?.from && range?.to) setDateRange({ from: range.from, to: range.to });
                 }}
                 numberOfMonths={2}
-                locale={fr}
+                locale={dfLocale}
                 className={cn("p-3 pointer-events-auto")}
               />
             </PopoverContent>
@@ -269,7 +251,7 @@ const TenantStats = () => {
             className="text-xs"
             onClick={toggleCompare}
           >
-            {compareRange ? "✕ Comparaison" : "Comparer"}
+            {compareRange ? `✕ ${t("stats.comparison")}` : t("stats.compare")}
           </Button>
           {compareRange && (
             <span className="text-xs text-muted-foreground">
@@ -280,17 +262,17 @@ const TenantStats = () => {
 
         {/* KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard label="Chiffre d'affaires" value={formatCurrency(totalRevenue)} icon={<TrendingUp className="w-4 h-4 text-primary" />} change={revenueChange} delay={0} />
-          <StatCard label="Commandes" value={totalOrders.toString()} icon={<ShoppingCart className="w-4 h-4 text-primary" />} delay={50} />
-          <StatCard label="Panier moyen" value={formatCurrency(avgOrder)} icon={<Wallet className="w-4 h-4 text-primary" />} delay={100} />
-          <StatCard label="En attente" value={pendingCount.toString()} icon={<Package className="w-4 h-4 text-primary" />} delay={150} />
+          <StatCard label={t("stats.revenue")} value={formatCurrency(totalRevenue)} icon={<TrendingUp className="w-4 h-4 text-primary" />} change={revenueChange} delay={0} />
+          <StatCard label={t("stats.orders")} value={totalOrders.toString()} icon={<ShoppingCart className="w-4 h-4 text-primary" />} delay={50} />
+          <StatCard label={t("stats.avgOrder")} value={formatCurrency(avgOrder)} icon={<Wallet className="w-4 h-4 text-primary" />} delay={100} />
+          <StatCard label={t("stats.pending")} value={pendingCount.toString()} icon={<Package className="w-4 h-4 text-primary" />} delay={150} />
         </div>
 
         {/* Sales evolution chart */}
         <div className="bg-card rounded-lg border border-border p-5 animate-fade-in" style={{ animationDelay: "200ms" }}>
-          <h3 className="text-sm font-semibold text-foreground mb-4">Évolution des ventes</h3>
+          <h3 className="text-sm font-semibold text-foreground mb-4">{t("stats.salesEvolution")}</h3>
           {salesEvolution.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">Aucune donnée sur cette période</p>
+            <p className="text-sm text-muted-foreground text-center py-8">{t("stats.noDataPeriod")}</p>
           ) : (
             <ResponsiveContainer width="100%" height={300}>
               <AreaChart data={salesEvolution}>
@@ -309,11 +291,11 @@ const TenantStats = () => {
                 <YAxis tick={{ fontSize: 11 }} stroke="hsl(24, 5%, 46%)" tickFormatter={(v) => `${(v / 1).toFixed(0)} €`} />
                 <Tooltip
                   contentStyle={{ background: "hsl(0, 0%, 100%)", border: "1px solid hsl(36, 15%, 88%)", borderRadius: 8, fontSize: 12 }}
-                  formatter={(value: number, name: string) => [formatCurrency(value), name === "revenue" ? "CA" : "Période précédente"]}
+                  formatter={(value: number, name: string) => [formatCurrency(value), name === "revenue" ? t("stats.revenueLabel") : t("stats.previousPeriod")]}
                 />
-                <Area type="monotone" dataKey="revenue" name="CA" stroke="hsl(24, 10%, 10%)" fill="url(#colorRevenue)" strokeWidth={2} />
+                <Area type="monotone" dataKey="revenue" name={t("stats.revenueLabel")} stroke="hsl(24, 10%, 10%)" fill="url(#colorRevenue)" strokeWidth={2} />
                 {compareRange && (
-                  <Area type="monotone" dataKey="prevRevenue" name="Période précédente" stroke="hsl(36, 45%, 60%)" fill="url(#colorPrev)" strokeWidth={1.5} strokeDasharray="5 5" />
+                  <Area type="monotone" dataKey="prevRevenue" name={t("stats.previousPeriod")} stroke="hsl(36, 45%, 60%)" fill="url(#colorPrev)" strokeWidth={1.5} strokeDasharray="5 5" />
                 )}
               </AreaChart>
             </ResponsiveContainer>
@@ -323,9 +305,9 @@ const TenantStats = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Top products */}
           <div className="bg-card rounded-lg border border-border p-5 animate-fade-in" style={{ animationDelay: "250ms" }}>
-            <h3 className="text-sm font-semibold text-foreground mb-4">Top produits</h3>
+            <h3 className="text-sm font-semibold text-foreground mb-4">{t("stats.topProducts")}</h3>
             {topProducts.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">Aucune donnée</p>
+              <p className="text-sm text-muted-foreground text-center py-8">{t("common.noData")}</p>
             ) : (
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={topProducts} layout="vertical" margin={{ left: 20 }}>
@@ -334,9 +316,9 @@ const TenantStats = () => {
                   <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 11 }} stroke="hsl(24, 5%, 46%)" />
                   <Tooltip
                     contentStyle={{ background: "hsl(0, 0%, 100%)", border: "1px solid hsl(36, 15%, 88%)", borderRadius: 8, fontSize: 12 }}
-                    formatter={(value: number, name: string) => [name === "revenue" ? formatCurrency(value) : value, name === "revenue" ? "CA" : "Qté"]}
+                    formatter={(value: number, name: string) => [name === "revenue" ? formatCurrency(value) : value, name === "revenue" ? t("stats.revenueLabel") : t("stats.qty")]}
                   />
-                  <Bar dataKey="revenue" name="CA" fill="hsl(24, 10%, 10%)" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="revenue" name={t("stats.revenueLabel")} fill="hsl(24, 10%, 10%)" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -344,9 +326,9 @@ const TenantStats = () => {
 
           {/* Entity distribution */}
           <div className="bg-card rounded-lg border border-border p-5 animate-fade-in" style={{ animationDelay: "300ms" }}>
-            <h3 className="text-sm font-semibold text-foreground mb-4">Répartition par entité</h3>
+            <h3 className="text-sm font-semibold text-foreground mb-4">{t("stats.entityDistribution")}</h3>
             {entityDistribution.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">Aucune donnée</p>
+              <p className="text-sm text-muted-foreground text-center py-8">{t("common.noData")}</p>
             ) : (
               <div className="flex items-center gap-4">
                 <ResponsiveContainer width="60%" height={280}>
@@ -388,9 +370,9 @@ const TenantStats = () => {
 
         {/* Budget consumption */}
         <div className="bg-card rounded-lg border border-border p-5 animate-fade-in" style={{ animationDelay: "350ms" }}>
-          <h3 className="text-sm font-semibold text-foreground mb-4">Taux de consommation des budgets</h3>
+          <h3 className="text-sm font-semibold text-foreground mb-4">{t("stats.budgetConsumption")}</h3>
           {budgetData.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">Aucun budget configuré</p>
+            <p className="text-sm text-muted-foreground text-center py-8">{t("budgets.noBudget")}</p>
           ) : (
             <div className="space-y-4">
               {budgetData.map((b) => (
