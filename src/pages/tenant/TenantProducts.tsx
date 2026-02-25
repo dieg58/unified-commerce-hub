@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import TopBar from "@/components/TopBar";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -6,10 +6,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
-import { Loader2, Package, Search } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Loader2, Package, Search, Filter, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/mock-data";
 import ExportMenu from "@/components/ExportMenu";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { ExportColumn } from "@/lib/export-utils";
 
 const TenantProducts = () => {
@@ -17,6 +20,9 @@ const TenantProducts = () => {
   const tenantId = profile?.tenant_id;
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
+  const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [filterVisibility, setFilterVisibility] = useState<"all" | "bulk" | "staff" | "inactive">("all");
+  const [showFilters, setShowFilters] = useState(false);
 
   const { data: products, isLoading } = useQuery({
     queryKey: ["tenant-products-manage", tenantId],
@@ -44,13 +50,43 @@ const TenantProducts = () => {
     onError: (err: any) => toast.error(err.message),
   });
 
-  const filtered = products?.filter((p) =>
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    p.sku.toLowerCase().includes(search.toLowerCase())
-  );
+  // Categories with counts
+  const categories = useMemo(() => {
+    if (!products) return [];
+    const counts: Record<string, number> = {};
+    products.forEach((p) => {
+      const cat = p.category || "general";
+      counts[cat] = (counts[cat] || 0) + 1;
+    });
+    return Object.entries(counts).sort(([, a], [, b]) => b - a);
+  }, [products]);
+
+  const filtered = useMemo(() => {
+    if (!products) return [];
+    const searchLower = search.toLowerCase();
+    return products.filter((p) => {
+      // Search
+      if (search && !p.name.toLowerCase().includes(searchLower) && !p.sku.toLowerCase().includes(searchLower)) return false;
+      // Category
+      if (filterCategory !== "all" && (p.category || "general") !== filterCategory) return false;
+      // Visibility
+      if (filterVisibility === "bulk" && !p.active_bulk) return false;
+      if (filterVisibility === "staff" && !p.active_staff) return false;
+      if (filterVisibility === "inactive" && (p.active_bulk || p.active_staff)) return false;
+      return true;
+    });
+  }, [products, search, filterCategory, filterVisibility]);
 
   const bulkCount = products?.filter(p => p.active_bulk).length || 0;
   const staffCount = products?.filter(p => p.active_staff).length || 0;
+  const inactiveCount = products?.filter(p => !p.active_bulk && !p.active_staff).length || 0;
+
+  const activeFilterCount = (filterCategory !== "all" ? 1 : 0) + (filterVisibility !== "all" ? 1 : 0);
+
+  const clearFilters = () => {
+    setFilterCategory("all");
+    setFilterVisibility("all");
+  };
 
   return (
     <>
@@ -63,6 +99,19 @@ const TenantProducts = () => {
               Produits ({products?.length || 0}) — Bulk: {bulkCount} · Staff: {staffCount}
             </h3>
             <div className="flex items-center gap-2">
+              <Button
+                variant={showFilters ? "secondary" : "outline"}
+                size="sm"
+                className="h-8 text-xs gap-1.5"
+                onClick={() => setShowFilters(!showFilters)}
+              >
+                <Filter className="w-3.5 h-3.5" />
+                Filtres
+                {activeFilterCount > 0 && (
+                  <Badge variant="default" className="h-4 px-1 text-[10px] rounded-full ml-0.5">{activeFilterCount}</Badge>
+                )}
+                {showFilters ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              </Button>
               <ExportMenu
                 title="Produits"
                 filename="produits"
@@ -83,10 +132,92 @@ const TenantProducts = () => {
               </div>
             </div>
           </div>
+
+          {/* Filter Panel */}
+          <Collapsible open={showFilters}>
+            <CollapsibleContent>
+              <div className="p-4 border-b border-border bg-muted/30 space-y-4">
+                {/* Visibility filter */}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Visibilité</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { key: "all" as const, label: "Tous", count: products?.length || 0 },
+                      { key: "bulk" as const, label: "Bulk actif", count: bulkCount },
+                      { key: "staff" as const, label: "Staff actif", count: staffCount },
+                      { key: "inactive" as const, label: "Inactif", count: inactiveCount },
+                    ].map((v) => (
+                      <button
+                        key={v.key}
+                        onClick={() => setFilterVisibility(v.key)}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                          filterVisibility === v.key
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                        }`}
+                      >
+                        {v.label}
+                        <span className="opacity-60">{v.count}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Category filter */}
+                {categories.length > 1 && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Catégorie</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      <button
+                        onClick={() => setFilterCategory("all")}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                          filterCategory === "all"
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                        }`}
+                      >
+                        Toutes
+                      </button>
+                      {categories.map(([cat, count]) => (
+                        <button
+                          key={cat}
+                          onClick={() => setFilterCategory(cat)}
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors capitalize ${
+                            filterCategory === cat
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                          }`}
+                        >
+                          {cat}
+                          <span className="opacity-60">{count}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {activeFilterCount > 0 && (
+                  <button onClick={clearFilters} className="text-xs text-primary hover:underline">
+                    Réinitialiser les filtres
+                  </button>
+                )}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          {/* Results count when filtered */}
+          {activeFilterCount > 0 && !isLoading && (
+            <div className="px-5 py-2 border-b border-border bg-muted/10">
+              <p className="text-xs text-muted-foreground">
+                {filtered.length} produit{filtered.length !== 1 ? "s" : ""} affiché{filtered.length !== 1 ? "s" : ""}
+              </p>
+            </div>
+          )}
+
           {isLoading ? (
             <div className="flex items-center justify-center p-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
           ) : !filtered?.length ? (
-            <p className="p-12 text-center text-sm text-muted-foreground">{search ? "Aucun produit trouvé" : "Aucun produit disponible"}</p>
+            <p className="p-12 text-center text-sm text-muted-foreground">{search || activeFilterCount > 0 ? "Aucun produit trouvé" : "Aucun produit disponible"}</p>
           ) : (
             <Table>
               <TableHeader>
