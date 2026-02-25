@@ -148,7 +148,7 @@ const Tenants = () => {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <span className="font-mono text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded">{tenant.slug}.domain.com</span>
+                        <span className="font-mono text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded">{tenant.slug}.inkoo.eu</span>
                       </TableCell>
                       <TableCell><StatusBadge status={tenant.status} /></TableCell>
                       <TableCell>

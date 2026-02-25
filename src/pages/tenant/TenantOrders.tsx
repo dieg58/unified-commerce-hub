@@ -14,6 +14,7 @@ import { formatCurrency } from "@/lib/mock-data";
 import { toast } from "sonner";
 import ExportMenu from "@/components/ExportMenu";
 import { fmtDate, type ExportColumn } from "@/lib/export-utils";
+import { useTranslation } from "react-i18next";
 
 const orderExportColumns: ExportColumn[] = [
   { header: "ID", accessor: (r: any) => r.id.slice(0, 8) },
@@ -29,6 +30,7 @@ const orderExportColumns: ExportColumn[] = [
 const TenantOrders = () => {
   const navigate = useNavigate();
   const { profile, isShopManager } = useAuth();
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const tenantId = profile?.tenant_id;
   const [exportFilters, setExportFilters] = useState<{ from?: Date; to?: Date; storeType?: string }>({});
@@ -53,7 +55,7 @@ const TenantOrders = () => {
       if (error) throw error;
     },
     onSuccess: (_, { status }) => {
-      toast.success(`Commande ${status === "approved" ? "approuvée" : status === "rejected" ? "rejetée" : status}`);
+      toast.success(status === "approved" ? t("tenantOrders.orderApproved") : t("tenantOrders.orderRejected"));
       qc.invalidateQueries({ queryKey: ["tenant-orders"] });
     },
     onError: (err: any) => toast.error(err.message),
@@ -76,7 +78,7 @@ const TenantOrders = () => {
   const pendingApproval = filteredOrders.filter((o) => o.status === "pending_approval" || o.status === "pending");
 
   const OrderTable = ({ items }: { items: typeof orders }) => {
-    if (!items?.length) return <p className="p-8 text-center text-sm text-muted-foreground">Aucune commande</p>;
+    if (!items?.length) return <p className="p-8 text-center text-sm text-muted-foreground">{t("tenantOrders.noOrders")}</p>;
     return (
       <Table>
         <TableHeader>
@@ -105,7 +107,7 @@ const TenantOrders = () => {
                 <TableCell className="text-xs text-muted-foreground">{entity?.name || "—"}</TableCell>
                 <TableCell>
                   <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${order.store_type === "bulk" ? "bg-primary/10 text-primary" : "bg-accent/10 text-accent"}`}>
-                    {order.store_type === "bulk" ? "Interne" : "Employé"}
+                    {order.store_type === "bulk" ? t("tenantOrders.internal") : t("tenantOrders.employee")}
                   </span>
                 </TableCell>
                 <TableCell>{itemsCount}</TableCell>
@@ -119,16 +121,16 @@ const TenantOrders = () => {
                         <Button variant="ghost" size="sm" className="h-8 w-8 p-0"><MoreHorizontal className="w-4 h-4" /></Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => navigate(`/orders/${order.id}`)}>
-                          <Eye className="w-4 h-4 mr-2" /> Voir détail
+<DropdownMenuItem onClick={() => navigate(`/tenant/orders/${order.id}`)}>
+                          <Eye className="w-4 h-4 mr-2" /> {t("common.viewDetails")}
                         </DropdownMenuItem>
                         {canAction && (
                           <>
                             <DropdownMenuItem onClick={() => updateStatus.mutate({ id: order.id, status: "approved" })}>
-                              <CheckCircle className="w-4 h-4 mr-2 text-success" /> Approuver
+                              <CheckCircle className="w-4 h-4 mr-2 text-success" /> {t("tenantOrders.approve")}
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => updateStatus.mutate({ id: order.id, status: "rejected" })}>
-                              <XCircle className="w-4 h-4 mr-2 text-destructive" /> Rejeter
+                              <XCircle className="w-4 h-4 mr-2 text-destructive" /> {t("tenantOrders.reject")}
                             </DropdownMenuItem>
                           </>
                         )}
@@ -146,7 +148,7 @@ const TenantOrders = () => {
 
   return (
     <>
-      <TopBar title="Commandes" subtitle="Gérer les commandes de votre boutique" />
+      <TopBar title={t("tenantOrders.title")} subtitle={t("tenantOrders.subtitle")} />
       <div className="p-6 space-y-6 overflow-auto">
         <div className="bg-card rounded-lg border border-border shadow-card animate-fade-in">
           {isLoading ? (
@@ -155,10 +157,10 @@ const TenantOrders = () => {
             <Tabs defaultValue="all" className="w-full">
               <div className="p-5 border-b border-border flex items-center justify-between flex-wrap gap-2">
                 <TabsList className="bg-secondary">
-                  <TabsTrigger value="all" className="text-xs">Toutes ({filteredOrders.length})</TabsTrigger>
-                  <TabsTrigger value="pending" className="text-xs">En attente ({pendingApproval.length})</TabsTrigger>
-                  <TabsTrigger value="bulk" className="text-xs">Interne ({bulkOrders.length})</TabsTrigger>
-                  <TabsTrigger value="staff" className="text-xs">Employé ({staffOrders.length})</TabsTrigger>
+                  <TabsTrigger value="all" className="text-xs">{t("tenantOrders.all")} ({filteredOrders.length})</TabsTrigger>
+                  <TabsTrigger value="pending" className="text-xs">{t("tenantOrders.pending")} ({pendingApproval.length})</TabsTrigger>
+                  <TabsTrigger value="bulk" className="text-xs">{t("tenantOrders.internal")} ({bulkOrders.length})</TabsTrigger>
+                  <TabsTrigger value="staff" className="text-xs">{t("tenantOrders.employee")} ({staffOrders.length})</TabsTrigger>
                 </TabsList>
                 <ExportMenu
                   title="Commandes"

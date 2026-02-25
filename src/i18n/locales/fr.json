@@ -704,5 +704,43 @@
   "tenantEntities": {
     "title": "Entités",
     "subtitle": "Gérer les départements et entités de votre boutique"
+  },
+  "tenantDash": {
+    "title": "Tableau de bord",
+    "welcome": "Bienvenue, {{name}}",
+    "myShop": "Ma boutique",
+    "yourRole": "Votre rôle",
+    "noRole": "aucun",
+    "orders": "Commandes",
+    "revenue": "Chiffre d'affaires",
+    "products": "Produits",
+    "users": "Utilisateurs",
+    "actionsRequired": "Actions requises",
+    "order": "Commande",
+    "internal": "Interne",
+    "employee": "Employé",
+    "process": "Traiter",
+    "newCatalogProducts": "Nouveaux produits proposés par Inkoo",
+    "noCatalogProducts": "Aucun nouveau produit disponible pour le moment.",
+    "allCatalogAdded": "Vous avez déjà ajouté tous les produits disponibles. 🎉",
+    "recentOrders": "Dernières commandes",
+    "viewAll": "Voir tout",
+    "noOrders": "Aucune commande",
+    "roleShopManager": "Responsable Boutique",
+    "roleDeptManager": "Responsable Département",
+    "roleEmployee": "Employé"
+  },
+  "tenantOrders": {
+    "title": "Commandes",
+    "subtitle": "Gérer les commandes de votre boutique",
+    "all": "Toutes",
+    "pending": "En attente",
+    "internal": "Interne",
+    "employee": "Employé",
+    "noOrders": "Aucune commande",
+    "approve": "Approuver",
+    "reject": "Rejeter",
+    "orderApproved": "Commande approuvée",
+    "orderRejected": "Commande rejetée"
   }
 }

@@ -9,11 +9,13 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/DashboardWidgets";
 import CatalogProductDetailDialog from "@/components/CatalogProductDetailDialog";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 const TenantDashboard = () => {
   const { profile, roles, isShopManager } = useAuth();
   const navigate = useNavigate();
   const tenantId = profile?.tenant_id;
+  const { t } = useTranslation();
 
   const { data: tenant } = useQuery({
     queryKey: ["tenant-dash", tenantId],
@@ -109,31 +111,31 @@ const TenantDashboard = () => {
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
 
   const roleLabel = roles.map((r) => {
-    if (r === "shop_manager") return "Responsable Boutique";
-    if (r === "dept_manager") return "Responsable Département";
-    if (r === "employee") return "Employé";
+    if (r === "shop_manager") return t("tenantDash.roleShopManager");
+    if (r === "dept_manager") return t("tenantDash.roleDeptManager");
+    if (r === "employee") return t("tenantDash.roleEmployee");
     return r;
   }).join(", ");
 
   return (
     <>
-      <TopBar title="Tableau de bord" subtitle={`Bienvenue, ${profile?.full_name || profile?.email}`} />
+      <TopBar title={t("tenantDash.title")} subtitle={t("tenantDash.welcome", { name: profile?.full_name || profile?.email })} />
       <div className="p-6 space-y-6 overflow-auto">
         {/* Welcome card */}
         <div className="bg-card rounded-lg border border-border p-6 animate-fade-in">
-          <h2 className="text-lg font-bold text-foreground">{tenant?.name || "Ma boutique"}</h2>
+          <h2 className="text-lg font-bold text-foreground">{tenant?.name || t("tenantDash.myShop")}</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Votre rôle : <span className="font-medium text-foreground">{roleLabel || "aucun"}</span>
+            {t("tenantDash.yourRole")} : <span className="font-medium text-foreground">{roleLabel || t("tenantDash.noRole")}</span>
           </p>
         </div>
 
         {/* KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { icon: ShoppingCart, label: "Commandes", value: stats?.totalOrders || 0, color: "text-primary", to: "/tenant/orders" },
-            { icon: TrendingUp, label: "Chiffre d'affaires", value: formatCurrency(stats?.totalRevenue || 0), color: "text-success", to: "/tenant/stats" },
-            { icon: Package, label: "Produits", value: stats?.totalProducts || 0, color: "text-warning", to: "/tenant/products" },
-            { icon: Users, label: "Utilisateurs", value: stats?.totalUsers || 0, color: "text-accent", to: isShopManager ? "/tenant/users" : "/tenant" },
+            { icon: ShoppingCart, label: t("tenantDash.orders"), value: stats?.totalOrders || 0, color: "text-primary", to: "/tenant/orders" },
+            { icon: TrendingUp, label: t("tenantDash.revenue"), value: formatCurrency(stats?.totalRevenue || 0), color: "text-success", to: "/tenant/stats" },
+            { icon: Package, label: t("tenantDash.products"), value: stats?.totalProducts || 0, color: "text-warning", to: "/tenant/products" },
+            { icon: Users, label: t("tenantDash.users"), value: stats?.totalUsers || 0, color: "text-accent", to: isShopManager ? "/tenant/users" : "/tenant" },
           ].map((card, i) => (
             <button
               key={card.label}
@@ -153,7 +155,7 @@ const TenantDashboard = () => {
           <div className="bg-card rounded-lg border border-warning/30 p-5 animate-fade-in">
             <div className="flex items-center gap-2 mb-4">
               <AlertTriangle className="w-5 h-5 text-warning" />
-              <h3 className="text-sm font-semibold text-foreground">Actions requises</h3>
+              <h3 className="text-sm font-semibold text-foreground">{t("tenantDash.actionsRequired")}</h3>
             </div>
             <div className="space-y-2">
               {pendingOrders.slice(0, 5).map(order => (
@@ -161,14 +163,14 @@ const TenantDashboard = () => {
                   <div className="flex items-center gap-3">
                     <Clock className="w-4 h-4 text-warning" />
                     <div>
-                      <span className="text-sm font-medium text-foreground">Commande {order.id.slice(0, 8)}</span>
+                      <span className="text-sm font-medium text-foreground">{t("tenantDash.order")} {order.id.slice(0, 8)}</span>
                       <span className="ml-2 text-xs text-muted-foreground">
-                        {order.store_type === "bulk" ? "Interne" : "Employé"} — {formatCurrency(Number(order.total))}
+                        {order.store_type === "bulk" ? t("tenantDash.internal") : t("tenantDash.employee")} — {formatCurrency(Number(order.total))}
                       </span>
                     </div>
                   </div>
                   <Button size="sm" variant="outline" onClick={() => navigate("/tenant/orders")}>
-                    Traiter
+                    {t("tenantDash.process")}
                   </Button>
                 </div>
               ))}
@@ -180,12 +182,12 @@ const TenantDashboard = () => {
         <div className="bg-card rounded-lg border border-border p-5 animate-fade-in">
           <div className="flex items-center gap-2 mb-4">
             <Sparkles className="w-5 h-5 text-primary" />
-            <h3 className="text-sm font-semibold text-foreground">Nouveaux produits proposés par Inkoo</h3>
+            <h3 className="text-sm font-semibold text-foreground">{t("tenantDash.newCatalogProducts")}</h3>
           </div>
           {!newCatalogProducts?.length ? (
-            <p className="text-sm text-muted-foreground">Aucun nouveau produit disponible pour le moment.</p>
+            <p className="text-sm text-muted-foreground">{t("tenantDash.noCatalogProducts")}</p>
           ) : unselectedCatalog.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Vous avez déjà ajouté tous les produits disponibles. 🎉</p>
+            <p className="text-sm text-muted-foreground">{t("tenantDash.allCatalogAdded")}</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {unselectedCatalog.map(product => (
@@ -217,11 +219,11 @@ const TenantDashboard = () => {
         {/* Recent orders */}
         <div className="bg-card rounded-lg border border-border p-5 animate-fade-in">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-foreground">Dernières commandes</h3>
-            <button onClick={() => navigate("/tenant/orders")} className="text-xs text-primary hover:underline">Voir tout</button>
+            <h3 className="text-sm font-semibold text-foreground">{t("tenantDash.recentOrders")}</h3>
+            <button onClick={() => navigate("/tenant/orders")} className="text-xs text-primary hover:underline">{t("tenantDash.viewAll")}</button>
           </div>
           {!orders?.length ? (
-            <p className="text-sm text-muted-foreground">Aucune commande</p>
+            <p className="text-sm text-muted-foreground">{t("tenantDash.noOrders")}</p>
           ) : (
             <div className="space-y-2">
               {orders.slice(0, 5).map((o) => (

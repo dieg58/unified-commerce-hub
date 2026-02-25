@@ -7,7 +7,7 @@ import {
   ArrowRight, Loader2, Package, Truck, Warehouse, Monitor,
   ChevronRight, Shield, BarChart3, Globe, Users, Zap,
   CheckCircle, Star, Clock, HeartHandshake, Palette, Settings2,
-  ShoppingBag, Box, ArrowUpRight
+  ShoppingBag, Box, ArrowUpRight, Menu, X
 } from "lucide-react";
 import heroImg from "@/assets/hero-inkoo.jpg";
 import DemoRequestDialog from "@/components/DemoRequestDialog";
@@ -34,6 +34,7 @@ const LandingPage = () => {
   const { session, loading, isSuperAdmin } = useAuth();
   const [demoOpen, setDemoOpen] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { t } = useTranslation();
 
   if (loading) {
@@ -110,21 +111,44 @@ const LandingPage = () => {
         <div className="max-w-7xl mx-auto flex h-16 items-center justify-between px-6">
           <span className="text-xl font-serif tracking-tight">INKOO</span>
           <nav className="hidden md:flex items-center gap-8 text-sm">
-            <a href="#services" className="text-muted-foreground hover:text-foreground transition-colors">Services</a>
-            <a href="#platform" className="text-muted-foreground hover:text-foreground transition-colors">Plateforme</a>
-            <a href="#how" className="text-muted-foreground hover:text-foreground transition-colors">Comment ça marche</a>
-            <a href="#testimonials" className="text-muted-foreground hover:text-foreground transition-colors">Témoignages</a>
+            <a href="#services" className="text-muted-foreground hover:text-foreground transition-colors">{t("landing.servicesSection")}</a>
+            <a href="#platform" className="text-muted-foreground hover:text-foreground transition-colors">{t("landing.platformSection")}</a>
+            <a href="#how" className="text-muted-foreground hover:text-foreground transition-colors">{t("landing.howItWorks")}</a>
+            <a href="#testimonials" className="text-muted-foreground hover:text-foreground transition-colors">{t("landing.testimonials")}</a>
           </nav>
           <div className="flex items-center gap-3">
             <LanguageSwitcher variant="ghost" />
-            <Button variant="outline" size="sm" className="rounded-full px-6" onClick={() => setLoginOpen(true)}>
+            <Button variant="outline" size="sm" className="rounded-full px-6 hidden sm:inline-flex" onClick={() => setLoginOpen(true)}>
               {t("landing.login")}
             </Button>
-            <Button size="sm" className="rounded-full px-6" onClick={() => setDemoOpen(true)}>
+            <Button size="sm" className="rounded-full px-6 hidden sm:inline-flex" onClick={() => setDemoOpen(true)}>
               {t("landing.requestDemo")}
             </Button>
+            <button
+              className="md:hidden p-2 rounded-md hover:bg-secondary transition-colors"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
           </div>
         </div>
+        {/* Mobile menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t border-border bg-background px-6 py-4 space-y-3 animate-fade-in">
+            <a href="#services" onClick={() => setMobileMenuOpen(false)} className="block text-sm text-muted-foreground hover:text-foreground">{t("landing.servicesSection")}</a>
+            <a href="#platform" onClick={() => setMobileMenuOpen(false)} className="block text-sm text-muted-foreground hover:text-foreground">{t("landing.platformSection")}</a>
+            <a href="#how" onClick={() => setMobileMenuOpen(false)} className="block text-sm text-muted-foreground hover:text-foreground">{t("landing.howItWorks")}</a>
+            <a href="#testimonials" onClick={() => setMobileMenuOpen(false)} className="block text-sm text-muted-foreground hover:text-foreground">{t("landing.testimonials")}</a>
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" size="sm" className="rounded-full flex-1" onClick={() => { setLoginOpen(true); setMobileMenuOpen(false); }}>
+                {t("landing.login")}
+              </Button>
+              <Button size="sm" className="rounded-full flex-1" onClick={() => { setDemoOpen(true); setMobileMenuOpen(false); }}>
+                {t("landing.requestDemo")}
+              </Button>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* Hero */}
