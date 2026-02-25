@@ -162,6 +162,12 @@ const CatalogProductDetailDialog = ({ product, open, onOpenChange, alreadyReques
                             className="w-5 h-5 rounded-full block"
                             style={{ backgroundColor: c.hex.startsWith("#") ? c.hex : `#${c.hex}` }}
                           />
+                        ) : c.image_url ? (
+                          <img
+                            src={c.image_url}
+                            alt={c.color}
+                            className="w-5 h-5 rounded-full object-cover block"
+                          />
                         ) : (
                           <span className="w-5 h-5 rounded-full bg-gradient-to-br from-muted to-muted-foreground/20 block" />
                         )}
