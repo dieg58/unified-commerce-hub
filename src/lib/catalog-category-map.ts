@@ -77,18 +77,21 @@ const TEXTILE_RULES: [RegExp, string][] = [
   [/Sweat/i, "Sweats & Pulls"],
   [/Sweaters/i, "Sweats & Pulls"],
   [/Pullovers|Cardigans/i, "Sweats & Pulls"],
+  [/Gilets/i, "Sweats & Pulls"],
   [/^Pulls/i, "Sweats & Pulls"],
 
   // T-shirts (now safe: "Sweat-Shirts" already matched above)
   [/T-shirts/i, "T-shirts"],
   [/^Tees/i, "T-shirts"],
   [/Débardeurs/i, "T-shirts"],
+  [/Bodys/i, "T-shirts"],
+  [/^Body/i, "T-shirts"],
 
   // Polos
   [/Polos/i, "Polos"],
 
   // Chemises (must come AFTER Sweat rules so "Sweat-shirts" doesn't match Shirts$)
-  [/Chemises|Surchemises/i, "Chemises"],
+  [/Chemises|Surchemises|Chemisiers|Blouses/i, "Chemises"],
   [/Shirts$/i, "Chemises"],
 
   // Vestes & Manteaux
@@ -96,11 +99,13 @@ const TEXTILE_RULES: [RegExp, string][] = [
   [/Jackets/i, "Vestes & Manteaux"],
   [/Softshells/i, "Vestes & Manteaux"],
   [/Bodywarmers/i, "Vestes & Manteaux"],
+  [/Ponchos/i, "Vestes & Manteaux"],
   [/^Extérieur/i, "Vestes & Manteaux"],
 
   // Pantalons & Shorts
   [/Pantalons|Pantacourts/i, "Pantalons & Shorts"],
   [/Bermudas|Shorts/i, "Pantalons & Shorts"],
+  [/Salopettes/i, "Pantalons & Shorts"],
   [/^Bas/i, "Pantalons & Shorts"],
 
   // Robes & Jupes
@@ -109,12 +114,19 @@ const TEXTILE_RULES: [RegExp, string][] = [
   // Tabliers
   [/Tabliers/i, "Tabliers"],
 
+  // Sous-vêtements & Nuit
+  [/Sous-vêtements/i, "Sous-vêtements"],
+  [/Pyjamas/i, "Sous-vêtements"],
+  [/Maillots de Corps/i, "Sous-vêtements"],
+
   // Accessoires textile
   [/Accessoires Vêtements/i, "Accessoires textile"],
   [/Headwear/i, "Accessoires textile"],
   [/^Head & multiwear/i, "Accessoires textile"],
   [/Foulards|Écharpes|Tours de cou/i, "Accessoires textile"],
   [/Bonnets|Casquettes|Bobs|Chapeau/i, "Accessoires textile"],
+  [/Bavoir|Étuis/i, "Accessoires textile"],
+  [/Parapluies/i, "Accessoires textile"],
 
   // Linge
   [/Linge de maison/i, "Linge de maison"],
@@ -126,13 +138,11 @@ const TEXTILE_RULES: [RegExp, string][] = [
 
   // Bagagerie
   [/Bagagerie/i, "Sacs & Bagagerie"],
+  [/Accessoires > Sacs/i, "Sacs & Bagagerie"],
   [/Packaging/i, "Sacs & Bagagerie"],
 
   // Chaussures
   [/Chaussures/i, "Chaussures"],
-
-  // Body
-  [/^Body/i, "T-shirts"],
 ];
 
 const SIGNALETIQUE_RULES: [RegExp, string][] = [
