@@ -68,6 +68,7 @@ const SubdomainAwareRoutes = () => {
           <Route path="/tenant/discounts" element={<TenantDiscountCodes />} />
           <Route path="/tenant/products" element={<TenantProducts />} />
           <Route path="/tenant/product-requests" element={<TenantProductRequests />} />
+          <Route path="/tenant/storefront" element={<Storefront />} />
         </Route>
 
         {/* Employee storefront */}
@@ -123,6 +124,7 @@ const SubdomainAwareRoutes = () => {
         <Route path="/tenant/products" element={<TenantProducts />} />
         
         <Route path="/tenant/product-requests" element={<TenantProductRequests />} />
+        <Route path="/tenant/storefront" element={<Storefront />} />
       </Route>
 
       {/* Employee storefront routes – shop_managers & dept_managers are redirected to /tenant */}
