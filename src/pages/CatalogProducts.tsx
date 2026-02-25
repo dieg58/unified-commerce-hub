@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import CatalogProductDetailDialog from "@/components/CatalogProductDetailDialog";
 import TopBar from "@/components/TopBar";
 import { SectionHeader } from "@/components/DashboardWidgets";
@@ -110,6 +110,9 @@ const CatalogProducts = () => {
     onError: (err: any) => toast.error(err.message),
   });
 
+  // Lightweight listing query: skip heavy JSONB columns for speed
+  const LISTING_COLUMNS = "id,name,name_en,name_nl,sku,category,base_price,description,description_en,description_nl,image_url,active,created_at,midocean_id,stock_qty,last_synced_at,is_new,release_date" as const;
+
   const { data: products, isLoading } = useQuery({
     queryKey: ["catalog-products"],
     queryFn: async () => {
@@ -119,7 +122,7 @@ const CatalogProducts = () => {
       while (true) {
         const { data, error } = await supabase
           .from("catalog_products")
-          .select("*")
+          .select(LISTING_COLUMNS)
           .order("created_at", { ascending: false })
           .range(from, from + PAGE - 1);
         if (error) throw error;
@@ -130,12 +133,46 @@ const CatalogProducts = () => {
       }
       return all;
     },
+    staleTime: 2 * 60 * 1000, // Cache for 2 minutes
   });
 
-  const tabProducts = useMemo(() => {
-    if (!products) return [];
-    return products.filter((p) => getCatalogTab(p) === activeTab);
-  }, [products, activeTab]);
+  // Precompute tab assignment ONCE per product set (avoid repeated regex per product)
+  const productsByTab = useMemo(() => {
+    if (!products) return { goodies: [] as CatalogProduct[], textile: [] as CatalogProduct[], autre: [] as CatalogProduct[] };
+    const result = { goodies: [] as CatalogProduct[], textile: [] as CatalogProduct[], autre: [] as CatalogProduct[] };
+    for (const p of products) {
+      result[getCatalogTab(p)].push(p);
+    }
+    return result;
+  }, [products]);
+
+  const tabProducts = productsByTab[activeTab];
+
+  // Fetch variant data lazily only when filter panel is open
+  const { data: variantData } = useQuery({
+    queryKey: ["catalog-variants"],
+    queryFn: async () => {
+      const map = new Map<string, { variant_colors: VariantColor[] | null; variant_sizes: string[] | null }>();
+      const PAGE = 1000;
+      let from = 0;
+      while (true) {
+        const { data, error } = await supabase
+          .from("catalog_products")
+          .select("id,variant_colors,variant_sizes")
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        for (const d of data) {
+          map.set(d.id, { variant_colors: d.variant_colors as any, variant_sizes: d.variant_sizes as any });
+        }
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+      return map;
+    },
+    enabled: showFilters, // Only fetch when filter panel is open
+    staleTime: 5 * 60 * 1000,
+  });
 
   // Goodies supplier filter
   const [goodiesSupplier, setGoodiesSupplier] = useState<"all" | "midocean" | "pfconcept" | "manual">("all");
@@ -169,11 +206,12 @@ const CatalogProducts = () => {
 
   // Available color FAMILIES across current filtered products
   const availableColorFamilies = useMemo(() => {
+    if (!variantData) return [];
     const familyMap = new Map<string, number>();
     supplierFilteredProducts.forEach((p) => {
-      const colors = p.variant_colors as VariantColor[] | null;
+      const vd = variantData.get(p.id);
+      const colors = vd?.variant_colors;
       if (!Array.isArray(colors)) return;
-      // Track families already counted for this product to avoid double-counting
       const seenFamilies = new Set<string>();
       colors.forEach((c) => {
         if (!c.color) return;
@@ -187,13 +225,15 @@ const CatalogProducts = () => {
     return Array.from(familyMap.entries())
       .sort(([, a], [, b]) => b - a)
       .map(([family, count]) => ({ family, hex: getColorFamilyHex(family), count }));
-  }, [supplierFilteredProducts]);
+  }, [supplierFilteredProducts, variantData]);
 
   // Available size GROUPS across current filtered products
   const availableSizeGroups = useMemo(() => {
+    if (!variantData) return [];
     const groupMap = new Map<string, number>();
     supplierFilteredProducts.forEach((p) => {
-      const sizes = p.variant_sizes as string[] | null;
+      const vd = variantData.get(p.id);
+      const sizes = vd?.variant_sizes;
       if (!Array.isArray(sizes)) return;
       const seenGroups = new Set<string>();
       sizes.forEach((s) => {
@@ -215,37 +255,39 @@ const CatalogProducts = () => {
         return a.localeCompare(b);
       })
       .map(([group, count]) => ({ group, count }));
-  }, [supplierFilteredProducts]);
+  }, [supplierFilteredProducts, variantData]);
 
   const newCount = supplierFilteredProducts.filter((p) => p.is_new).length;
 
   const filtered = useMemo(() => {
+    const searchLower = search.toLowerCase();
     return supplierFilteredProducts.filter((p) => {
-      // Double-check tab membership as safety net
-      if (getCatalogTab(p) !== activeTab) return false;
-
-      const matchesSearch =
-        p.name.toLowerCase().includes(search.toLowerCase()) ||
-        p.sku.toLowerCase().includes(search.toLowerCase()) ||
-        p.category.toLowerCase().includes(search.toLowerCase());
+      const matchesSearch = !search ||
+        p.name.toLowerCase().includes(searchLower) ||
+        p.sku.toLowerCase().includes(searchLower) ||
+        p.category.toLowerCase().includes(searchLower);
+      if (!matchesSearch) return false;
       const matchesGroup = filterGroup === "all" || getSimplifiedCategory(p.category, activeTab) === filterGroup;
+      if (!matchesGroup) return false;
       const matchesActive = filterActive === null || p.active === filterActive;
+      if (!matchesActive) return false;
       const matchesNew = !filterNew || p.is_new;
-      // Color filter (by family)
-      const matchesColor = filterColors.size === 0 || (() => {
-        const colors = p.variant_colors as VariantColor[] | null;
-        if (!Array.isArray(colors)) return false;
-        return colors.some((c) => filterColors.has(getColorFamily(c.color)));
-      })();
+      if (!matchesNew) return false;
+      // Color filter (by family) – uses lazy variant data
+      if (filterColors.size > 0) {
+        const vd = variantData?.get(p.id);
+        const colors = vd?.variant_colors;
+        if (!Array.isArray(colors) || !colors.some((c) => filterColors.has(getColorFamily(c.color)))) return false;
+      }
       // Size filter (by group)
-      const matchesSize = filterSizes.size === 0 || (() => {
-        const sizes = p.variant_sizes as string[] | null;
-        if (!Array.isArray(sizes)) return false;
-        return sizes.some((s) => filterSizes.has(getSizeGroup(s)));
-      })();
-      return matchesSearch && matchesGroup && matchesActive && matchesNew && matchesColor && matchesSize;
+      if (filterSizes.size > 0) {
+        const vd = variantData?.get(p.id);
+        const sizes = vd?.variant_sizes;
+        if (!Array.isArray(sizes) || !sizes.some((s) => filterSizes.has(getSizeGroup(s)))) return false;
+      }
+      return true;
     });
-  }, [supplierFilteredProducts, activeTab, search, filterGroup, filterActive, filterNew, filterColors, filterSizes]);
+  }, [supplierFilteredProducts, activeTab, search, filterGroup, filterActive, filterNew, filterColors, filterSizes, variantData]);
 
   const openCreate = () => {
     setEditing(null);
@@ -326,9 +368,22 @@ const CatalogProducts = () => {
   });
 
   const activeCount = supplierFilteredProducts.filter((p) => p.active).length;
-  const goodiesCount = products?.filter((p) => getCatalogTab(p) === "goodies").length || 0;
-  const textileCount = products?.filter((p) => getCatalogTab(p) === "textile").length || 0;
-  const autreCount = products?.filter((p) => getCatalogTab(p) === "autre").length || 0;
+  const goodiesCount = productsByTab.goodies.length;
+  const textileCount = productsByTab.textile.length;
+  const autreCount = productsByTab.autre.length;
+
+  // Client-side pagination for performance
+  const PAGE_SIZE = 100;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  // Reset visible count when filters change
+  const filteredKey = `${activeTab}-${filterGroup}-${search}-${filterActive}-${filterNew}-${filterColors.size}-${filterSizes.size}`;
+  const prevFilteredKey = useRef(filteredKey);
+  if (prevFilteredKey.current !== filteredKey) {
+    prevFilteredKey.current = filteredKey;
+    if (visibleCount !== PAGE_SIZE) setVisibleCount(PAGE_SIZE);
+  }
+  const visibleProducts = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
+  const hasMore = visibleCount < filtered.length;
 
   const syncPfConcept = useMutation({
     mutationFn: async () => {
@@ -787,8 +842,8 @@ const CatalogProducts = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((product, i) => (
-                    <TableRow key={product.id} className={`text-sm animate-fade-in cursor-pointer ${selected.has(product.id) ? "bg-primary/5" : ""}`} style={{ animationDelay: `${i * 30}ms` }} onClick={() => setPreviewProduct(product)}>
+                  {visibleProducts.map((product) => (
+                    <TableRow key={product.id} className={`text-sm cursor-pointer ${selected.has(product.id) ? "bg-primary/5" : ""}`} onClick={() => setPreviewProduct(product)}>
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <Checkbox
                           checked={selected.has(product.id)}
@@ -798,7 +853,7 @@ const CatalogProducts = () => {
                       <TableCell>
                         <div className="flex items-center gap-3">
                           {product.image_url ? (
-                            <img src={product.image_url} alt={product.name} className="w-10 h-10 rounded-md object-cover border border-border" />
+                            <img src={product.image_url} alt={product.name} className="w-10 h-10 rounded-md object-cover border border-border" loading="lazy" />
                           ) : (
                             <div className="w-10 h-10 rounded-md bg-secondary flex items-center justify-center">
                               <Package className="w-4 h-4 text-muted-foreground/30" />
@@ -807,7 +862,7 @@ const CatalogProducts = () => {
                           <div>
                             <div className="flex items-center gap-1.5">
                               <p className="font-medium text-foreground">{product.name}</p>
-                              {(product as any).is_new && (
+                              {product.is_new && (
                                 <Badge className="bg-amber-500/15 text-amber-600 border-amber-500/30 text-[9px] px-1.5 py-0 h-4 gap-0.5">
                                   <Sparkles className="w-2.5 h-2.5" />
                                   Nouveau
@@ -857,6 +912,14 @@ const CatalogProducts = () => {
                   ))}
                 </TableBody>
               </Table>
+              {/* Load more / pagination info */}
+              {hasMore && (
+                <div className="flex items-center justify-center py-4 border-t border-border">
+                  <Button variant="outline" size="sm" onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}>
+                    Afficher plus ({filtered.length - visibleCount} restants)
+                  </Button>
+                </div>
+              )}
             </>
           )}
         </div>
