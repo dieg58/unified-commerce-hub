@@ -51,6 +51,7 @@ type CatalogProduct = {
   release_date: string | null;
   variant_colors?: VariantColor[] | null;
   variant_sizes?: string[] | null;
+  brand?: string | null;
 };
 const getCatalogTab = (product: Pick<CatalogProduct, "midocean_id" | "category">): "goodies" | "textile" | "autre" => {
   return getCatalogTabByCategory(product.category, product.midocean_id);
@@ -131,7 +132,7 @@ const CatalogProducts = () => {
   });
 
   // Lightweight listing query: skip heavy JSONB columns for speed
-  const LISTING_COLUMNS = "id,name,name_en,name_nl,sku,category,base_price,description,description_en,description_nl,image_url,active,created_at,midocean_id,stock_qty,last_synced_at,is_new,release_date" as const;
+  const LISTING_COLUMNS = "id,name,name_en,name_nl,sku,category,base_price,description,description_en,description_nl,image_url,active,created_at,midocean_id,stock_qty,last_synced_at,is_new,release_date,brand" as const;
 
   const { data: products, isLoading } = useQuery({
     queryKey: ["catalog-products"],
@@ -197,6 +198,25 @@ const CatalogProducts = () => {
   // Goodies supplier filter
   const [goodiesSupplier, setGoodiesSupplier] = useState<"all" | "midocean" | "pfconcept" | "manual">("all");
   const [autreSupplier, setAutreSupplier] = useState<"all" | "printcom" | "manual">("all");
+  const [textileSupplier, setTextileSupplier] = useState<"all" | "stanleystella" | "toptex" | "manual">("all");
+  const [toptexBrandFilter, setToptexBrandFilter] = useState<string>("all");
+  const [toptexBrandManageOpen, setToptexBrandManageOpen] = useState(false);
+
+  // Extract unique TopTex brands from products
+  const toptexBrandsInCatalog = useMemo(() => {
+    if (!products) return [];
+    const brandMap = new Map<string, { total: number; active: number }>();
+    for (const p of products) {
+      if (!p.midocean_id?.startsWith("TT-") || !p.brand) continue;
+      const entry = brandMap.get(p.brand) || { total: 0, active: 0 };
+      entry.total++;
+      if (p.active) entry.active++;
+      brandMap.set(p.brand, entry);
+    }
+    return Array.from(brandMap.entries())
+      .map(([brand, stats]) => ({ brand, ...stats }))
+      .sort((a, b) => a.brand.localeCompare(b.brand));
+  }, [products]);
 
   // Filter by supplier within goodies tab
   const supplierFilteredProducts = useMemo(() => {
@@ -206,13 +226,24 @@ const CatalogProducts = () => {
       if (goodiesSupplier === "pfconcept") return tabProducts.filter((p) => p.midocean_id?.startsWith("PFC-"));
       return tabProducts.filter((p) => !p.midocean_id);
     }
+    if (activeTab === "textile") {
+      let filtered = tabProducts;
+      if (textileSupplier === "stanleystella") filtered = tabProducts.filter((p) => p.midocean_id?.startsWith("SS-"));
+      else if (textileSupplier === "toptex") filtered = tabProducts.filter((p) => p.midocean_id?.startsWith("TT-"));
+      else if (textileSupplier === "manual") filtered = tabProducts.filter((p) => !p.midocean_id);
+      // Further filter by TopTex brand
+      if (textileSupplier === "toptex" && toptexBrandFilter !== "all") {
+        filtered = filtered.filter((p) => p.brand === toptexBrandFilter);
+      }
+      return filtered;
+    }
     if (activeTab === "autre") {
       if (autreSupplier === "all") return tabProducts;
       if (autreSupplier === "printcom") return tabProducts.filter((p) => p.midocean_id?.startsWith("PRINT-"));
       return tabProducts.filter((p) => !p.midocean_id);
     }
     return tabProducts;
-  }, [tabProducts, goodiesSupplier, autreSupplier, activeTab]);
+  }, [tabProducts, goodiesSupplier, autreSupplier, textileSupplier, toptexBrandFilter, activeTab]);
 
   // Simplified categories with counts
   const simplifiedCategories = useMemo(() => {
@@ -583,7 +614,68 @@ const CatalogProducts = () => {
           </div>
         </Tabs>
 
-        {/* Supplier filter for goodies tab */}
+        {/* Supplier filter for textile tab */}
+        {activeTab === "textile" && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-xs text-muted-foreground mr-1">Fournisseur :</span>
+              {([
+                ["all", "Tous", tabProducts.length],
+                ["stanleystella", "Stanley/Stella", tabProducts.filter(p => p.midocean_id?.startsWith("SS-")).length],
+                ["toptex", "TopTex", tabProducts.filter(p => p.midocean_id?.startsWith("TT-")).length],
+                ["manual", "Manuel", tabProducts.filter(p => !p.midocean_id).length],
+              ] as [string, string, number][]).filter(([, , count]) => count > 0).map(([key, label, count]) => (
+                <Button
+                  key={key}
+                  size="sm"
+                  variant={textileSupplier === key ? "default" : "outline"}
+                  className="h-7 text-xs rounded-full px-3"
+                  onClick={() => { setTextileSupplier(key as any); setFilterGroup("all"); setToptexBrandFilter("all"); }}
+                >
+                  {label} ({count})
+                </Button>
+              ))}
+            </div>
+            {/* TopTex brand filter + management */}
+            {textileSupplier === "toptex" && toptexBrandsInCatalog.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap pl-4">
+                <span className="text-xs text-muted-foreground mr-1">Marque :</span>
+                <Button
+                  size="sm"
+                  variant={toptexBrandFilter === "all" ? "default" : "outline"}
+                  className="h-6 text-[11px] rounded-full px-2.5"
+                  onClick={() => setToptexBrandFilter("all")}
+                >
+                  Toutes ({tabProducts.filter(p => p.midocean_id?.startsWith("TT-")).length})
+                </Button>
+                {toptexBrandsInCatalog.map((b) => (
+                  <Button
+                    key={b.brand}
+                    size="sm"
+                    variant={toptexBrandFilter === b.brand ? "default" : "outline"}
+                    className="h-6 text-[11px] rounded-full px-2.5"
+                    onClick={() => setToptexBrandFilter(b.brand)}
+                  >
+                    {b.brand} ({b.total})
+                    {b.active < b.total && (
+                      <span className="ml-0.5 text-[9px] text-muted-foreground">· {b.active} actifs</span>
+                    )}
+                  </Button>
+                ))}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-6 text-[11px] rounded-full px-2.5 gap-1 ml-2"
+                  onClick={() => setToptexBrandManageOpen(true)}
+                >
+                  <Layers className="w-3 h-3" />
+                  Gérer marques
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
         {activeTab === "goodies" && (
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-xs text-muted-foreground mr-1">Fournisseur :</span>
@@ -1211,6 +1303,106 @@ const CatalogProducts = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* TopTex Brand Manage Dialog */}
+      <Dialog open={toptexBrandManageOpen} onOpenChange={setToptexBrandManageOpen}>
+        <DialogContent className="max-w-lg max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Gérer les marques TopTex</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs gap-1"
+                onClick={async () => {
+                  const ids = (products || []).filter(p => p.midocean_id?.startsWith("TT-")).map(p => p.id);
+                  if (!ids.length) return;
+                  const batchSize = 500;
+                  for (let i = 0; i < ids.length; i += batchSize) {
+                    await supabase.from("catalog_products").update({ active: true }).in("id", ids.slice(i, i + batchSize));
+                  }
+                  toast.success(`${ids.length} produits TopTex activés`);
+                  qc.invalidateQueries({ queryKey: ["catalog-products"] });
+                }}
+              >
+                <CheckCircle className="w-3.5 h-3.5" /> Tout activer
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs gap-1"
+                onClick={async () => {
+                  const ids = (products || []).filter(p => p.midocean_id?.startsWith("TT-")).map(p => p.id);
+                  if (!ids.length) return;
+                  const batchSize = 500;
+                  for (let i = 0; i < ids.length; i += batchSize) {
+                    await supabase.from("catalog_products").update({ active: false }).in("id", ids.slice(i, i + batchSize));
+                  }
+                  toast.success(`${ids.length} produits TopTex désactivés`);
+                  qc.invalidateQueries({ queryKey: ["catalog-products"] });
+                }}
+              >
+                <XCircle className="w-3.5 h-3.5" /> Tout désactiver
+              </Button>
+            </div>
+            <ScrollArea className="max-h-[55vh]">
+              <div className="space-y-1 pr-3">
+                {toptexBrandsInCatalog.map((b) => (
+                  <div
+                    key={b.brand}
+                    className="flex items-center justify-between p-2.5 rounded-lg border border-border hover:bg-muted/30"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{b.brand}</p>
+                      <p className="text-xs text-muted-foreground">{b.total} produits · {b.active} actifs</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs gap-1"
+                        onClick={async () => {
+                          const ids = (products || []).filter(p => p.midocean_id?.startsWith("TT-") && p.brand === b.brand).map(p => p.id);
+                          const batchSize = 500;
+                          for (let i = 0; i < ids.length; i += batchSize) {
+                            await supabase.from("catalog_products").update({ active: true }).in("id", ids.slice(i, i + batchSize));
+                          }
+                          toast.success(`${b.brand} : ${ids.length} produits activés`);
+                          qc.invalidateQueries({ queryKey: ["catalog-products"] });
+                        }}
+                      >
+                        <CheckCircle className="w-3 h-3" /> Activer
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs gap-1"
+                        onClick={async () => {
+                          const ids = (products || []).filter(p => p.midocean_id?.startsWith("TT-") && p.brand === b.brand).map(p => p.id);
+                          const batchSize = 500;
+                          for (let i = 0; i < ids.length; i += batchSize) {
+                            await supabase.from("catalog_products").update({ active: false }).in("id", ids.slice(i, i + batchSize));
+                          }
+                          toast.success(`${b.brand} : ${ids.length} produits désactivés`);
+                          qc.invalidateQueries({ queryKey: ["catalog-products"] });
+                        }}
+                      >
+                        <XCircle className="w-3 h-3" /> Désactiver
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                {toptexBrandsInCatalog.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-8">Aucune marque TopTex dans le catalogue. Lancez d'abord une synchronisation.</p>
+                )}
+              </div>
+            </ScrollArea>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <CatalogProductDetailDialog
         product={previewProduct}
         open={!!previewProduct}

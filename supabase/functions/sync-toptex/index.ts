@@ -351,6 +351,7 @@ Deno.serve(async (req) => {
               name_nl: designation.nl || null,
               sku: ref,
               category,
+              brand,
               description: desc.fr || null,
               description_en: desc.en || null,
               description_nl: desc.nl || null,
