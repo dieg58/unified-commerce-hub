@@ -73,20 +73,21 @@ const GOODIES_RULES: [RegExp, string][] = [
 ];
 
 const TEXTILE_RULES: [RegExp, string][] = [
-  // T-shirts
+  // T-shirts (must come before Shirts$ to avoid false match)
   [/T-shirts/i, "T-shirts"],
   [/^Tees/i, "T-shirts"],
+  [/Débardeurs/i, "T-shirts"],
 
   // Polos
   [/Polos/i, "Polos"],
 
-  // Sweats & Pulls
-  [/Sweats/i, "Sweats & Pulls"],
+  // Sweats & Pulls (use Sweat to match "Sweat-shirts", "Sweats", "Sweatshirts")
+  [/Sweat/i, "Sweats & Pulls"],
   [/Sweaters/i, "Sweats & Pulls"],
   [/Pullovers|Cardigans/i, "Sweats & Pulls"],
   [/^Pulls/i, "Sweats & Pulls"],
 
-  // Chemises
+  // Chemises (must come AFTER Sweat rules so "Sweat-shirts" doesn't match Shirts$)
   [/Chemises|Surchemises/i, "Chemises"],
   [/Shirts$/i, "Chemises"],
 
@@ -101,6 +102,9 @@ const TEXTILE_RULES: [RegExp, string][] = [
   [/Pantalons|Pantacourts/i, "Pantalons & Shorts"],
   [/Bermudas|Shorts/i, "Pantalons & Shorts"],
   [/^Bas/i, "Pantalons & Shorts"],
+
+  // Robes & Jupes
+  [/Robes|Jupes/i, "Robes & Jupes"],
 
   // Tabliers
   [/Tabliers/i, "Tabliers"],
