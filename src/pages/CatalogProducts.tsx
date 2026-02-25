@@ -67,6 +67,7 @@ const CatalogProducts = () => {
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<"goodies" | "textile" | "autre">("goodies");
   const [filterGroup, setFilterGroup] = useState<string>("all");
+  const [filterSubCategory, setFilterSubCategory] = useState<string>("all");
   const [filterColors, setFilterColors] = useState<Set<string>>(new Set());
   const [filterSizes, setFilterSizes] = useState<Set<string>>(new Set());
   const [showFilters, setShowFilters] = useState(false);
@@ -257,6 +258,23 @@ const CatalogProducts = () => {
       .map(([group, count]) => ({ group, count }));
   }, [supplierFilteredProducts, variantData]);
 
+  // Subcategories for the selected simplified category
+  const subCategories = useMemo(() => {
+    if (filterGroup === "all") return [];
+    const counts: Record<string, number> = {};
+    supplierFilteredProducts.forEach((p) => {
+      if (getSimplifiedCategory(p.category, activeTab) === filterGroup) {
+        // Use the raw category's last segment as subcategory
+        const parts = p.category.split(">");
+        const sub = parts.length > 1 ? parts.slice(1).join(">").trim() : p.category.trim();
+        counts[sub] = (counts[sub] || 0) + 1;
+      }
+    });
+    // Only show subcategories if there are at least 2 distinct ones
+    const entries = Object.entries(counts).sort(([, a], [, b]) => b - a);
+    return entries.length >= 2 ? entries : [];
+  }, [supplierFilteredProducts, activeTab, filterGroup]);
+
   const newCount = supplierFilteredProducts.filter((p) => p.is_new).length;
 
   const filtered = useMemo(() => {
@@ -269,6 +287,12 @@ const CatalogProducts = () => {
       if (!matchesSearch) return false;
       const matchesGroup = filterGroup === "all" || getSimplifiedCategory(p.category, activeTab) === filterGroup;
       if (!matchesGroup) return false;
+      // Subcategory filter
+      if (filterSubCategory !== "all") {
+        const parts = p.category.split(">");
+        const sub = parts.length > 1 ? parts.slice(1).join(">").trim() : p.category.trim();
+        if (sub !== filterSubCategory) return false;
+      }
       const matchesActive = filterActive === null || p.active === filterActive;
       if (!matchesActive) return false;
       const matchesNew = !filterNew || p.is_new;
@@ -287,7 +311,7 @@ const CatalogProducts = () => {
       }
       return true;
     });
-  }, [supplierFilteredProducts, activeTab, search, filterGroup, filterActive, filterNew, filterColors, filterSizes, variantData]);
+  }, [supplierFilteredProducts, activeTab, search, filterGroup, filterSubCategory, filterActive, filterNew, filterColors, filterSizes, variantData]);
 
   const openCreate = () => {
     setEditing(null);
@@ -376,7 +400,7 @@ const CatalogProducts = () => {
   const PAGE_SIZE = 100;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   // Reset visible count when filters change
-  const filteredKey = `${activeTab}-${filterGroup}-${search}-${filterActive}-${filterNew}-${filterColors.size}-${filterSizes.size}`;
+  const filteredKey = `${activeTab}-${filterGroup}-${filterSubCategory}-${search}-${filterActive}-${filterNew}-${filterColors.size}-${filterSizes.size}`;
   const prevFilteredKey = useRef(filteredKey);
   if (prevFilteredKey.current !== filteredKey) {
     prevFilteredKey.current = filteredKey;
@@ -591,7 +615,7 @@ const CatalogProducts = () => {
             size="sm"
             variant={filterGroup === "all" ? "default" : "outline"}
             className="h-7 text-xs rounded-full px-3"
-            onClick={() => setFilterGroup("all")}
+            onClick={() => { setFilterGroup("all"); setFilterSubCategory("all"); }}
           >
             Tout ({supplierFilteredProducts.length})
           </Button>
@@ -601,12 +625,37 @@ const CatalogProducts = () => {
               size="sm"
               variant={filterGroup === cat ? "default" : "outline"}
               className="h-7 text-xs rounded-full px-3"
-              onClick={() => setFilterGroup(cat)}
+              onClick={() => { setFilterGroup(cat); setFilterSubCategory("all"); }}
             >
               {cat} ({count})
             </Button>
           ))}
         </div>
+
+        {/* Subcategory pills */}
+        {subCategories.length > 0 && (
+          <div className="flex items-center gap-1.5 flex-wrap pl-4 border-l-2 border-primary/20">
+            <Button
+              size="sm"
+              variant={filterSubCategory === "all" ? "secondary" : "ghost"}
+              className="h-6 text-[11px] rounded-full px-2.5"
+              onClick={() => setFilterSubCategory("all")}
+            >
+              Tout
+            </Button>
+            {subCategories.map(([sub, count]) => (
+              <Button
+                key={sub}
+                size="sm"
+                variant={filterSubCategory === sub ? "secondary" : "ghost"}
+                className="h-6 text-[11px] rounded-full px-2.5"
+                onClick={() => setFilterSubCategory(sub)}
+              >
+                {sub} ({count})
+              </Button>
+            ))}
+          </div>
+        )}
 
         {/* Nouveautés + Active filter + Filters toggle + reset */}
         <div className="flex items-center gap-2 flex-wrap">
@@ -650,8 +699,8 @@ const CatalogProducts = () => {
             {showFilters ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
           </Button>
 
-          {(filterGroup !== "all" || filterActive !== null || filterNew || filterColors.size > 0 || filterSizes.size > 0) && (
-            <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground" onClick={() => { setFilterGroup("all"); setFilterActive(null); setFilterNew(false); setFilterColors(new Set()); setFilterSizes(new Set()); }}>
+          {(filterGroup !== "all" || filterSubCategory !== "all" || filterActive !== null || filterNew || filterColors.size > 0 || filterSizes.size > 0) && (
+            <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground" onClick={() => { setFilterGroup("all"); setFilterSubCategory("all"); setFilterActive(null); setFilterNew(false); setFilterColors(new Set()); setFilterSizes(new Set()); }}>
               Réinitialiser
             </Button>
           )}
