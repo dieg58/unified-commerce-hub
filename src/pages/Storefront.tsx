@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import VariantMatrixDialog from "@/components/VariantMatrixDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useCart } from "@/hooks/useCart";
@@ -31,6 +31,8 @@ import { useTranslation } from "react-i18next";
 
 const Storefront = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isTenantView = location.pathname.startsWith("/tenant/");
   const { profile, signOut } = useAuth();
   const { items, addItem, removeItem, updateQty, clear, total, count } = useCart();
   const { isFavorite, toggleFavorite } = useWishlist();
@@ -336,46 +338,48 @@ const Storefront = () => {
               );
             })()}
             <LanguageSwitcher variant="ghost" />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="relative p-2 rounded-md hover:bg-muted transition-colors">
-                  {profile?.full_name ? (
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white" style={{ backgroundColor: primaryColor }}>
-                      {profile.full_name.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2)}
-                    </div>
-                  ) : (
-                    <User className="w-5 h-5 text-foreground" />
+            {!isTenantView && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="relative p-2 rounded-md hover:bg-muted transition-colors">
+                    {profile?.full_name ? (
+                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white" style={{ backgroundColor: primaryColor }}>
+                        {profile.full_name.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2)}
+                      </div>
+                    ) : (
+                      <User className="w-5 h-5 text-foreground" />
+                    )}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  {profile && (
+                    <>
+                      <DropdownMenuLabel className="font-normal">
+                        <p className="text-sm font-medium truncate">{profile.full_name || profile.email}</p>
+                        <p className="text-xs text-muted-foreground truncate">{profile.email}</p>
+                      </DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                    </>
                   )}
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                {profile && (
-                  <>
-                    <DropdownMenuLabel className="font-normal">
-                      <p className="text-sm font-medium truncate">{profile.full_name || profile.email}</p>
-                      <p className="text-xs text-muted-foreground truncate">{profile.email}</p>
-                    </DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                  </>
-                )}
-                <DropdownMenuItem onClick={() => navigate("/shop")}>
-                  <Store className="w-4 h-4 mr-2" /> {t("nav.shop")}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate("/shop/wishlist")}>
-                  <Heart className="w-4 h-4 mr-2" /> {t("nav.myFavorites")}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate("/shop/orders")}>
-                  <ShoppingCart className="w-4 h-4 mr-2" /> {t("nav.myOrders")}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate("/shop/profile")}>
-                  <User className="w-4 h-4 mr-2" /> {t("nav.myProfile")}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={signOut} className="text-destructive focus:text-destructive">
-                  <LogOut className="w-4 h-4 mr-2" /> {t("common.logout")}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  <DropdownMenuItem onClick={() => navigate("/shop")}>
+                    <Store className="w-4 h-4 mr-2" /> {t("nav.shop")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate("/shop/wishlist")}>
+                    <Heart className="w-4 h-4 mr-2" /> {t("nav.myFavorites")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate("/shop/orders")}>
+                    <ShoppingCart className="w-4 h-4 mr-2" /> {t("nav.myOrders")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate("/shop/profile")}>
+                    <User className="w-4 h-4 mr-2" /> {t("nav.myProfile")}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={signOut} className="text-destructive focus:text-destructive">
+                    <LogOut className="w-4 h-4 mr-2" /> {t("common.logout")}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
             <Sheet open={cartOpen} onOpenChange={setCartOpen}>
               <SheetTrigger asChild>
                 <button className="relative p-2 rounded-md hover:bg-muted transition-colors">
