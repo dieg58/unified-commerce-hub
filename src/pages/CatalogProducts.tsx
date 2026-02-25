@@ -90,6 +90,24 @@ const CatalogProducts = () => {
     });
   };
 
+  const openPreview = useCallback(async (product: CatalogProduct) => {
+    try {
+      const { data, error } = await supabase
+        .from("catalog_products")
+        .select("variant_colors,variant_sizes")
+        .eq("id", product.id)
+        .single();
+      if (error) throw error;
+      setPreviewProduct({
+        ...product,
+        variant_colors: (data?.variant_colors as VariantColor[] | null) ?? null,
+        variant_sizes: (data?.variant_sizes as string[] | null) ?? null,
+      });
+    } catch {
+      setPreviewProduct(product);
+    }
+  }, []);
+
   const toggleSelectAll = () => {
     if (selected.size === filtered.length) {
       setSelected(new Set());
@@ -927,7 +945,7 @@ const CatalogProducts = () => {
                 </TableHeader>
                 <TableBody>
                   {visibleProducts.map((product) => (
-                    <TableRow key={product.id} className={`text-sm cursor-pointer ${selected.has(product.id) ? "bg-primary/5" : ""}`} onClick={() => setPreviewProduct(product)}>
+                    <TableRow key={product.id} className={`text-sm cursor-pointer ${selected.has(product.id) ? "bg-primary/5" : ""}`} onClick={() => openPreview(product)}>
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <Checkbox
                           checked={selected.has(product.id)}
@@ -980,7 +998,7 @@ const CatalogProducts = () => {
                             <Button variant="ghost" size="sm" className="h-8 w-8 p-0"><MoreHorizontal className="w-4 h-4" /></Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => setPreviewProduct(product)}>
+                            <DropdownMenuItem onClick={() => openPreview(product)}>
                               <Eye className="w-4 h-4 mr-2" /> Aperçu
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => openEdit(product)}>
