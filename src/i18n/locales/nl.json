@@ -704,5 +704,43 @@
   "tenantEntities": {
     "title": "Entiteiten",
     "subtitle": "Beheer afdelingen en entiteiten van uw winkel"
+  },
+  "tenantDash": {
+    "title": "Dashboard",
+    "welcome": "Welkom, {{name}}",
+    "myShop": "Mijn winkel",
+    "yourRole": "Uw rol",
+    "noRole": "geen",
+    "orders": "Bestellingen",
+    "revenue": "Omzet",
+    "products": "Producten",
+    "users": "Gebruikers",
+    "actionsRequired": "Acties vereist",
+    "order": "Bestelling",
+    "internal": "Intern",
+    "employee": "Medewerker",
+    "process": "Verwerken",
+    "newCatalogProducts": "Nieuwe producten van Inkoo",
+    "noCatalogProducts": "Momenteel geen nieuwe producten beschikbaar.",
+    "allCatalogAdded": "U heeft alle beschikbare producten al toegevoegd. 🎉",
+    "recentOrders": "Recente bestellingen",
+    "viewAll": "Alles bekijken",
+    "noOrders": "Geen bestellingen",
+    "roleShopManager": "Winkelbeheerder",
+    "roleDeptManager": "Afdelingsmanager",
+    "roleEmployee": "Medewerker"
+  },
+  "tenantOrders": {
+    "title": "Bestellingen",
+    "subtitle": "Beheer de bestellingen van uw winkel",
+    "all": "Alle",
+    "pending": "In afwachting",
+    "internal": "Intern",
+    "employee": "Medewerker",
+    "noOrders": "Geen bestellingen",
+    "approve": "Goedkeuren",
+    "reject": "Afwijzen",
+    "orderApproved": "Bestelling goedgekeurd",
+    "orderRejected": "Bestelling afgewezen"
   }
 }

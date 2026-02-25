@@ -29,11 +29,91 @@ const StorefrontLayout = () => {
 
   const showSidebar = isShopManager || isDeptManager || isSuperAdmin;
 
+  // Employee layout: top nav + bottom nav for mobile, no sidebar
   if (!showSidebar) {
     return (
-      <main className="min-h-screen bg-background">
-        <Outlet />
-      </main>
+      <div className="min-h-screen bg-background flex flex-col">
+        {/* Top navigation bar for employees */}
+        <header className="sticky top-0 z-40 bg-card border-b border-border">
+          <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {branding?.logo_url ? (
+                <img src={branding.logo_url} alt={storeName} className="h-7 object-contain" />
+              ) : (
+                <span className="font-semibold text-foreground text-sm">{storeName}</span>
+              )}
+            </div>
+            {/* Desktop nav links */}
+            <nav className="hidden sm:flex items-center gap-1">
+              {navItems.map((item) => {
+                const isActive =
+                  item.to === "/shop"
+                    ? location.pathname === "/shop" || location.pathname === "/" || location.pathname === "/store"
+                    : location.pathname.startsWith(item.to);
+                return (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    className={cn(
+                      "flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                      isActive
+                        ? "bg-primary/10 text-primary"
+                        : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                    )}
+                  >
+                    <item.icon className="w-4 h-4" />
+                    <span>{item.label}</span>
+                  </NavLink>
+                );
+              })}
+            </nav>
+            <div className="flex items-center gap-2">
+              <LanguageSwitcher variant="ghost" />
+              {profile && (
+                <span className="text-xs text-muted-foreground hidden sm:inline truncate max-w-[120px]">
+                  {profile.full_name || profile.email}
+                </span>
+              )}
+              <button
+                onClick={signOut}
+                className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                title={t("common.logout")}
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 pb-16 sm:pb-0">
+          <Outlet />
+        </main>
+
+        {/* Bottom navigation bar for mobile */}
+        <nav className="fixed bottom-0 left-0 right-0 z-40 bg-card border-t border-border sm:hidden">
+          <div className="flex items-center justify-around h-14">
+            {navItems.map((item) => {
+              const isActive =
+                item.to === "/shop"
+                  ? location.pathname === "/shop" || location.pathname === "/" || location.pathname === "/store"
+                  : location.pathname.startsWith(item.to);
+              return (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={cn(
+                    "flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-md transition-colors",
+                    isActive ? "text-primary" : "text-muted-foreground"
+                  )}
+                >
+                  <item.icon className="w-5 h-5" />
+                  <span className="text-[10px] font-medium">{item.label}</span>
+                </NavLink>
+              );
+            })}
+          </div>
+        </nav>
+      </div>
     );
   }
 

@@ -57,6 +57,7 @@ const SubdomainAwareRoutes = () => {
         <Route element={<RequireShopManager><TenantAdminLayout /></RequireShopManager>}>
           <Route path="/tenant" element={<TenantDashboard />} />
           <Route path="/tenant/orders" element={<TenantOrders />} />
+          <Route path="/tenant/orders/:orderId" element={<OrderDetail />} />
           <Route path="/tenant/approvals" element={<TenantApprovals />} />
           <Route path="/tenant/stats" element={<TenantStats />} />
           <Route path="/tenant/users" element={<TenantUsers />} />
@@ -108,6 +109,7 @@ const SubdomainAwareRoutes = () => {
       <Route element={<RequireTenantUser><TenantAdminLayout /></RequireTenantUser>}>
         <Route path="/tenant" element={<TenantDashboard />} />
         <Route path="/tenant/orders" element={<TenantOrders />} />
+        <Route path="/tenant/orders/:orderId" element={<OrderDetail />} />
         <Route path="/tenant/approvals" element={<TenantApprovals />} />
         <Route path="/tenant/stats" element={<TenantStats />} />
         <Route path="/tenant/users" element={<TenantUsers />} />

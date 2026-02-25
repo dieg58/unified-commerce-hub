@@ -704,5 +704,43 @@
   "tenantEntities": {
     "title": "Entities",
     "subtitle": "Manage departments and entities of your shop"
+  },
+  "tenantDash": {
+    "title": "Dashboard",
+    "welcome": "Welcome, {{name}}",
+    "myShop": "My shop",
+    "yourRole": "Your role",
+    "noRole": "none",
+    "orders": "Orders",
+    "revenue": "Revenue",
+    "products": "Products",
+    "users": "Users",
+    "actionsRequired": "Actions required",
+    "order": "Order",
+    "internal": "Internal",
+    "employee": "Employee",
+    "process": "Process",
+    "newCatalogProducts": "New products from Inkoo",
+    "noCatalogProducts": "No new products available at this time.",
+    "allCatalogAdded": "You have already added all available products. 🎉",
+    "recentOrders": "Recent orders",
+    "viewAll": "View all",
+    "noOrders": "No orders",
+    "roleShopManager": "Shop Manager",
+    "roleDeptManager": "Department Manager",
+    "roleEmployee": "Employee"
+  },
+  "tenantOrders": {
+    "title": "Orders",
+    "subtitle": "Manage your shop orders",
+    "all": "All",
+    "pending": "Pending",
+    "internal": "Internal",
+    "employee": "Employee",
+    "noOrders": "No orders",
+    "approve": "Approve",
+    "reject": "Reject",
+    "orderApproved": "Order approved",
+    "orderRejected": "Order rejected"
   }
 }
