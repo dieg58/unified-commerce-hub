@@ -58,11 +58,11 @@ const MyWishlist = () => {
 
   return (
     <div className="flex-1 flex flex-col overflow-auto">
-      <header className="sticky top-0 z-10 bg-background border-b border-border px-6 h-14 flex items-center gap-2">
+      <div className="bg-background border-b border-border px-6 h-14 flex items-center gap-2">
         <Heart className="w-5 h-5 text-primary fill-primary" />
         <h1 className="text-lg font-bold text-foreground">{t("wishlist.title")}</h1>
         <Badge variant="outline" className="ml-2 text-xs">{wishlistItems.length}</Badge>
-      </header>
+      </div>
 
       <div className="p-6">
         {!products?.length ? (

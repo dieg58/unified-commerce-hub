@@ -3,6 +3,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import { Store, ShoppingCart, User, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
+import StorefrontHeader from "@/components/StorefrontHeader";
 
 const StorefrontLayout = () => {
   const location = useLocation();
@@ -15,8 +16,13 @@ const StorefrontLayout = () => {
     { to: "/shop/profile", icon: User, label: t("nav.myProfile") },
   ];
 
+  // Pages that render their own header (Storefront has its own with cart/checkout logic)
+  const pagesWithOwnHeader = ["/shop", "/", "/store"];
+  const showSharedHeader = !pagesWithOwnHeader.includes(location.pathname) && !location.pathname.startsWith("/shop/product/");
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
+      {showSharedHeader && <StorefrontHeader />}
       <main className="flex-1 pb-16 sm:pb-0">
         <Outlet />
       </main>
