@@ -35,6 +35,7 @@ const Storefront = () => {
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [placing, setPlacing] = useState(false);
+  const [confirmedOrder, setConfirmedOrder] = useState<{ id: string; total: number; itemCount: number; needsApproval: boolean } | null>(null);
   const [billingEntityId, setBillingEntityId] = useState<string>("");
   const [shippingEntityId, setShippingEntityId] = useState<string>("");
   const [variantMatrixProduct, setVariantMatrixProduct] = useState<any | null>(null);
@@ -243,8 +244,8 @@ const Storefront = () => {
       if (iErr) throw iErr;
       const emailEvent = needsApproval ? "approval_required" : "order_confirmed";
       supabase.functions.invoke("send-order-email", { body: { order_id: order.id, event_type: emailEvent } }).catch((e) => console.warn("Email send failed:", e));
-      toast.success(needsApproval ? t("storefront.orderSubmitted") : t("storefront.orderConfirmed"));
-      clear(); setCheckoutOpen(false);
+      setConfirmedOrder({ id: order.id, total: orderTotal, itemCount: items.length, needsApproval: !!needsApproval });
+      clear(); setCheckoutOpen(false); setCartOpen(false);
     } catch (err: any) {
       toast.error(err.message);
     } finally { setPlacing(false); }
@@ -636,6 +637,46 @@ const Storefront = () => {
           }}
         />
       )}
+
+      {/* Order Confirmation Dialog */}
+      <Dialog open={!!confirmedOrder} onOpenChange={(v) => { if (!v) setConfirmedOrder(null); }}>
+        <DialogContent className="sm:max-w-md text-center">
+          <div className="flex flex-col items-center gap-4 py-4">
+            <div className="w-16 h-16 rounded-full bg-success/10 flex items-center justify-center">
+              <CheckCircle className="w-8 h-8 text-success" />
+            </div>
+            <h2 className="text-xl font-bold text-foreground">
+              {confirmedOrder?.needsApproval ? t("storefront.orderSubmitted") : t("storefront.orderConfirmed")}
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              {t("storefront.orderNumber")}: <span className="font-mono font-semibold">{confirmedOrder?.id?.slice(0, 8)}</span>
+            </p>
+            <div className="rounded-lg border border-border p-4 w-full text-left space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">{t("common.total")}</span>
+                <span className="font-bold">{formatCurrency(confirmedOrder?.total || 0)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">{t("storefront.itemCount")}</span>
+                <span>{confirmedOrder?.itemCount}</span>
+              </div>
+            </div>
+            {confirmedOrder?.needsApproval && (
+              <p className="text-xs text-warning flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5" /> {t("storefront.pendingApprovalNote")}
+              </p>
+            )}
+            <div className="flex gap-2 w-full pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => { setConfirmedOrder(null); navigate("/shop/orders"); }}>
+                {t("nav.myOrders")}
+              </Button>
+              <Button className="flex-1" style={{ backgroundColor: primaryColor }} onClick={() => setConfirmedOrder(null)}>
+                {t("storefront.continueShopping")}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

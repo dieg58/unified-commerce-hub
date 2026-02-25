@@ -10,13 +10,12 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
-import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   ArrowLeft, Loader2, Plus, Pencil, Save, X, MoreHorizontal, Trash2,
   Building2, ShoppingCart, Wallet, Package, Palette, Users, Store,
-  CheckCircle, XCircle, Eye, Mail, Send, Clock, UserPlus, Tag, Sparkles, MapPin, Boxes, AlertTriangle,
+  CheckCircle, Eye, Tag, Sparkles, Boxes, AlertTriangle,
   ArrowUpCircle, ArrowDownCircle, RefreshCw, History, Truck
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -26,6 +25,7 @@ import { toast } from "sonner";
 import ExportMenu from "@/components/ExportMenu";
 import { fmtDate } from "@/lib/export-utils";
 import VariantAxisEditor, { variantsToAxesAndCombinations, type VariantAxis, type VariantCombination } from "@/components/VariantAxisEditor";
+import { UsersTab, EntitiesTab, OrdersTab, BudgetsTab } from "@/components/tenant-detail";
 
 const TenantDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -156,7 +156,7 @@ const TenantDetail = () => {
     <>
       <TopBar
         title={tenant.name}
-        subtitle={`${tenant.slug}.domain.com · Gestion complète`}
+        subtitle={`${tenant.slug}.inkoo.eu · Gestion complète`}
       />
       <div className="p-6 space-y-6 overflow-auto">
         {/* Header */}
@@ -176,7 +176,7 @@ const TenantDetail = () => {
               <h1 className="text-xl font-bold text-foreground">{tenant.name}</h1>
               <div className="flex items-center gap-2 mt-0.5">
                 <StatusBadge status={tenant.status} />
-                <span className="font-mono text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded">{tenant.slug}.domain.com</span>
+                <span className="font-mono text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded">{tenant.slug}.inkoo.eu</span>
               </div>
             </div>
           </div>
@@ -253,203 +253,7 @@ const TenantDetail = () => {
   );
 };
 
-/* ─── Users Tab ─── */
-function UsersTab({ tenantId, users }: { tenantId: string; users: any[] }) {
-  const qc = useQueryClient();
-  const [showInvite, setShowInvite] = useState(false);
-  const [invEmail, setInvEmail] = useState("");
-  const [invName, setInvName] = useState("");
-  const [invRole, setInvRole] = useState("employee");
 
-  const roleLabels: Record<string, string> = {
-    super_admin: "Super Admin", shop_manager: "Responsable Boutique",
-    dept_manager: "Responsable Département", employee: "Employé",
-  };
-
-  const invitations = useQuery({
-    queryKey: ["invitations", tenantId],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("invitations").select("*").eq("tenant_id", tenantId).order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const invite = useMutation({
-    mutationFn: async () => {
-      // Create invitation record
-      const { data: { session } } = await supabase.auth.getSession();
-      const { error: invErr } = await supabase.from("invitations").upsert({
-        tenant_id: tenantId, email: invEmail.toLowerCase(), full_name: invName,
-        role: invRole as any, invited_by: session!.user.id, status: "pending", accepted_at: null,
-      }, { onConflict: "tenant_id,email" });
-      if (invErr) throw invErr;
-      // Call edge function
-      const { data, error } = await supabase.functions.invoke("invite-user", {
-        body: { email: invEmail, full_name: invName, role: invRole, tenant_id: tenantId },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-    },
-    onSuccess: () => {
-      toast.success("Invitation envoyée !");
-      setShowInvite(false); setInvEmail(""); setInvName(""); setInvRole("employee");
-      qc.invalidateQueries({ queryKey: ["boutique-users", tenantId] });
-      qc.invalidateQueries({ queryKey: ["invitations", tenantId] });
-    },
-    onError: (err: any) => toast.error(err.message),
-  });
-
-  const resendInvite = useMutation({
-    mutationFn: async (inv: any) => {
-      const { data, error } = await supabase.functions.invoke("invite-user", {
-        body: { email: inv.email, full_name: inv.full_name, role: inv.role, tenant_id: tenantId },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-    },
-    onSuccess: () => toast.success("Invitation renvoyée !"),
-    onError: (err: any) => toast.error(err.message),
-  });
-
-  const removeUser = useMutation({
-    mutationFn: async (userId: string) => {
-      // Remove roles
-      const { error: rErr } = await supabase.from("user_roles").delete().eq("user_id", userId);
-      if (rErr) throw rErr;
-      // Detach from tenant
-      const { error: pErr } = await supabase.from("profiles").update({ tenant_id: null }).eq("id", userId);
-      if (pErr) throw pErr;
-    },
-    onSuccess: () => {
-      toast.success("Utilisateur retiré de la boutique");
-      qc.invalidateQueries({ queryKey: ["boutique-users", tenantId] });
-    },
-    onError: (err: any) => toast.error(err.message),
-  });
-
-  return (
-    <div className="space-y-4">
-      {/* Invite dialog */}
-      <Dialog open={showInvite} onOpenChange={setShowInvite}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Inviter un utilisateur</DialogTitle></DialogHeader>
-          <div className="space-y-4 pt-2">
-            <div><Label className="text-xs">Nom complet</Label><Input value={invName} onChange={(e) => setInvName(e.target.value)} placeholder="Jean Dupont" /></div>
-            <div><Label className="text-xs">Email</Label><Input type="email" value={invEmail} onChange={(e) => setInvEmail(e.target.value)} placeholder="jean@example.com" /></div>
-            <div><Label className="text-xs">Rôle</Label>
-              <Select value={invRole} onValueChange={setInvRole}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="shop_manager">Responsable Boutique</SelectItem>
-                  <SelectItem value="dept_manager">Responsable Département</SelectItem>
-                  <SelectItem value="employee">Employé</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <Button className="w-full gap-1.5" disabled={!invEmail || invite.isPending} onClick={() => invite.mutate()}>
-              {invite.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Envoyer l'invitation
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Pending invitations */}
-      {invitations.data && invitations.data.filter((i) => i.status === "pending").length > 0 && (
-        <div className="bg-card rounded-lg border border-warning/30 shadow-card">
-          <div className="p-4 border-b border-border flex items-center gap-2">
-            <Clock className="w-4 h-4 text-warning" />
-            <h3 className="text-sm font-semibold">Invitations en attente ({invitations.data.filter((i) => i.status === "pending").length})</h3>
-          </div>
-          <div className="divide-y divide-border">
-            {invitations.data.filter((i) => i.status === "pending").map((inv) => (
-              <div key={inv.id} className="px-5 py-3 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium">{inv.full_name || inv.email}</p>
-                  <p className="text-xs text-muted-foreground">{inv.email} · {roleLabels[inv.role] || inv.role}</p>
-                </div>
-                <Button size="sm" variant="outline" className="gap-1" disabled={resendInvite.isPending} onClick={() => resendInvite.mutate(inv)}>
-                  <Mail className="w-3.5 h-3.5" /> Renvoyer
-                </Button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Users table */}
-      <div className="bg-card rounded-lg border border-border shadow-card">
-        <div className="p-5 border-b border-border flex items-center justify-between">
-          <SectionHeader title={`Utilisateurs (${users.length})`} />
-          <Button size="sm" className="gap-1.5" onClick={() => setShowInvite(true)}>
-            <UserPlus className="w-4 h-4" /> Inviter
-          </Button>
-        </div>
-        {!users.length ? (
-          <div className="p-8 text-center"><Users className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" /><p className="text-sm text-muted-foreground">Aucun utilisateur</p></div>
-        ) : (
-          <Table><TableHeader><TableRow>
-             <TableHead className="text-xs">Nom</TableHead><TableHead className="text-xs">Email</TableHead>
-             <TableHead className="text-xs">Rôle</TableHead><TableHead className="text-xs">Inscrit le</TableHead>
-             <TableHead className="text-xs w-10"></TableHead>
-           </TableRow></TableHeader><TableBody>
-             {users.map((u) => {
-               const roles = (u.user_roles as any[]) || [];
-               const role = roles[0]?.role || "employee";
-               return (<TableRow key={u.id} className="text-sm">
-                 <TableCell className="font-medium">{u.full_name || "—"}</TableCell>
-                 <TableCell className="text-muted-foreground">{u.email}</TableCell>
-                 <TableCell><Badge variant="outline" className="text-xs">{roleLabels[role] || role}</Badge></TableCell>
-                 <TableCell className="text-xs text-muted-foreground">{new Date(u.created_at).toLocaleDateString("fr-FR")}</TableCell>
-                 <TableCell>
-                   <DropdownMenu>
-                     <DropdownMenuTrigger asChild>
-                       <Button variant="ghost" size="sm" className="h-8 w-8 p-0"><MoreHorizontal className="w-4 h-4" /></Button>
-                     </DropdownMenuTrigger>
-                     <DropdownMenuContent align="end">
-                       <DropdownMenuItem className="text-destructive" onClick={() => { if (confirm("Retirer cet utilisateur de la boutique ?")) removeUser.mutate(u.id); }}>
-                         <Trash2 className="w-4 h-4 mr-2" /> Retirer de la boutique
-                       </DropdownMenuItem>
-                     </DropdownMenuContent>
-                   </DropdownMenu>
-                 </TableCell>
-               </TableRow>);
-             })}
-           </TableBody></Table>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ─── Entities Tab ─── */
-function EntitiesTab({ tenantId, entities }: { tenantId: string; entities: any[] }) {
-  return (
-    <div className="bg-card rounded-lg border border-border shadow-card">
-      <div className="p-5 border-b border-border"><SectionHeader title={`Entités (${entities.length})`} /></div>
-      {!entities.length ? (
-        <div className="p-8 text-center"><Building2 className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" /><p className="text-sm text-muted-foreground">Aucune entité</p></div>
-      ) : (
-        <Table><TableHeader><TableRow>
-          <TableHead className="text-xs">Nom</TableHead><TableHead className="text-xs">Code</TableHead>
-          <TableHead className="text-xs">TVA</TableHead><TableHead className="text-xs">Taux TVA</TableHead>
-          <TableHead className="text-xs">Approbation</TableHead><TableHead className="text-xs">Paiement</TableHead>
-        </TableRow></TableHeader><TableBody>
-          {entities.map((e) => (
-            <TableRow key={e.id} className="text-sm">
-              <TableCell className="font-medium">{e.name}</TableCell>
-              <TableCell className="font-mono text-xs text-muted-foreground">{e.code}</TableCell>
-              <TableCell className="text-xs text-muted-foreground">{e.vat || "—"}</TableCell>
-              <TableCell>{e.vat_rate}%</TableCell>
-              <TableCell><Badge variant="outline" className={`text-[10px] ${e.requires_approval ? "bg-warning/10 text-warning" : "bg-muted"}`}>{e.requires_approval ? "Requise" : "Non"}</Badge></TableCell>
-              <TableCell><Badge variant="outline" className={`text-[10px] ${e.payment_on_order ? "bg-primary/10 text-primary" : "bg-muted"}`}>{e.payment_on_order ? "À la commande" : "Sur facture"}</Badge></TableCell>
-            </TableRow>
-          ))}
-        </TableBody></Table>
-      )}
-    </div>
-  );
-}
 
 /* ─── Products Tab ─── */
 function ProductsTab({ tenantId, products, categories }: { tenantId: string; products: any[]; categories: any[] }) {
@@ -1201,242 +1005,10 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
     </div>
   );
 }
-function OrdersTab({ tenantId, orders, entities, users }: { tenantId: string; orders: any[]; entities?: any[]; users?: any[] }) {
-  const qc = useQueryClient();
-  const [viewOrder, setViewOrder] = useState<any>(null);
 
-  const updateStatus = useMutation({
-    mutationFn: async ({ orderId, status }: { orderId: string; status: string }) => {
-      const { error } = await supabase.from("orders").update({ status }).eq("id", orderId);
-      if (error) throw error;
-    },
-    onSuccess: (_, { status }) => {
-      toast.success(`Commande ${status === "approved" ? "approuvée" : status === "rejected" ? "rejetée" : status}`);
-      qc.invalidateQueries({ queryKey: ["orders", tenantId] });
-    },
-    onError: (err: any) => toast.error(err.message),
-  });
 
-  const pendingCount = orders?.filter(o => o.status === "pending" || o.status === "pending_approval").length || 0;
 
-  return (
-    <div className="bg-card rounded-lg border border-border shadow-card">
-      <div className="p-5 border-b border-border">
-        <SectionHeader
-          title={`Commandes (${orders.length})`}
-          action={pendingCount > 0 ? (
-            <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20 text-xs">{pendingCount} en attente</Badge>
-          ) : null}
-        />
-      </div>
-      {!orders?.length ? (
-        <p className="p-8 text-center text-sm text-muted-foreground">Aucune commande</p>
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="text-xs">ID</TableHead>
-              <TableHead className="text-xs">Utilisateur</TableHead>
-              <TableHead className="text-xs">Type</TableHead>
-              <TableHead className="text-xs">Articles</TableHead>
-              <TableHead className="text-xs">Total</TableHead>
-              <TableHead className="text-xs">Statut</TableHead>
-              <TableHead className="text-xs">Date</TableHead>
-              <TableHead className="text-xs w-10"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {orders.map((o) => {
-              const profile = o.profiles as any;
-              const items = o.order_items as any[];
-              const totalItems = items?.reduce((s: number, i: any) => s + (i.qty || 0), 0) || 0;
-              const isPending = o.status === "pending" || o.status === "pending_approval";
-              return (
-                <TableRow key={o.id} className="text-sm">
-                  <TableCell className="font-mono text-xs">{o.id.slice(0, 8)}</TableCell>
-                  <TableCell className="font-medium">{profile?.full_name || profile?.email || "—"}</TableCell>
-                  <TableCell>
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${o.store_type === "bulk" ? "bg-primary/10 text-primary" : "bg-accent/10 text-accent"}`}>
-                      {o.store_type}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{totalItems} article{totalItems > 1 ? "s" : ""}</TableCell>
-                  <TableCell className="font-medium">{formatCurrency(Number(o.total))}</TableCell>
-                  <TableCell><StatusBadge status={o.status} /></TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{new Date(o.created_at).toLocaleDateString("fr-FR")}</TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0"><MoreHorizontal className="w-4 h-4" /></Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => setViewOrder(o)}>
-                          <Eye className="w-4 h-4 mr-2" /> Voir détails
-                        </DropdownMenuItem>
-                        {isPending && (
-                          <>
-                            <DropdownMenuItem onClick={() => updateStatus.mutate({ orderId: o.id, status: "approved" })}>
-                              <CheckCircle className="w-4 h-4 mr-2" /> Approuver
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => updateStatus.mutate({ orderId: o.id, status: "rejected" })}>
-                              <XCircle className="w-4 h-4 mr-2" /> Rejeter
-                            </DropdownMenuItem>
-                          </>
-                        )}
-                        {o.status === "approved" && (
-                          <DropdownMenuItem onClick={() => updateStatus.mutate({ orderId: o.id, status: "processing" })}>
-                            <Package className="w-4 h-4 mr-2" /> En traitement
-                          </DropdownMenuItem>
-                        )}
-                        {o.status === "processing" && (
-                          <DropdownMenuItem onClick={() => updateStatus.mutate({ orderId: o.id, status: "shipped" })}>
-                            <ShoppingCart className="w-4 h-4 mr-2" /> Expédié
-                          </DropdownMenuItem>
-                        )}
-                        {o.status === "shipped" && (
-                          <DropdownMenuItem onClick={() => updateStatus.mutate({ orderId: o.id, status: "delivered" })}>
-                            <CheckCircle className="w-4 h-4 mr-2" /> Livré
-                          </DropdownMenuItem>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      )}
 
-      {/* Order detail dialog */}
-      <Dialog open={!!viewOrder} onOpenChange={(v) => { if (!v) setViewOrder(null); }}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Commande {viewOrder?.id?.slice(0, 8)}</DialogTitle>
-          </DialogHeader>
-          {viewOrder && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-muted-foreground text-xs">Client</p>
-                  <p className="font-medium">{(viewOrder.profiles as any)?.full_name || "—"}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground text-xs">Type</p>
-                  <p className="font-medium capitalize">{viewOrder.store_type}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground text-xs">Total</p>
-                  <p className="font-bold text-lg">{formatCurrency(Number(viewOrder.total))}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground text-xs">Statut</p>
-                  <StatusBadge status={viewOrder.status} />
-                </div>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-2">Articles</p>
-                <div className="space-y-2">
-                  {(viewOrder.order_items as any[])?.map((item: any, i: number) => (
-                    <div key={i} className="flex justify-between items-center p-2 rounded bg-secondary/50 text-sm">
-                      <span>{item.products?.name || "Produit"} × {item.qty}</span>
-                      <span className="font-medium">{formatCurrency(Number(item.unit_price) * item.qty)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-
-/* ─── Budgets Tab ─── */
-function BudgetsTab({ tenantId, budgets, entities }: { tenantId: string; budgets: any[]; entities: any[] }) {
-  const qc = useQueryClient();
-  const [editing, setEditing] = useState<string | null>(null);
-  const [editAmount, setEditAmount] = useState("");
-
-  const updateBudget = useMutation({
-    mutationFn: async ({ budgetId, amount }: { budgetId: string; amount: number }) => {
-      const { error } = await supabase.from("budgets").update({ amount }).eq("id", budgetId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Budget mis à jour");
-      qc.invalidateQueries({ queryKey: ["budgets", tenantId] });
-      setEditing(null);
-    },
-    onError: (err: any) => toast.error(err.message),
-  });
-
-  return (
-    <div className="bg-card rounded-lg border border-border shadow-card">
-      <div className="p-5 border-b border-border">
-        <SectionHeader title={`Budgets (${budgets.length})`} />
-      </div>
-      {!budgets.length ? (
-        <p className="p-8 text-center text-sm text-muted-foreground">Aucun budget</p>
-      ) : (
-        <div className="divide-y divide-border">
-          {budgets.map((b) => {
-            const amount = Number(b.amount);
-            const spent = Number(b.spent);
-            const pct = amount > 0 ? Math.round((spent / amount) * 100) : 0;
-            const isWarning = pct >= 80;
-            const isBlocked = pct > 100;
-            const isEditing = editing === b.id;
-            return (
-              <div key={b.id} className={`p-5 ${isBlocked ? "bg-destructive/5" : ""}`}>
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{(b.entities as any)?.name || "—"}</p>
-                    <p className="text-xs text-muted-foreground capitalize">{b.store_type} · {b.period}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {isEditing ? (
-                      <div className="flex items-center gap-1">
-                        <Input
-                          type="number"
-                          value={editAmount}
-                          onChange={(e) => setEditAmount(e.target.value)}
-                          className="h-7 w-24 text-xs"
-                          min="0"
-                          step="0.01"
-                        />
-                        <Button size="sm" className="h-7 text-xs" onClick={() => updateBudget.mutate({ budgetId: b.id, amount: parseFloat(editAmount) || 0 })}>
-                          <Save className="w-3 h-3" />
-                        </Button>
-                        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditing(null)}>
-                          <X className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="text-right">
-                        <p className={`text-sm font-semibold ${isBlocked ? "text-destructive" : isWarning ? "text-warning" : "text-foreground"}`}>
-                          {formatCurrency(spent)} <span className="text-muted-foreground font-normal">/ {formatCurrency(amount)}</span>
-                        </p>
-                        <Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground" onClick={() => { setEditing(b.id); setEditAmount(amount.toString()); }}>
-                          <Pencil className="w-3 h-3 mr-1" /> Modifier
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Progress value={Math.min(pct, 100)} className={`h-2 flex-1 ${isBlocked ? "[&>div]:bg-destructive" : isWarning ? "[&>div]:bg-warning" : ""}`} />
-                  <span className={`text-xs font-bold min-w-[40px] text-right ${isBlocked ? "text-destructive" : isWarning ? "text-warning" : "text-muted-foreground"}`}>{pct}%</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
 
 /* ─── Branding Tab ─── */
 function BrandingTab({ tenant, branding }: { tenant: any; branding: any }) {
