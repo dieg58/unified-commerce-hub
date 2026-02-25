@@ -304,11 +304,8 @@ const Storefront = () => {
             {logoUrl ? (
               <img src={logoUrl} alt={tenantName} className="h-8 object-contain" />
             ) : (
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold text-white" style={{ backgroundColor: primaryColor }}>
-                {tenantName.charAt(0)}
-              </div>
+              <span className="font-semibold text-foreground text-sm">{tenantName}</span>
             )}
-            <span className="font-semibold text-foreground text-sm hidden sm:inline">{tenantName}</span>
           </div>
           <div className="flex items-center gap-2">
             <button
