@@ -54,6 +54,9 @@ const SubdomainAwareRoutes = () => {
         <Route path="/login" element={<Login />} />
         <Route path="/reset-password" element={<ResetPassword />} />
 
+        {/* Public landing page for subdomain */}
+        <Route path="/" element={<LandingPage />} />
+
         {/* Tenant admin routes for shop_manager / dept_manager */}
         <Route element={<RequireShopManager><TenantAdminLayout /></RequireShopManager>}>
           <Route path="/tenant" element={<TenantDashboard />} />
@@ -73,7 +76,7 @@ const SubdomainAwareRoutes = () => {
 
         {/* Employee storefront */}
         <Route element={<RequireEmployee><StorefrontLayout /></RequireEmployee>}>
-          <Route path="/" element={<Storefront />} />
+          <Route path="/shop" element={<Storefront />} />
           <Route path="/shop" element={<Storefront />} />
           <Route path="/shop/product/:productId" element={<ProductDetail />} />
           <Route path="/shop/wishlist" element={<MyWishlist />} />
