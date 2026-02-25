@@ -94,6 +94,21 @@ const Storefront = () => {
     enabled: !!tenantId,
   });
 
+  // Employee personal budget
+  const { data: userBudget } = useQuery({
+    queryKey: ["user-budget", profile?.id, tenantId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("user_budgets")
+        .select("*")
+        .eq("user_id", profile!.id)
+        .eq("tenant_id", tenantId!);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!profile?.id && !!tenantId,
+  });
+
   const { data: shippingConfig } = useQuery({
     queryKey: ["store-shipping", tenantId],
     queryFn: async () => {
@@ -279,6 +294,20 @@ const Storefront = () => {
             >
               {t("storefront.staffStore")}
             </button>
+            {/* Employee budget indicator */}
+            {storeType === "staff" && userBudget && userBudget.length > 0 && (() => {
+              const ub = userBudget[0];
+              const remaining = Number(ub.amount) - Number(ub.spent);
+              const pct = Number(ub.amount) > 0 ? (Number(ub.spent) / Number(ub.amount)) * 100 : 0;
+              return (
+                <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-md bg-muted text-xs">
+                  <span className="text-muted-foreground">{t("storefront.budgetRemaining")}:</span>
+                  <span className={`font-semibold ${remaining <= 0 ? "text-destructive" : pct > 80 ? "text-warning" : "text-success"}`}>
+                    {formatCurrency(remaining)}
+                  </span>
+                </div>
+              );
+            })()}
             <Sheet open={cartOpen} onOpenChange={setCartOpen}>
               <SheetTrigger asChild>
                 <button className="relative p-2 rounded-md hover:bg-muted transition-colors ml-2">
