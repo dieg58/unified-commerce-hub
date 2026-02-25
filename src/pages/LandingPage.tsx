@@ -14,6 +14,7 @@ import DemoRequestDialog from "@/components/DemoRequestDialog";
 import LoginDialog from "@/components/LoginDialog";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useTranslation } from "react-i18next";
+import PlatformShowcase from "@/components/landing/PlatformShowcase";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -223,6 +224,9 @@ const LandingPage = () => {
           </div>
         </div>
       </section>
+
+      {/* Platform showcase (screenshots) */}
+      <PlatformShowcase />
 
       {/* Platform features */}
       <section id="platform" className="py-24 md:py-32 bg-secondary/50">
