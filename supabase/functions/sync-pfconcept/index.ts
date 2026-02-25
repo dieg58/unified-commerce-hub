@@ -143,11 +143,6 @@ async function* streamModels(
       }
     }
   } finally {
-    try {
-      await reader.cancel();
-    } catch {
-      // ignore
-    }
     controller.abort();
     try {
       reader.releaseLock();
@@ -238,6 +233,23 @@ Deno.serve(async (req) => {
     // Distributor-specific unique codes for price and stock feeds
     const pfPriceCode = Deno.env.get("PF_CONCEPT_PRICE_CODE");
     const pfStockCode = Deno.env.get("PF_CONCEPT_STOCK_CODE");
+
+    const missingSecrets: string[] = [];
+    if (!pfPriceCode) missingSecrets.push("PF_CONCEPT_PRICE_CODE");
+    if (!pfStockCode) missingSecrets.push("PF_CONCEPT_STOCK_CODE");
+    if (missingSecrets.length > 0) {
+      return new Response(
+        JSON.stringify({
+          error: "Missing required PF Concept secrets",
+          missing: missingSecrets,
+          hint: "Configure the missing secrets, then retry sync.",
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
 
     // ── 1. Fetch price feed ──
     const priceMap = new Map<string, number>();
@@ -350,131 +362,146 @@ Deno.serve(async (req) => {
     }
 
     let timedOut = false;
+    let hasMore = false;
     const deadlineAt = performance.now() + MAX_CPU_MS;
 
-    const productData = await fetchJson(PRODUCT_FEED, pfEmail || undefined, pfPassword || undefined);
-    const allModels = productData?.pfcProductfeed?.productfeed?.models
-      || productData?.productfeed?.models
-      || productData?.models
-      || [];
+    // Stream product feed to avoid loading the full JSON in memory
+    // We request one extra model to detect whether more data exists.
+    const streamLimit = offset + limit + 1;
 
-    if (!Array.isArray(allModels)) {
-      return new Response(JSON.stringify({ error: "Unexpected PF product feed structure" }), {
-        status: 502,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    try {
+      let seen = 0;
 
-    const selectedModels = allModels.slice(offset, offset + limit);
-
-    for (const modelEntry of selectedModels) {
-      if (performance.now() > deadlineAt) {
-        timedOut = true;
-        break;
-      }
-
-      total++;
-      try {
-        // Structure: { model: { modelCode, description, items: [{item: {...}}, ...], ... } }
-        const model = modelEntry?.model || modelEntry;
-        const modelCode = model?.modelCode;
-        if (!modelCode) {
-          skipped++;
-          if (skipped <= 3) {
-            console.log(`Skipped model (no modelCode). Keys: ${Object.keys(modelEntry || {}).join(", ")}`);
-          }
+      for await (const modelEntry of streamModels(PRODUCT_FEED, streamLimit, deadlineAt)) {
+        if (seen < offset) {
+          seen++;
           continue;
         }
 
-        const name = model?.description || modelCode;
-        const description = model?.extDesc || null;
+        // one extra item indicates next page exists
+        if (total >= limit) {
+          hasMore = true;
+          break;
+        }
 
-        const catData = model?.categoryData || model;
-        const groupDesc = catData?.groupDesc || model?.groupDesc || "";
-        const catDesc = catData?.catDesc || model?.catDesc || "";
-        const category = cleanCategory(groupDesc, catDesc);
+        if (performance.now() > deadlineAt) {
+          timedOut = true;
+          hasMore = true;
+          break;
+        }
 
-        const itemsArr = model?.items || [];
-        const allItems: any[] = [];
-        for (const itemWrapper of itemsArr) {
-          if (itemWrapper?.item) {
-            if (Array.isArray(itemWrapper.item)) {
-              allItems.push(...itemWrapper.item);
+        total++;
+        seen++;
+
+        try {
+          // Structure: { model: { modelCode, description, items: [{item: {...}}, ...], ... } }
+          const model = modelEntry?.model || modelEntry;
+          const modelCode = model?.modelCode;
+          if (!modelCode) {
+            skipped++;
+            if (skipped <= 3) {
+              console.log(`Skipped model (no modelCode). Keys: ${Object.keys(modelEntry || {}).join(", ")}`);
+            }
+            continue;
+          }
+
+          const name = model?.description || modelCode;
+          const description = model?.extDesc || null;
+
+          const catData = model?.categoryData || model;
+          const groupDesc = catData?.groupDesc || model?.groupDesc || "";
+          const catDesc = catData?.catDesc || model?.catDesc || "";
+          const category = cleanCategory(groupDesc, catDesc);
+
+          const itemsArr = model?.items || [];
+          const allItems: any[] = [];
+          for (const itemWrapper of itemsArr) {
+            if (itemWrapper?.item) {
+              if (Array.isArray(itemWrapper.item)) {
+                allItems.push(...itemWrapper.item);
+              } else {
+                allItems.push(itemWrapper.item);
+              }
             } else {
-              allItems.push(itemWrapper.item);
-            }
-          } else {
-            allItems.push(itemWrapper);
-          }
-        }
-
-        const firstItem = allItems.length > 0 ? allItems[0] : null;
-        const itemCode = firstItem?.itemCode || firstItem?.itemcode || modelCode;
-
-        const colorMap = new Map<string, { color: string; hex: string | null; image_url: string | null }>();
-        const sizeSet = new Set<string>();
-
-        for (const item of allItems) {
-          const colorsData = item?.colors?.color || item?.colors || [];
-          const colorArr = Array.isArray(colorsData) ? colorsData : [colorsData];
-          for (const c of colorArr) {
-            const colorName = c?.colorDesc || c?.color || null;
-            if (colorName && !colorMap.has(colorName)) {
-              const ic = item?.itemCode || item?.itemcode;
-              const imageMain = item?.imageData?.imageMain;
-              const imgUrl = imageMain
-                ? `${IMAGE_BASE}/${imageMain}`
-                : ic ? `${IMAGE_BASE}/${ic}.jpg` : null;
-              colorMap.set(colorName, {
-                color: colorName,
-                hex: c?.hexColor || null,
-                image_url: imgUrl,
-              });
+              allItems.push(itemWrapper);
             }
           }
 
-          const size = item?.size || null;
-          if (size) sizeSet.add(size);
+          const firstItem = allItems.length > 0 ? allItems[0] : null;
+          const itemCode = firstItem?.itemCode || firstItem?.itemcode || modelCode;
+
+          const colorMap = new Map<string, { color: string; hex: string | null; image_url: string | null }>();
+          const sizeSet = new Set<string>();
+
+          for (const item of allItems) {
+            const colorsData = item?.colors?.color || item?.colors || [];
+            const colorArr = Array.isArray(colorsData) ? colorsData : [colorsData];
+            for (const c of colorArr) {
+              const colorName = c?.colorDesc || c?.color || null;
+              if (colorName && !colorMap.has(colorName)) {
+                const ic = item?.itemCode || item?.itemcode;
+                const imageMain = item?.imageData?.imageMain;
+                const imgUrl = imageMain
+                  ? `${IMAGE_BASE}/${imageMain}`
+                  : ic ? `${IMAGE_BASE}/${ic}.jpg` : null;
+                colorMap.set(colorName, {
+                  color: colorName,
+                  hex: c?.hexColor || null,
+                  image_url: imgUrl,
+                });
+              }
+            }
+
+            const size = item?.size || null;
+            if (size) sizeSet.add(size);
+          }
+
+          const mainImage = firstItem?.imageData?.imageMain;
+          const imageUrl = mainImage
+            ? `${IMAGE_BASE}/${mainImage}`
+            : `${IMAGE_BASE}/${itemCode}.jpg`;
+
+          batch.push({
+            pfcId: `PFC-${modelCode}`,
+            payload: {
+              name,
+              sku: itemCode,
+              category,
+              description,
+              image_url: imageUrl,
+              stock_qty: stockMap.get(itemCode) || 0,
+              base_price: Math.round((priceMap.get(itemCode) || 0) * PRICE_MULTIPLIER * 100) / 100,
+              is_new: false,
+              last_synced_at: now,
+              variant_colors: Array.from(colorMap.values()),
+              variant_sizes: Array.from(sizeSet),
+            },
+          });
+
+          if (batch.length >= BATCH_SIZE) {
+            await flushBatch();
+          }
+        } catch {
+          errors++;
         }
-
-        const mainImage = firstItem?.imageData?.imageMain;
-        const imageUrl = mainImage
-          ? `${IMAGE_BASE}/${mainImage}`
-          : `${IMAGE_BASE}/${itemCode}.jpg`;
-
-        batch.push({
-          pfcId: `PFC-${modelCode}`,
-          payload: {
-            name,
-            sku: itemCode,
-            category,
-            description,
-            image_url: imageUrl,
-            stock_qty: stockMap.get(itemCode) || 0,
-            base_price: Math.round((priceMap.get(itemCode) || 0) * PRICE_MULTIPLIER * 100) / 100,
-            is_new: false,
-            last_synced_at: now,
-            variant_colors: Array.from(colorMap.values()),
-            variant_sizes: Array.from(sizeSet),
-          },
-        });
-
-        if (batch.length >= BATCH_SIZE) {
-          await flushBatch();
-        }
-      } catch {
-        errors++;
+      }
+    } catch (err) {
+      if (err instanceof Error && err.message === "TIMEBOX_REACHED") {
+        timedOut = true;
+        hasMore = true;
+      } else {
+        throw err;
       }
     }
 
     await flushBatch();
 
-    const hasMore = timedOut || (offset + total) < allModels.length;
+    if (timedOut) hasMore = true;
     const nextOffset = hasMore ? offset + total : null;
-    console.log(`Done: ${created} created, ${updated} updated, ${skipped} skipped, ${errors} errors (offset=${offset}, limit=${limit}, timedOut=${timedOut}, available=${allModels.length})`);
+    console.log(`Done: ${created} created, ${updated} updated, ${skipped} skipped, ${errors} errors (offset=${offset}, limit=${limit}, timedOut=${timedOut}, hasMore=${hasMore})`);
 
     return new Response(
-      JSON.stringify({ success: true, total, created, updated, skipped, errors, pricesLoaded: priceMap.size, stocksLoaded: stockMap.size, offset, limit, hasMore, nextOffset, timedOut, available: allModels.length }),
+      JSON.stringify({ success: true, total, created, updated, skipped, errors, pricesLoaded: priceMap.size, stocksLoaded: stockMap.size, offset, limit, hasMore, nextOffset, timedOut }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {
