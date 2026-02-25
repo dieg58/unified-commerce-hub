@@ -215,28 +215,35 @@ const CatalogProducts = () => {
 
   const newCount = supplierFilteredProducts.filter((p) => p.is_new).length;
 
-  const filtered = supplierFilteredProducts.filter((p) => {
-    const matchesSearch =
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.sku.toLowerCase().includes(search.toLowerCase()) ||
-      p.category.toLowerCase().includes(search.toLowerCase());
-    const matchesGroup = filterGroup === "all" || getSimplifiedCategory(p.category, activeTab) === filterGroup;
-    const matchesActive = filterActive === null || p.active === filterActive;
-    const matchesNew = !filterNew || p.is_new;
-    // Color filter
-    const matchesColor = filterColors.size === 0 || (() => {
-      const colors = p.variant_colors as VariantColor[] | null;
-      if (!Array.isArray(colors)) return false;
-      return colors.some((c) => filterColors.has(c.color));
-    })();
-    // Size filter
-    const matchesSize = filterSizes.size === 0 || (() => {
-      const sizes = p.variant_sizes as string[] | null;
-      if (!Array.isArray(sizes)) return false;
-      return sizes.some((s) => filterSizes.has(s));
-    })();
-    return matchesSearch && matchesGroup && matchesActive && matchesNew && matchesColor && matchesSize;
-  });
+  const filtered = useMemo(() => {
+    return supplierFilteredProducts.filter((p) => {
+      // Double-check tab membership as safety net
+      if (activeTab === "textile" && !(p.midocean_id?.startsWith("SS-") || p.midocean_id?.startsWith("TT-"))) return false;
+      if (activeTab === "autre" && !p.midocean_id?.startsWith("PRINT-")) return false;
+      if (activeTab === "goodies" && (p.midocean_id?.startsWith("SS-") || p.midocean_id?.startsWith("TT-") || p.midocean_id?.startsWith("PRINT-"))) return false;
+
+      const matchesSearch =
+        p.name.toLowerCase().includes(search.toLowerCase()) ||
+        p.sku.toLowerCase().includes(search.toLowerCase()) ||
+        p.category.toLowerCase().includes(search.toLowerCase());
+      const matchesGroup = filterGroup === "all" || getSimplifiedCategory(p.category, activeTab) === filterGroup;
+      const matchesActive = filterActive === null || p.active === filterActive;
+      const matchesNew = !filterNew || p.is_new;
+      // Color filter
+      const matchesColor = filterColors.size === 0 || (() => {
+        const colors = p.variant_colors as VariantColor[] | null;
+        if (!Array.isArray(colors)) return false;
+        return colors.some((c) => filterColors.has(c.color));
+      })();
+      // Size filter
+      const matchesSize = filterSizes.size === 0 || (() => {
+        const sizes = p.variant_sizes as string[] | null;
+        if (!Array.isArray(sizes)) return false;
+        return sizes.some((s) => filterSizes.has(s));
+      })();
+      return matchesSearch && matchesGroup && matchesActive && matchesNew && matchesColor && matchesSize;
+    });
+  }, [supplierFilteredProducts, activeTab, search, filterGroup, filterActive, filterNew, filterColors, filterSizes]);
 
   const openCreate = () => {
     setEditing(null);
