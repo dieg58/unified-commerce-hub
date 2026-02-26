@@ -154,6 +154,7 @@ export default function CreateTenantWizard({ open, onOpenChange }: Props) {
 
       // 3. Create default entities + budget placeholders
       const entityNames = defaultEntities.split(",").map((e) => e.trim()).filter(Boolean);
+      let firstEntityId: string | null = null;
       for (const eName of entityNames) {
         const code = eName.toUpperCase().replace(/\s+/g, "-").slice(0, 10);
         const { data: entity, error: eErr } = await supabase
@@ -162,6 +163,7 @@ export default function CreateTenantWizard({ open, onOpenChange }: Props) {
           .select()
           .single();
         if (eErr) throw eErr;
+        if (!firstEntityId) firstEntityId = entity.id;
 
         const budgets = (["bulk", "staff"] as const).map((st) => ({
           tenant_id: tenant.id,
@@ -172,6 +174,30 @@ export default function CreateTenantWizard({ open, onOpenChange }: Props) {
         }));
         const { error: budErr } = await supabase.from("budgets").insert(budgets);
         if (budErr) throw budErr;
+      }
+
+      // 4. Fire-and-forget: seed demo products with AI-branded packshots
+      if (firstEntityId) {
+        supabase.functions.invoke("seed-demo-products", {
+          body: {
+            tenant_id: tenant.id,
+            entity_id: firstEntityId,
+            logo_url: logoUrl || null,
+            app_url: window.location.origin,
+          },
+        }).then((res) => {
+          if (res.data?.created) {
+            toast.success(`${res.data.created} produits démo personnalisés ajoutés !`);
+          }
+        }).catch((err) => {
+          console.error("Demo seed error:", err);
+        });
+
+        toast.info("Génération des produits démo en cours...", {
+          description: logoUrl
+            ? "Les packshots personnalisés avec votre logo seront prêts dans quelques instants."
+            : "Les produits démo seront ajoutés dans quelques secondes.",
+        });
       }
 
       toast.success(`Boutique "${tenant.name}" créée — accessible sur ${getStorefrontUrl(tenant.slug)}`);
