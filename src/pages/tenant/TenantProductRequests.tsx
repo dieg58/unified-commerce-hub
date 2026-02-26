@@ -71,6 +71,12 @@ const sectionTabs: { key: CatalogSection; label: string; icon: typeof Gift; desc
 
 type VariantColor = { color: string; hex: string | null; image_url: string | null };
 
+/** TopTex products store purchase price — apply 1.81× markup for selling price */
+function getSellingPrice(basePrice: number, midoceanId?: string | null): number {
+  if (midoceanId && midoceanId.startsWith("TT-")) return basePrice * 1.81;
+  return basePrice;
+}
+
 const PAGE_SIZE = 60;
 
 const TenantProductRequests = () => {
@@ -152,7 +158,7 @@ const TenantProductRequests = () => {
       const { data, error } = await supabase
         .from("product_requests")
         .select(
-          "*, catalog_products(name, sku, image_url, base_price, category, description), profiles:requested_by(full_name, email)"
+          "*, catalog_products(name, sku, image_url, base_price, category, description, midocean_id), profiles:requested_by(full_name, email)"
         )
         .eq("tenant_id", tenantId!)
         .order("created_at", { ascending: false });
@@ -781,7 +787,7 @@ const TenantProductRequests = () => {
                           )}
 
                           <p className="text-sm font-bold text-primary">
-                            {formatCurrency(Number(p.base_price))}
+                            {formatCurrency(getSellingPrice(Number(p.base_price), p.midocean_id))}
                           </p>
                         </div>
                       </button>
@@ -1001,7 +1007,7 @@ const TenantProductRequests = () => {
                   )}
 
                   <div className="flex items-baseline gap-3">
-                    <span className="text-2xl font-bold text-primary">{formatCurrency(Number(detailProduct.base_price))}</span>
+                    <span className="text-2xl font-bold text-primary">{formatCurrency(getSellingPrice(Number(detailProduct.base_price), detailProduct.midocean_id))}</span>
                     <span className="text-xs text-muted-foreground">prix indicatif HT</span>
                   </div>
 
@@ -1108,7 +1114,7 @@ const TenantProductRequests = () => {
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-sm truncate">{cp?.name}</p>
                       <p className="text-xs text-muted-foreground font-mono">{cp?.sku}</p>
-                      <p className="text-sm font-medium text-primary mt-0.5">{formatCurrency(Number(cp?.base_price || 0))}</p>
+                      <p className="text-sm font-medium text-primary mt-0.5">{formatCurrency(getSellingPrice(Number(cp?.base_price || 0), cp?.midocean_id))}</p>
                     </div>
                   </div>
                   <div className="space-y-0">
