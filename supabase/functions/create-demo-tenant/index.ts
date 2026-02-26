@@ -89,20 +89,6 @@ serve(async (req) => {
       });
     }
 
-    // Rate limit: only for truly new tenants, check duplicate email in last 24h
-    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const { data: existing } = await supabase
-      .from("demo_requests")
-      .select("id")
-      .eq("email", email)
-      .gte("created_at", since)
-      .limit(1);
-    if (existing && existing.length > 0) {
-      return new Response(JSON.stringify({ error: "Demo already requested recently" }), {
-        status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     // Insert demo_requests (lead tracking)
     await supabase.from("demo_requests").insert({
       full_name: fullName, email, company, phone: phone || null,
