@@ -45,7 +45,13 @@ async function fetchImageAsBase64(url: string): Promise<{ b64: string; mime: str
     if (!res.ok) return null;
     const buf = await res.arrayBuffer();
     const mime = res.headers.get("content-type") || "image/jpeg";
-    const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+    const bytes = new Uint8Array(buf);
+    let binary = "";
+    const chunkSize = 8192;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+    }
+    const b64 = btoa(binary);
     return { b64, mime };
   } catch (e) {
     console.error("Failed to fetch image:", url, e);

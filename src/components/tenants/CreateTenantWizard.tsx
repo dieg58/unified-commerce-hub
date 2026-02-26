@@ -183,7 +183,7 @@ export default function CreateTenantWizard({ open, onOpenChange }: Props) {
             tenant_id: tenant.id,
             entity_id: firstEntityId,
             logo_url: logoUrl || null,
-            app_url: window.location.origin,
+            app_url: "https://b2b-inkoo.lovable.app",
           },
         }).then((res) => {
           if (res.data?.created) {
