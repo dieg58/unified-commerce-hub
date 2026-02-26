@@ -16,7 +16,7 @@ import {
   ArrowLeft, Loader2, Plus, Pencil, Save, X, MoreHorizontal, Trash2,
   Building2, ShoppingCart, Wallet, Package, Palette, Users, Store,
   CheckCircle, Eye, Tag, Sparkles, Boxes, AlertTriangle,
-  ArrowUpCircle, ArrowDownCircle, RefreshCw, History, Truck
+  ArrowUpCircle, ArrowDownCircle, RefreshCw, History, Truck, Settings
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -218,6 +218,7 @@ const TenantDetail = () => {
             <TabsTrigger value="budgets" className="text-xs gap-1"><Wallet className="w-3.5 h-3.5" /> Budgets</TabsTrigger>
             <TabsTrigger value="branding" className="text-xs gap-1"><Palette className="w-3.5 h-3.5" /> Branding</TabsTrigger>
             <TabsTrigger value="shipping" className="text-xs gap-1"><Truck className="w-3.5 h-3.5" /> Livraison</TabsTrigger>
+            <TabsTrigger value="settings" className="text-xs gap-1"><Settings className="w-3.5 h-3.5" /> Paramètres</TabsTrigger>
           </TabsList>
 
           <TabsContent value="users" className="mt-4">
@@ -246,6 +247,10 @@ const TenantDetail = () => {
 
           <TabsContent value="shipping" className="mt-4">
             <ShippingTab tenantId={id!} />
+          </TabsContent>
+
+          <TabsContent value="settings" className="mt-4">
+            <SettingsTab tenantId={id!} tenant={tenant} branding={branding} entities={entities || []} />
           </TabsContent>
         </Tabs>
       </div>
@@ -1571,6 +1576,105 @@ function ShippingTab({ tenantId }: { tenantId: string }) {
           {mode === "threshold" && `${formatCurrency(parseFloat(thresholdFee) || 0)} de frais de port. Gratuit à partir de ${formatCurrency(parseFloat(thresholdAmount) || 0)}.`}
           {mode === "per_store_type" && `Bulk : ${formatCurrency(parseFloat(bulkFee) || 0)} · Staff : ${formatCurrency(parseFloat(staffFee) || 0)}`}
         </p>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Settings Tab (Demo regeneration) ─── */
+function SettingsTab({ tenantId, tenant, branding, entities }: { tenantId: string; tenant: any; branding: any; entities: any[] }) {
+  const [regenerating, setRegenerating] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const qc = useQueryClient();
+
+  const logoUrl = branding?.logo_url;
+  const firstEntityId = entities?.[0]?.id;
+
+  const handleRegenerate = async () => {
+    setShowConfirm(false);
+    if (!firstEntityId) {
+      toast.error("Aucune entité trouvée pour cette boutique.");
+      return;
+    }
+    setRegenerating(true);
+    try {
+      // Delete existing products
+      const { error: delErr } = await supabase.from("products").delete().eq("tenant_id", tenantId);
+      if (delErr) throw delErr;
+
+      // Re-seed demo products
+      const { error: fnErr } = await supabase.functions.invoke("seed-demo-products", {
+        body: {
+          tenant_id: tenantId,
+          entity_id: firstEntityId,
+          logo_url: logoUrl || "",
+          app_url: "https://b2b-inkoo.lovable.app",
+        },
+      });
+      if (fnErr) throw fnErr;
+
+      toast.success("20 produits démo régénérés avec succès !");
+      qc.invalidateQueries({ queryKey: ["products", tenantId] });
+    } catch (err: any) {
+      toast.error("Erreur : " + (err.message || "Échec de la régénération"));
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Demo products section */}
+      <div className="rounded-lg border border-border bg-card p-6 space-y-4">
+        <div className="flex items-start gap-3">
+          <Sparkles className="w-5 h-5 text-primary mt-0.5" />
+          <div>
+            <h3 className="font-semibold text-foreground">Produits de démonstration</h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              Régénérer les 20 produits démo avec des packshots personnalisés via IA.
+              {logoUrl ? " Le logo actuel sera appliqué sur chaque produit." : " Aucun logo configuré — les images de base seront utilisées."}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 p-3 rounded-md bg-destructive/10 border border-destructive/20">
+          <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />
+          <p className="text-xs text-destructive">
+            Cette action supprimera <strong>tous les produits existants</strong> de cette boutique et les remplacera par les produits démo.
+          </p>
+        </div>
+
+        <Button
+          variant="outline"
+          className="gap-2"
+          disabled={regenerating || !firstEntityId}
+          onClick={() => setShowConfirm(true)}
+        >
+          {regenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+          {regenerating ? "Génération en cours..." : "Régénérer les produits démo"}
+        </Button>
+
+        {/* Confirmation dialog */}
+        <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-destructive" />
+                Confirmer la régénération
+              </DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              Tous les produits actuels de <strong>{tenant.name}</strong> seront supprimés et remplacés par 20 produits démo.
+              Cette action est irréversible.
+            </p>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => setShowConfirm(false)}>Annuler</Button>
+              <Button variant="destructive" onClick={handleRegenerate} className="gap-1.5">
+                <RefreshCw className="w-4 h-4" /> Confirmer
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
