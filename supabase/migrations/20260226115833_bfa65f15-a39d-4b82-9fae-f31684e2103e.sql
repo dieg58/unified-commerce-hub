@@ -1,0 +1,1 @@
+ALTER TABLE public.demo_product_templates ADD COLUMN logo_max_height numeric NOT NULL DEFAULT 40;

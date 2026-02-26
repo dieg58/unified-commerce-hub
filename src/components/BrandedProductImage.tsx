@@ -4,7 +4,8 @@ import { Package } from "lucide-react";
 export interface LogoPlacement {
   x: number;      // % from left
   y: number;      // % from top
-  width: number;  // % of container width
+  width: number;  // % of container width (max width)
+  maxHeight?: number; // % of container height (max height)
   rotation: number;
   blend: string;
   opacity: number;
@@ -61,7 +62,7 @@ const BrandedProductImage = ({
               mixBlendMode: (isDarkBg ? "screen" : (logoPlacement.blend || "multiply")) as any,
               opacity: logoPlacement.opacity ?? 0.85,
               filter: isDarkBg ? "brightness(100)" : "none",
-              maxHeight: "40%",
+              maxHeight: `${logoPlacement.maxHeight ?? 40}%`,
               objectFit: "contain",
             }}
           />

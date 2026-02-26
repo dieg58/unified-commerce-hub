@@ -23,6 +23,7 @@ interface DemoTemplate {
   logo_blend: string;
   logo_opacity: number;
   logo_mode: string;
+  logo_max_height: number;
   sort_order: number;
   active: boolean;
   // joined
@@ -72,6 +73,7 @@ const DemoProductEditor = ({ previewLogoUrl }: DemoProductEditorProps) => {
           logo_blend: t.logo_blend,
           logo_opacity: t.logo_opacity,
           logo_mode: t.logo_mode,
+          logo_max_height: t.logo_max_height,
           active: t.active,
         } as any)
         .eq("id", t.id);
@@ -163,6 +165,7 @@ const DemoProductEditor = ({ previewLogoUrl }: DemoProductEditorProps) => {
                       x: Number(t.logo_x),
                       y: Number(t.logo_y),
                       width: Number(t.logo_width),
+                      maxHeight: Number(t.logo_max_height),
                       rotation: Number(t.logo_rotation),
                       blend: t.logo_blend,
                       opacity: Number(t.logo_opacity),
@@ -387,6 +390,7 @@ const LogoPlacementDialog = ({ template, logoUrl, onClose, onSave, saving }: Log
     x: Number(t.logo_x),
     y: Number(t.logo_y),
     width: Number(t.logo_width),
+    maxHeight: Number(t.logo_max_height),
     rotation: Number(t.logo_rotation),
     blend: t.logo_blend,
     opacity: Number(t.logo_opacity),
@@ -440,7 +444,8 @@ const LogoPlacementDialog = ({ template, logoUrl, onClose, onSave, saving }: Log
                       mixBlendMode: (placement.mode === "dark" ? "screen" : placement.blend) as any,
                       opacity: placement.opacity,
                       filter: placement.mode === "dark" ? "brightness(100)" : "none",
-                      maxHeight: "100%",
+                      maxHeight: `${placement.maxHeight ?? 40}%`,
+                      objectFit: "contain" as const,
                     }}
                     draggable={false}
                   />
@@ -479,13 +484,22 @@ const LogoPlacementDialog = ({ template, logoUrl, onClose, onSave, saving }: Log
               <span className="text-[10px] text-muted-foreground">{Number(t.logo_y).toFixed(0)}%</span>
             </div>
             <div className="space-y-1">
-              <Label className="text-[10px]">Largeur (%)</Label>
+              <Label className="text-[10px]">Largeur max (%)</Label>
               <Slider
                 value={[Number(t.logo_width)]}
                 onValueChange={([v]) => update({ logo_width: v })}
                 min={5} max={80} step={1}
               />
               <span className="text-[10px] text-muted-foreground">{Number(t.logo_width).toFixed(0)}%</span>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Hauteur max (%)</Label>
+              <Slider
+                value={[Number(t.logo_max_height)]}
+                onValueChange={([v]) => update({ logo_max_height: v })}
+                min={5} max={80} step={1}
+              />
+              <span className="text-[10px] text-muted-foreground">{Number(t.logo_max_height).toFixed(0)}%</span>
             </div>
 
             <Separator />
@@ -495,7 +509,7 @@ const LogoPlacementDialog = ({ template, logoUrl, onClose, onSave, saving }: Log
               <Slider
                 value={[Number(t.logo_rotation)]}
                 onValueChange={([v]) => update({ logo_rotation: v })}
-                min={-45} max={45} step={1}
+                min={0} max={360} step={1}
               />
               <span className="text-[10px] text-muted-foreground">{Number(t.logo_rotation).toFixed(0)}°</span>
             </div>
