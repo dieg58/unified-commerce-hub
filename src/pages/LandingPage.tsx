@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
@@ -16,6 +16,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useTranslation } from "react-i18next";
 import PlatformShowcase from "@/components/landing/PlatformShowcase";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import SEOHead from "@/components/SEOHead";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -37,6 +38,46 @@ const LandingPage = () => {
   const [loginOpen, setLoginOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { t } = useTranslation();
+
+  const faqItems = [
+    { q: t("landing.faq1Q"), a: t("landing.faq1A") },
+    { q: t("landing.faq2Q"), a: t("landing.faq2A") },
+    { q: t("landing.faq3Q"), a: t("landing.faq3A") },
+    { q: t("landing.faq4Q"), a: t("landing.faq4A") },
+    { q: t("landing.faq5Q"), a: t("landing.faq5A") },
+    { q: t("landing.faq6Q"), a: t("landing.faq6A") },
+  ];
+
+  const seoJsonLd = useMemo(() => [
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "INKOO B2B",
+      "url": "https://inkoo.eu",
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": faqItems.map((item) => ({
+        "@type": "Question",
+        "name": item.q,
+        "acceptedAnswer": { "@type": "Answer", "text": item.a },
+      })),
+    },
+    ...[
+      { name: t("landing.sourcingTitle"), desc: t("landing.sourcingDesc") },
+      { name: t("landing.webshopTitle"), desc: t("landing.webshopDesc") },
+      { name: t("landing.storageTitle"), desc: t("landing.storageDesc") },
+      { name: t("landing.shippingTitle"), desc: t("landing.shippingDesc") },
+    ].map((s) => ({
+      "@context": "https://schema.org",
+      "@type": "Service",
+      "name": s.name,
+      "description": s.desc,
+      "provider": { "@type": "Organization", "name": "INKOO" },
+    })),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [t]);
 
   if (loading) {
     return (
@@ -80,17 +121,17 @@ const LandingPage = () => {
     { quote: t("landing.testimonial3"), author: t("landing.testimonial3Author"), role: t("landing.testimonial3Role"), company: t("landing.testimonial3Company") },
   ];
 
-  const faqItems = [
-    { q: t("landing.faq1Q"), a: t("landing.faq1A") },
-    { q: t("landing.faq2Q"), a: t("landing.faq2A") },
-    { q: t("landing.faq3Q"), a: t("landing.faq3A") },
-    { q: t("landing.faq4Q"), a: t("landing.faq4A") },
-    { q: t("landing.faq5Q"), a: t("landing.faq5A") },
-    { q: t("landing.faq6Q"), a: t("landing.faq6A") },
-  ];
+
+
 
   return (
     <div className="min-h-screen bg-background text-foreground">
+      <SEOHead
+        title="Merchandising d'entreprise"
+        description="INKOO B2B simplifie le merchandising corporate : sourcing, webshop dédié, stockage, logistique et expédition mondiale. Demandez une démo."
+        path="/"
+        jsonLd={seoJsonLd}
+      />
       {/* Nav */}
       <header className="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur-md">
         <div className="max-w-7xl mx-auto flex h-16 items-center justify-between px-6">

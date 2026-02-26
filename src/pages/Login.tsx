@@ -8,6 +8,7 @@ import { Package } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSubdomain } from "@/components/SubdomainRouter";
 import { useTranslation } from "react-i18next";
+import SEOHead from "@/components/SEOHead";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -76,6 +77,7 @@ const Login = () => {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <SEOHead title="Connexion" description="Connectez-vous à votre espace INKOO B2B pour gérer vos commandes de merchandising corporate." path="/login" />
       <div className="w-full max-w-sm space-y-6 animate-fade-in">
         <div className="text-center space-y-2">
           <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center mx-auto mb-4">
