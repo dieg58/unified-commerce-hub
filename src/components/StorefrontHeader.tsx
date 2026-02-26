@@ -120,6 +120,14 @@ const StorefrontHeader = ({ children }: { children?: React.ReactNode }) => {
                     <p className="text-sm font-medium truncate">{profile.full_name || profile.email}</p>
                     <p className="text-xs text-muted-foreground truncate">{profile.email}</p>
                   </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+                </>
+              )}
+              {(isShopManager || isDeptManager) && (
+                <>
+                  <DropdownMenuItem onClick={() => navigate("/tenant")}>
+                    <Settings className="w-4 h-4 mr-2" /> {t("nav.shopManagement")}
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                 </>
               )}
