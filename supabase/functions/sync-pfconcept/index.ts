@@ -234,22 +234,8 @@ Deno.serve(async (req) => {
     const pfPriceCode = Deno.env.get("PF_CONCEPT_PRICE_CODE");
     const pfStockCode = Deno.env.get("PF_CONCEPT_STOCK_CODE");
 
-    const missingSecrets: string[] = [];
-    if (!pfPriceCode) missingSecrets.push("PF_CONCEPT_PRICE_CODE");
-    if (!pfStockCode) missingSecrets.push("PF_CONCEPT_STOCK_CODE");
-    if (missingSecrets.length > 0) {
-      return new Response(
-        JSON.stringify({
-          error: "Missing required PF Concept secrets",
-          missing: missingSecrets,
-          hint: "Configure the missing secrets, then retry sync.",
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
+    if (!pfPriceCode) console.warn("PF_CONCEPT_PRICE_CODE not set — prices will default to 0");
+    if (!pfStockCode) console.warn("PF_CONCEPT_STOCK_CODE not set — stock will default to 0");
 
     // ── 1. Fetch price feed ──
     const priceMap = new Map<string, number>();
