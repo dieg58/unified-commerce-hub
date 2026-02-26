@@ -203,7 +203,7 @@ export function getCatalogTabByCategory(
   const prefixTab: "goodies" | "textile" | "autre" =
     (id.startsWith("SS-") || id.startsWith("TT-")) ? "textile"
     : id.startsWith("PRINT-") ? "autre"
-    : "goodies";
+    : "goodies"; // Midocean, PFC-, XDC-, or no prefix
 
   if (!rawCategory || rawCategory === "general") return prefixTab;
 
