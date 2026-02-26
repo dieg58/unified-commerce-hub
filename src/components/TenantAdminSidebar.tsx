@@ -111,10 +111,10 @@ const TenantAdminSidebar = () => {
 
       <div className="px-2 pb-1">
         <NavLink
-          to="/tenant/storefront"
+          to="/shop"
           className={cn(
             "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors w-full",
-            location.pathname === "/tenant/storefront"
+            location.pathname.startsWith("/shop")
               ? "bg-sidebar-accent text-sidebar-primary"
               : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           )}

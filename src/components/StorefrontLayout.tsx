@@ -18,7 +18,8 @@ const StorefrontLayout = () => {
 
   // Pages that render their own header (Storefront has its own with cart/checkout logic)
   const pagesWithOwnHeader = ["/shop", "/", "/store"];
-  const showSharedHeader = !pagesWithOwnHeader.includes(location.pathname) && !location.pathname.startsWith("/shop/product/");
+  const isProductPage = location.pathname.startsWith("/shop/product/");
+  const showSharedHeader = !pagesWithOwnHeader.includes(location.pathname) && !isProductPage;
 
   return (
     <div className="min-h-screen bg-background flex flex-col">

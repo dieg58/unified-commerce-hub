@@ -11,13 +11,13 @@ import {
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
-import { Store, Heart, ShoppingCart, User, LogOut } from "lucide-react";
+import { Store, Heart, ShoppingCart, User, LogOut, Settings } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 const StorefrontHeader = ({ children }: { children?: React.ReactNode }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, isShopManager, isDeptManager } = useAuth();
   const { count } = useCart();
   const { t } = useTranslation();
 
@@ -90,6 +90,15 @@ const StorefrontHeader = ({ children }: { children?: React.ReactNode }) => {
 
         {/* Right: children (store-type toggle etc.) + language + profile + cart */}
         <div className="flex items-center gap-2">
+          {(isShopManager || isDeptManager) && (
+            <button
+              onClick={() => navigate("/tenant")}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              <Settings className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">{t("nav.shopManagement")}</span>
+            </button>
+          )}
           {children}
           <LanguageSwitcher variant="ghost" />
           <DropdownMenu>
