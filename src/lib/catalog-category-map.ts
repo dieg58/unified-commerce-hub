@@ -247,9 +247,240 @@ export function getSimplifiedCategory(
     if (regex.test(rawCategory)) return label;
   }
 
-  // Fallback: use the first part before ">"
+  // Fallback: use the first segment before ">"
   const firstPart = rawCategory.split(">")[0].trim();
   return firstPart || "Autre";
+}
+
+// ─── SUBCATEGORY normalization ──────────────────────────────────
+// Maps raw category strings to unified subcategory labels within each simplified category.
+// Rules: [regex tested against FULL raw category, unified subcategory label]
+
+const SUBCATEGORY_RULES: Record<string, [RegExp, string][]> = {
+  // ── GOODIES ──
+  "Sacs & Bagagerie": [
+    [/à dos.*(ordi|laptop|computer)/i, "Sacs à dos ordinateur"],
+    [/Anti.?Vol/i, "Sacs à dos anti-vol"],
+    [/à dos.*(outdoor|aventure)/i, "Sacs à dos outdoor"],
+    [/à dos/i, "Sacs à dos"],
+    [/à cordon/i, "Sacs à cordon"],
+    [/Sacoches ordi|ordinateur Exec/i, "Sacoches ordinateur"],
+    [/bandoulière/i, "Sacs bandoulière"],
+    [/shopping|tote/i, "Sacs shopping & tote"],
+    [/weekend|sport/i, "Sacs week-end & sport"],
+    [/plage/i, "Sacs de plage"],
+    [/Trousses de toilette|toilette/i, "Trousses de toilette"],
+    [/Housses à vêtements/i, "Housses"],
+    [/Porte-cartes|portefeuilles/i, "Porte-cartes & portefeuilles"],
+    [/Accessoires.*(Voyage|Bagag)/i, "Accessoires voyage"],
+    [/Valises/i, "Valises"],
+    [/Housses/i, "Housses"],
+    [/Paniers/i, "Paniers"],
+  ],
+  "Boissons & Mugs": [
+    [/thermos/i, "Bouteilles thermos"],
+    [/infusion/i, "Bouteilles d'infusion"],
+    [/eau|water|sport/i, "Bouteilles & gourdes"],
+    [/Gourdes|Bouteilles/i, "Bouteilles & gourdes"],
+    [/Porte-gourdes/i, "Accessoires"],
+    [/céramique/i, "Mugs & tasses"],
+    [/Tasses|café|mugs/i, "Mugs & tasses"],
+    [/Verrerie/i, "Verrerie"],
+    [/Vin & Bar/i, "Vin & bar"],
+  ],
+  "Technologie": [
+    [/Powerbanks/i, "Batteries & powerbanks"],
+    [/Chargeurs sans fil/i, "Chargeurs sans fil"],
+    [/Chargeurs/i, "Chargeurs"],
+    [/Connecteurs|Câbles/i, "Câbles & connectique"],
+    [/Hubs/i, "Hubs & adaptateurs"],
+    [/Adaptateurs/i, "Hubs & adaptateurs"],
+    [/FindMy/i, "Trackers FindMy"],
+    [/Montres/i, "Montres connectées"],
+    [/Support/i, "Supports"],
+    [/Gadgets/i, "Gadgets"],
+    [/jeux électroniques/i, "Gaming"],
+    [/Pointeurs|laser/i, "Présentateurs"],
+    [/Solaire/i, "Solaire"],
+    [/Casques audio/i, "Casques audio"],
+    [/Haut-parleurs/i, "Enceintes"],
+    [/Sans fil/i, "Écouteurs sans fil"],
+    [/Accessoires de bureau/i, "Accessoires de bureau"],
+  ],
+  "Bureau & Écriture": [
+    [/plastique/i, "Stylos plastique"],
+    [/métal/i, "Stylos métal"],
+    [/Set stylos/i, "Sets de stylos"],
+    [/Crayons/i, "Crayons"],
+    [/Autres stylos/i, "Autres stylos"],
+    [/Carnets.*basic/i, "Carnets de notes"],
+    [/Carnets.*deluxe/i, "Carnets premium"],
+    [/Conférenciers/i, "Conférenciers"],
+    [/Ball pens/i, "Stylos"],
+  ],
+  "Outils & Porte-clés": [
+    [/Torches/i, "Torches & lampes"],
+    [/Lampe/i, "Torches & lampes"],
+    [/Éclairage/i, "Torches & lampes"],
+    [/Mètres/i, "Mètres & mesure"],
+    [/Règles|cutters/i, "Règles & cutters"],
+    [/multi-fonctions/i, "Multi-outils"],
+    [/Set d'outils/i, "Sets d'outils"],
+    [/Cadeau outils/i, "Coffrets cadeaux"],
+    [/Stylos-outil/i, "Stylos-outils"],
+    [/Porte-clés/i, "Porte-clés"],
+  ],
+  "Bien-être & Maison": [
+    [/Bien-être|soins/i, "Bien-être & soins"],
+    [/Bougies|Diffuseurs/i, "Bougies & diffuseurs"],
+    [/Couvertures/i, "Couvertures"],
+    [/Intérieur/i, "Décoration intérieure"],
+    [/Textiles de salle/i, "Linge de bain"],
+  ],
+  "Cuisine": [
+    [/Accessoires cuisine/i, "Accessoires cuisine"],
+    [/Boîtes lunch/i, "Lunch boxes"],
+    [/Vaiselle|Vaisselle/i, "Vaisselle"],
+    [/Accessoires de table/i, "Arts de la table"],
+    [/Barbecue/i, "Barbecue"],
+  ],
+  "Plein air & Loisirs": [
+    [/isothermes/i, "Sacs isothermes"],
+    [/Lunettes de soleil/i, "Lunettes de soleil"],
+    [/Pique/i, "Pique-nique"],
+    [/Barbecue/i, "Barbecue"],
+    [/Serviettes de plage/i, "Serviettes de plage"],
+    [/Accessoires.*(sport|Sportive)/i, "Accessoires sport"],
+    [/Ballons/i, "Ballons & sport"],
+    [/Crampons/i, "Sport"],
+    [/Entraînement|Terrain/i, "Matériel de terrain"],
+    [/Gonflage/i, "Accessoires sport"],
+    [/Arbitrage/i, "Accessoires sport"],
+  ],
+  "Parapluies": [
+    [/golf/i, "Parapluies de golf"],
+    [/pliables/i, "Parapluies pliables"],
+    [/standard|≤\s*23/i, "Parapluies standard"],
+    [/entre 23/i, "Parapluies moyens"],
+  ],
+  "Voiture & Sécurité": [
+    [/voiture/i, "Accessoires voiture"],
+    [/vélo/i, "Accessoires vélo"],
+    [/Gilets de sécurité/i, "Gilets de sécurité"],
+    [/Premiers secours/i, "Premiers secours"],
+    [/Bandes réfléchissantes/i, "Sécurité"],
+  ],
+  "Enfants & Jeux": [
+    [/Peluches/i, "Peluches"],
+    [/Jeux/i, "Jeux"],
+    [/Vêtements.*peluche/i, "Accessoires peluches"],
+  ],
+
+  // ── TEXTILE ──
+  "Sweats & Pulls": [
+    [/capuche|à capuche/i, "Sweats à capuche"],
+    [/zippés|zip/i, "Sweats zippés"],
+    [/col rond/i, "Sweats col rond"],
+    [/polaires/i, "Polaires"],
+    [/Pullovers|Cardigans/i, "Pulls & cardigans"],
+    [/Gilets/i, "Gilets"],
+  ],
+  "T-shirts": [
+    [/Débardeurs/i, "Débardeurs"],
+    [/Maillots de sport/i, "Maillots de sport"],
+    [/Tuniques/i, "Tuniques"],
+    [/Body/i, "Bodys"],
+    [/enfants/i, "T-shirts enfants"],
+    [/femmes/i, "T-shirts femmes"],
+    [/unisexes/i, "T-shirts unisexes"],
+  ],
+  "Vestes & Manteaux": [
+    [/Bodywarmers/i, "Bodywarmer"],
+    [/Ponchos/i, "Ponchos"],
+    [/matelassée/i, "Vestes matelassées"],
+    [/non matelassée/i, "Vestes légères"],
+    [/légère matelassée/i, "Doudounes légères"],
+    [/Chasubles/i, "Chasubles"],
+    [/Combinaisons/i, "Combinaisons"],
+    [/Blouses de travail/i, "Blouses de travail"],
+    [/polaires/i, "Polaires"],
+  ],
+  "Pantalons & Shorts": [
+    [/Bermudas|Shorts/i, "Bermudas & shorts"],
+    [/Salopettes/i, "Salopettes"],
+    [/Jeans/i, "Jeans"],
+  ],
+  "Accessoires textile": [
+    [/Casquettes/i, "Casquettes"],
+    [/Bonnets/i, "Bonnets"],
+    [/Bobs/i, "Bobs"],
+    [/Bérets/i, "Bérets"],
+    [/Écharpes|Étoles|Tours de cou/i, "Écharpes & tours de cou"],
+    [/Bandanas/i, "Bandanas"],
+    [/Bandeaux/i, "Bandeaux"],
+    [/Gants/i, "Gants"],
+    [/Cagoules/i, "Cagoules"],
+    [/Chapeaux/i, "Chapeaux"],
+    [/Casques/i, "Casques de protection"],
+    [/Foulards/i, "Foulards"],
+    [/Ceintures/i, "Ceintures"],
+    [/Cravates/i, "Cravates"],
+    [/Bretelles/i, "Bretelles"],
+    [/Genouillères/i, "Genouillères"],
+    [/Masques/i, "Masques"],
+    [/Brassards/i, "Brassards"],
+    [/Lunettes/i, "Lunettes"],
+    [/Poches d'identité/i, "Poches d'identité"],
+  ],
+  "Sous-vêtements": [
+    [/Chaussettes/i, "Chaussettes"],
+    [/Boxers|Caleçons/i, "Boxers & caleçons"],
+    [/Brassières/i, "Brassières"],
+    [/Maillots de Corps/i, "Maillots de corps"],
+    [/Pyjamas/i, "Pyjamas"],
+  ],
+  "Chaussures": [
+    [/sécurité/i, "Chaussures de sécurité"],
+    [/travail/i, "Chaussures de travail"],
+    [/Lifestyle|Loisir/i, "Chaussures lifestyle"],
+    [/Accessoires chaussures/i, "Accessoires"],
+  ],
+  "Linge de maison": [
+    [/Bain/i, "Linge de bain"],
+    [/Décoration/i, "Décoration"],
+    [/salle de bains/i, "Linge de bain"],
+  ],
+  "Sport": [
+    [/Accessoires.*(sport|Sportive)/i, "Accessoires sport"],
+    [/Ballons/i, "Ballons"],
+    [/Crampons/i, "Crampons"],
+    [/Entraînement|Terrain/i, "Matériel de terrain"],
+    [/Gonflage/i, "Accessoires"],
+    [/Arbitrage/i, "Arbitrage"],
+  ],
+};
+
+/**
+ * Returns a normalized subcategory label for a raw category within a given simplified category.
+ * Falls back to the last segment of the raw category if no rule matches.
+ */
+export function getSimplifiedSubCategory(
+  rawCategory: string,
+  simplifiedCategory: string
+): string {
+  if (!rawCategory) return "Autre";
+
+  const rules = SUBCATEGORY_RULES[simplifiedCategory];
+  if (rules) {
+    for (const [regex, label] of rules) {
+      if (regex.test(rawCategory)) return label;
+    }
+  }
+
+  // Fallback: last segment after ">"
+  const parts = rawCategory.split(">");
+  const last = parts[parts.length - 1].trim();
+  return last || "Autre";
 }
 
 /**

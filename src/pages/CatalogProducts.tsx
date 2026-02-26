@@ -23,7 +23,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/mock-data";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
-import { getSimplifiedCategory, getCatalogTabByCategory } from "@/lib/catalog-category-map";
+import { getSimplifiedCategory, getCatalogTabByCategory, getSimplifiedSubCategory } from "@/lib/catalog-category-map";
 import { getColorFamily, getColorFamilyHex, getSizeGroup, getSizeGroupOrder } from "@/lib/catalog-filter-groups";
 
 
@@ -315,20 +315,18 @@ const CatalogProducts = () => {
       .map(([group, count]) => ({ group, count }));
   }, [supplierFilteredProducts, variantData]);
 
-  // Subcategories for the selected simplified category
+  // Subcategories for the selected simplified category (normalized)
   const subCategories = useMemo(() => {
     if (filterGroup === "all") return [];
     const counts: Record<string, number> = {};
     supplierFilteredProducts.forEach((p) => {
       if (getSimplifiedCategory(p.category, activeTab) === filterGroup) {
-        // Use the raw category's last segment as subcategory
-        const parts = p.category.split(">");
-        const sub = parts.length > 1 ? parts.slice(1).join(">").trim() : p.category.trim();
+        const sub = getSimplifiedSubCategory(p.category, filterGroup);
         counts[sub] = (counts[sub] || 0) + 1;
       }
     });
     // Only show subcategories if there are at least 2 distinct ones
-    const entries = Object.entries(counts).sort(([, a], [, b]) => b - a);
+    const entries = Object.entries(counts).sort(([a], [b]) => a.localeCompare(b));
     return entries.length >= 2 ? entries : [];
   }, [supplierFilteredProducts, activeTab, filterGroup]);
 
@@ -344,10 +342,9 @@ const CatalogProducts = () => {
       if (!matchesSearch) return false;
       const matchesGroup = filterGroup === "all" || getSimplifiedCategory(p.category, activeTab) === filterGroup;
       if (!matchesGroup) return false;
-      // Subcategory filter
+      // Subcategory filter (normalized)
       if (filterSubCategory !== "all") {
-        const parts = p.category.split(">");
-        const sub = parts.length > 1 ? parts.slice(1).join(">").trim() : p.category.trim();
+        const sub = getSimplifiedSubCategory(p.category, filterGroup);
         if (sub !== filterSubCategory) return false;
       }
       const matchesActive = filterActive === null || p.active === filterActive;
