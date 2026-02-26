@@ -6,6 +6,8 @@ import { useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
+const PLACEHOLDER_LOGO = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 40'%3E%3Crect width='120' height='40' rx='6' fill='%230ea5e9'/%3E%3Ctext x='60' y='26' text-anchor='middle' font-family='Arial' font-weight='bold' font-size='16' fill='white'%3ELOGO%3C/text%3E%3C/svg%3E";
+
 const DemoProducts = () => {
   const [previewTenantId, setPreviewTenantId] = useState<string>("");
 
@@ -19,7 +21,8 @@ const DemoProducts = () => {
   });
 
   const selectedTenant = tenants?.find((t) => t.id === previewTenantId);
-  const logoUrl = (selectedTenant?.tenant_branding as any)?.logo_url || null;
+  const tenantLogo = (selectedTenant?.tenant_branding as any)?.logo_url || null;
+  const logoUrl = tenantLogo || PLACEHOLDER_LOGO;
 
   return (
     <>
