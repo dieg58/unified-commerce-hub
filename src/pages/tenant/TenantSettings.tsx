@@ -15,8 +15,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Save, Loader2, Palette, Building2, Globe, Image, Upload, ShieldCheck,
-  Bell, Store, Info, ExternalLink, Copy, Check, RefreshCw, AlertTriangle
+  Bell, Store, Info, ExternalLink, Copy, Check, RefreshCw, AlertTriangle, LayoutGrid
 } from "lucide-react";
+import DemoProductEditor from "@/components/DemoProductEditor";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
@@ -434,19 +435,14 @@ const TenantSettings = () => {
           </div>
         </Section>
 
-        {/* ─── Données de démonstration ─────────────────────────── */}
-        <Section icon={RefreshCw} title="Produits de démonstration" description="Régénérer les 20 produits démo avec le logo de la boutique.">
-          <div className="space-y-4">
-            <div className="rounded-md bg-destructive/5 border border-destructive/20 px-4 py-3 flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-foreground">Attention : action destructive</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Cette action va <strong>supprimer tous les produits existants</strong> de la boutique (y compris les commandes liées) 
-                  puis recréer 20 produits de démonstration avec le logo actuel. Cette opération est irréversible.
-                </p>
-              </div>
-            </div>
+        {/* ─── Produits de démonstration ─────────────────────────── */}
+        <Section icon={LayoutGrid} title="Produits de démonstration" description="Gérez les templates de produits démo et le placement du logo sur chaque produit.">
+          <DemoProductEditor previewLogoUrl={logoUrl || undefined} />
+          <Separator className="my-4" />
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Après avoir ajusté les placements, utilisez le bouton ci-dessous pour régénérer les produits de la boutique.
+            </p>
             <RegenerateDemoButton tenantId={tenantId} logoUrl={logoUrl} />
           </div>
         </Section>

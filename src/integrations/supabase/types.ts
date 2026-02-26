@@ -248,6 +248,57 @@ export type Database = {
         }
         Relationships: []
       }
+      demo_product_templates: {
+        Row: {
+          active: boolean
+          base_image: string
+          category: string
+          id: string
+          logo_blend: string
+          logo_opacity: number
+          logo_rotation: number
+          logo_width: number
+          logo_x: number
+          logo_y: number
+          name: string
+          price: number
+          sku: string
+          sort_order: number
+        }
+        Insert: {
+          active?: boolean
+          base_image: string
+          category?: string
+          id?: string
+          logo_blend?: string
+          logo_opacity?: number
+          logo_rotation?: number
+          logo_width?: number
+          logo_x?: number
+          logo_y?: number
+          name: string
+          price?: number
+          sku: string
+          sort_order?: number
+        }
+        Update: {
+          active?: boolean
+          base_image?: string
+          category?: string
+          id?: string
+          logo_blend?: string
+          logo_opacity?: number
+          logo_rotation?: number
+          logo_width?: number
+          logo_x?: number
+          logo_y?: number
+          name?: string
+          price?: number
+          sku?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
       demo_requests: {
         Row: {
           company: string
@@ -1093,6 +1144,7 @@ export type Database = {
           id: string
           image_url: string | null
           location: string | null
+          logo_placement: Json | null
           low_stock_threshold: number
           min_bulk_qty: number
           name: string
@@ -1117,6 +1169,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           location?: string | null
+          logo_placement?: Json | null
           low_stock_threshold?: number
           min_bulk_qty?: number
           name: string
@@ -1141,6 +1194,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           location?: string | null
+          logo_placement?: Json | null
           low_stock_threshold?: number
           min_bulk_qty?: number
           name?: string
