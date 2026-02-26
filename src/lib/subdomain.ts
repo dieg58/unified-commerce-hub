@@ -23,8 +23,9 @@ export function getTenantSlugFromSubdomain(): string | null {
   // Skip localhost without subdomain
   if (hostname === "localhost" || hostname === "127.0.0.1") return null;
 
-  // Skip bare base domain
+  // Skip bare base domain and platform subdomain (b2b = main app)
   if (hostname === BASE_DOMAIN || hostname === `www.${BASE_DOMAIN}`) return null;
+  if (hostname === `b2b.${BASE_DOMAIN}`) return null;
 
   const parts = hostname.split(".");
 
