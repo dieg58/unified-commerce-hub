@@ -1,150 +1,212 @@
 /**
  * Maps raw supplier categories to simplified, unified display categories.
  * The original category is preserved in the DB — this is frontend-only normalization.
+ *
+ * Suppliers covered: Midocean (EN), XD Connects (FR), PF Concept (FR),
+ * TopTex (FR), Stanley/Stella (FR/EN), Print.com (FR).
+ *
+ * IMPORTANT: Rules are evaluated top-to-bottom. Place specific patterns
+ * BEFORE generic ones to avoid mis-classification.
  */
 
-// Mapping rules: [regex or startsWith pattern, simplified category]
+// ─── GOODIES tab rules ──────────────────────────────────────────
 const GOODIES_RULES: [RegExp, string][] = [
-  // Sacs & Bagagerie
-  [/^Bags & travel/i, "Sacs & Bagagerie"],
-  [/^Bagagerie/i, "Sacs & Bagagerie"],
-  [/^Packaging > Sacs/i, "Sacs & Bagagerie"],
-  [/^Objets publicitaires > Sacs/i, "Sacs & Bagagerie"],
-  [/^Accessoires > Sacs/i, "Sacs & Bagagerie"],
+  // ── Sacs & Bagagerie ──
+  [/Bags & travel/i, "Sacs & Bagagerie"],
+  [/Sacs & Voyage/i, "Sacs & Bagagerie"],
+  [/Bagagerie/i, "Sacs & Bagagerie"],
+  [/Accessoires > Sacs/i, "Sacs & Bagagerie"],
+  [/Packaging > Sacs/i, "Sacs & Bagagerie"],
 
-  // Boissons & Mugs
-  [/^Drink & lunchware/i, "Boissons & Mugs"],
-  [/^Drinkwear/i, "Boissons & Mugs"],
-  [/^Objets publicitaires > Bouteilles/i, "Boissons & Mugs"],
-  [/^Objets publicitaires > Mugs/i, "Boissons & Mugs"],
-  [/^Objets publicitaires > Sous-verres/i, "Boissons & Mugs"],
+  // ── Boissons & Mugs ──
+  [/Drink/i, "Boissons & Mugs"],
+  [/Drinkwear/i, "Boissons & Mugs"],
+  [/Art de la boisson/i, "Boissons & Mugs"],
+  [/Bouteilles/i, "Boissons & Mugs"],
+  [/Mugs|Tasses/i, "Boissons & Mugs"],
+  [/Verrerie/i, "Boissons & Mugs"],
+  [/Vin & Bar/i, "Boissons & Mugs"],
 
-  // Bureau & Écriture
-  [/^Office & writing/i, "Bureau & Écriture"],
-  [/^Objets publicitaires > Stylos/i, "Bureau & Écriture"],
+  // ── Bureau & Écriture ──
+  [/Office & writing/i, "Bureau & Écriture"],
+  [/Écriture/i, "Bureau & Écriture"],
+  [/Conférenciers & Carnets/i, "Bureau & Écriture"],
+  [/Stylos/i, "Bureau & Écriture"],
 
-  // Technologie
-  [/^Technology/i, "Technologie"],
+  // ── Technologie ──
+  [/Technology/i, "Technologie"],
+  [/Accessoires Téléphones/i, "Technologie"],
+  [/Powerbanks/i, "Technologie"],
+  [/Chargeurs/i, "Technologie"],
+  [/Audio/i, "Technologie"],
 
-  // Outils & Porte-clés
-  [/^Tools & keyrings/i, "Outils & Porte-clés"],
+  // ── Outils & Porte-clés ──
+  [/Tools & keyrings/i, "Outils & Porte-clés"],
+  [/Outils & Torches/i, "Outils & Porte-clés"],
+  [/Lanyards & Porte-clés/i, "Outils & Porte-clés"],
 
-  // Bien-être & Maison
-  [/^Home & wellness/i, "Bien-être & Maison"],
+  // ── Bien-être & Maison ──
+  [/Home & wellness/i, "Bien-être & Maison"],
+  [/Maison & Art de vivre/i, "Bien-être & Maison"],
+  [/Bougies|Diffuseurs/i, "Bien-être & Maison"],
+  [/Bien.?[eê]tre/i, "Bien-être & Maison"],
+  [/Couvertures/i, "Bien-être & Maison"],
+  [/Intérieur/i, "Bien-être & Maison"],
 
-  // Cuisine
-  [/^Kitchen & accessories/i, "Cuisine"],
+  // ── Cuisine ──
+  [/Kitchen/i, "Cuisine"],
+  [/Accessoires cuisine/i, "Cuisine"],
+  [/Boîtes lunch/i, "Cuisine"],
+  [/Vaiselle|Vaisselle/i, "Cuisine"],
+  [/Accessoires de table/i, "Cuisine"],
+  [/Barbecue/i, "Cuisine"],
 
-  // Enfants & Jeux
-  [/^Kids & games/i, "Enfants & Jeux"],
+  // ── Enfants & Jeux ──
+  [/Kids & games/i, "Enfants & Jeux"],
+  [/Peluches/i, "Enfants & Jeux"],
+  [/Jeux/i, "Enfants & Jeux"],
 
-  // Événementiel
-  [/^Lanyards & events/i, "Événementiel"],
-  [/^Objets publicitaires > Badges/i, "Événementiel"],
-  [/^Objets publicitaires > Magnets/i, "Événementiel"],
+  // ── Événementiel ──
+  [/Lanyards & events/i, "Événementiel"],
+  [/Badges/i, "Événementiel"],
+  [/Magnets/i, "Événementiel"],
 
-  // Plein air & Loisirs
-  [/^Outdoor & leisure/i, "Plein air & Loisirs"],
-  [/^Equipements sportifs/i, "Plein air & Loisirs"],
+  // ── Plein air & Loisirs ──
+  [/Outdoor & leisure/i, "Plein air & Loisirs"],
+  [/Plein Air/i, "Plein air & Loisirs"],
+  [/Lunettes de soleil/i, "Plein air & Loisirs"],
+  [/Pique.?nique/i, "Plein air & Loisirs"],
+  [/isothermes/i, "Plein air & Loisirs"],
+  [/Serviettes de plage/i, "Plein air & Loisirs"],
+  [/Equipements sportifs/i, "Plein air & Loisirs"],
 
-  // Parapluies
-  [/^Umbrellas/i, "Parapluies"],
-  [/^Objets publicitaires > Parapluies/i, "Parapluies"],
-  [/^Accessoires > Parapluies/i, "Parapluies"],
+  // ── Parapluies ──
+  [/Parapluies/i, "Parapluies"],
+  [/Umbrellas/i, "Parapluies"],
 
-  // Cadeaux
-  [/^Seasonal gifts/i, "Cadeaux"],
-  [/^Catalogues/i, "Cadeaux"],
+  // ── Voiture & Sécurité ──
+  [/Voiture & Sécurité/i, "Voiture & Sécurité"],
+  [/Accessoires pour voiture/i, "Voiture & Sécurité"],
+  [/Accessoires vélo/i, "Voiture & Sécurité"],
+  [/Gilets de sécurité/i, "Voiture & Sécurité"],
+  [/Premiers secours/i, "Voiture & Sécurité"],
+  [/Bandes réfléchissantes/i, "Voiture & Sécurité"],
 
-  // Alimentaire
-  [/^Alimentaire/i, "Alimentaire"],
+  // ── Cadeaux ──
+  [/Seasonal gifts/i, "Cadeaux"],
+  [/Catalogues/i, "Cadeaux"],
 
-  // Textile (goodies textile items from Midocean/PFC)
-  [/^Clothing & wearables/i, "Textile"],
-  [/^Head & multiwear/i, "Textile"],
-  [/^Headwear/i, "Textile"],
+  // ── Alimentaire ──
+  [/Alimentaire/i, "Alimentaire"],
 
-  // Packaging
-  [/^Packaging/i, "Packaging"],
+  // ── Textile goodies (Midocean/PFC textile items in goodies tab) ──
+  [/Clothing & wearables/i, "Textile"],
+  [/^Headwear$/i, "Textile"],
+  [/Head & multiwear/i, "Textile"],
+  [/^Textiles > /i, "Textile"],
 
-  // Objets pub divers
-  [/^Objets publicitaires/i, "Objets publicitaires"],
-  [/^Accessoires >/i, "Accessoires"],
+  // ── Catch-all ──
+  [/Packaging/i, "Packaging"],
+  [/Accessoires >/i, "Accessoires"],
+  [/Objets publicitaires/i, "Objets publicitaires"],
 ];
 
+// ─── TEXTILE tab rules ──────────────────────────────────────────
 const TEXTILE_RULES: [RegExp, string][] = [
-  // Sweats & Pulls — MUST come before T-shirts to avoid "Sweat-Shirts" matching /T-shirts/
+  // ── Sweats & Pulls (MUST come before T-shirts) ──
   [/Sweat/i, "Sweats & Pulls"],
   [/Sweaters/i, "Sweats & Pulls"],
   [/Pullovers|Cardigans/i, "Sweats & Pulls"],
-  [/Gilets/i, "Sweats & Pulls"],
+  [/Gilets(?! de sécurité)/i, "Sweats & Pulls"],
   [/^Pulls/i, "Sweats & Pulls"],
 
-  // T-shirts (now safe: "Sweat-Shirts" already matched above)
+  // ── T-shirts ──
   [/T-shirts/i, "T-shirts"],
   [/^Tees/i, "T-shirts"],
   [/Débardeurs/i, "T-shirts"],
-  [/Bodys/i, "T-shirts"],
-  [/^Body/i, "T-shirts"],
+  [/Tuniques/i, "T-shirts"],
+  [/Bodys|^Body/i, "T-shirts"],
+  [/Maillots de sport/i, "T-shirts"],
 
-  // Polos
+  // ── Polos ──
   [/Polos/i, "Polos"],
 
-  // Chemises (must come AFTER Sweat rules so "Sweat-shirts" doesn't match Shirts$)
+  // ── Chemises (after Sweat rules) ──
   [/Chemises|Surchemises|Chemisiers|Blouses/i, "Chemises"],
-  [/Shirts$/i, "Chemises"],
+  [/^Shirts > /i, "Chemises"],
 
-  // Vestes & Manteaux
+  // ── Vestes & Manteaux ──
   [/Vestes/i, "Vestes & Manteaux"],
   [/Jackets/i, "Vestes & Manteaux"],
   [/Softshells/i, "Vestes & Manteaux"],
   [/Bodywarmers/i, "Vestes & Manteaux"],
   [/Ponchos/i, "Vestes & Manteaux"],
   [/^Extérieur/i, "Vestes & Manteaux"],
+  [/Chasubles/i, "Vestes & Manteaux"],
+  [/Combinaisons/i, "Vestes & Manteaux"],
+  [/Blouses de travail/i, "Vestes & Manteaux"],
 
-  // Pantalons & Shorts
+  // ── Pantalons & Shorts ──
   [/Pantalons|Pantacourts/i, "Pantalons & Shorts"],
   [/Bermudas|Shorts/i, "Pantalons & Shorts"],
   [/Salopettes/i, "Pantalons & Shorts"],
-  [/^Bas/i, "Pantalons & Shorts"],
+  [/Jeans/i, "Pantalons & Shorts"],
+  [/^Bas > /i, "Pantalons & Shorts"],
 
-  // Robes & Jupes
+  // ── Robes & Jupes ──
   [/Robes|Jupes/i, "Robes & Jupes"],
+  [/Maillots de bain/i, "Robes & Jupes"],
 
-  // Tabliers
+  // ── Tabliers ──
   [/Tabliers/i, "Tabliers"],
 
-  // Sous-vêtements & Nuit
+  // ── Sous-vêtements ──
   [/Sous-vêtements/i, "Sous-vêtements"],
   [/Pyjamas/i, "Sous-vêtements"],
   [/Maillots de Corps/i, "Sous-vêtements"],
+  [/Boxers|Caleçons|Brassières/i, "Sous-vêtements"],
+  [/Chaussettes/i, "Sous-vêtements"],
 
-  // Accessoires textile
+  // ── Accessoires textile ──
+  [/Headwear & Accessoires/i, "Accessoires textile"],
   [/Accessoires Vêtements/i, "Accessoires textile"],
-  [/Headwear/i, "Accessoires textile"],
   [/^Head & multiwear/i, "Accessoires textile"],
-  [/Foulards|Écharpes|Tours de cou/i, "Accessoires textile"],
-  [/Bonnets|Casquettes|Bobs|Chapeau/i, "Accessoires textile"],
+  [/Foulards|Écharpes|Tours de cou|Étoles/i, "Accessoires textile"],
+  [/Bonnets|Casquettes|Bobs|Chapeau|Bérets|Cagoules|Calots|Bandanas|Bandeaux/i, "Accessoires textile"],
+  [/Gants/i, "Accessoires textile"],
+  [/Ceintures|Cravates|Bretelles|Genouillères/i, "Accessoires textile"],
   [/Bavoir|Étuis/i, "Accessoires textile"],
-  [/Parapluies/i, "Accessoires textile"],
+  [/Poches d'identité/i, "Accessoires textile"],
+  [/Masques/i, "Accessoires textile"],
+  [/Lunettes & housses/i, "Accessoires textile"],
+  [/Casques(?! audio)/i, "Accessoires textile"],
 
-  // Linge
+  // ── Linge de maison ──
   [/Linge de maison/i, "Linge de maison"],
-  [/Objets publicitaires > Serviettes/i, "Linge de maison"],
+  [/Textiles de salle de bains/i, "Linge de maison"],
+  [/Serviettes(?! de plage)/i, "Linge de maison"],
+  [/Décoration/i, "Linge de maison"],
 
-  // Sport
+  // ── Sport ──
   [/Equipements sportifs/i, "Sport"],
   [/Sports & active wear/i, "Sport"],
+  [/Bien Être & Sport/i, "Sport"],
+  [/Accessoires Sportives/i, "Sport"],
+  [/Crampons/i, "Sport"],
 
-  // Bagagerie
+  // ── Chaussures ──
+  [/Chaussures/i, "Chaussures"],
+
+  // ── Sacs (textile context) ──
   [/Bagagerie/i, "Sacs & Bagagerie"],
   [/Accessoires > Sacs/i, "Sacs & Bagagerie"],
-  [/Packaging/i, "Sacs & Bagagerie"],
 
-  // Chaussures
-  [/Chaussures/i, "Chaussures"],
+  // ── Catch-all textile ──
+  [/^Textiles > /i, "Textile divers"],
+  [/Packaging/i, "Accessoires textile"],
 ];
 
+// ─── SIGNALÉTIQUE tab rules ─────────────────────────────────────
 const SIGNALETIQUE_RULES: [RegExp, string][] = [
   [/Bannières|Signalétique/i, "Bannières & Signalétique"],
   [/Panneaux/i, "Panneaux"],
@@ -224,5 +286,5 @@ export function getCatalogTabByCategory(
 
   // Ambiguous: category matches multiple rule sets → use prefix as tiebreaker
   if (matches.includes(prefixTab)) return prefixTab;
-  return matches[0]; // Shouldn't happen often, but pick first match
+  return matches[0];
 }
