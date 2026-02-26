@@ -52,8 +52,12 @@ function groupByModel(items: XDCItem[]): Map<string, GroupedProduct> {
   const map = new Map<string, GroupedProduct>();
 
   for (const item of items) {
-    const modelCode = item.ModelCode || item.ItemCode || "";
-    if (!modelCode) continue;
+    const rawCode = item.ModelCode || item.ItemCode || "";
+    if (!rawCode) continue;
+
+    // Vinga products: ModelCode includes color suffix (e.g. V850111 = V85011 + color 1)
+    // Group by V + 5 digits for Vinga, otherwise use full ModelCode
+    const modelCode = /^V\d{5,}/.test(rawCode) ? rawCode.slice(0, 6) : rawCode;
 
     let group = map.get(modelCode);
     if (!group) {
