@@ -202,20 +202,26 @@ const CatalogProducts = () => {
   const [toptexBrandFilter, setToptexBrandFilter] = useState<string>("all");
   const [toptexBrandManageOpen, setToptexBrandManageOpen] = useState(false);
 
-  // Extract unique TopTex brands from products
+  // Extract unique TopTex brands from products (including null-brand products)
   const toptexBrandsInCatalog = useMemo(() => {
     if (!products) return [];
     const brandMap = new Map<string, { total: number; active: number }>();
     for (const p of products) {
-      if (!p.midocean_id?.startsWith("TT-") || !p.brand) continue;
-      const entry = brandMap.get(p.brand) || { total: 0, active: 0 };
+      if (!p.midocean_id?.startsWith("TT-")) continue;
+      const brandKey = p.brand || "__no_brand__";
+      const entry = brandMap.get(brandKey) || { total: 0, active: 0 };
       entry.total++;
       if (p.active) entry.active++;
-      brandMap.set(p.brand, entry);
+      brandMap.set(brandKey, entry);
     }
     return Array.from(brandMap.entries())
       .map(([brand, stats]) => ({ brand, ...stats }))
-      .sort((a, b) => a.brand.localeCompare(b.brand));
+      .sort((a, b) => {
+        // Put "(Sans marque)" at the top
+        if (a.brand === "__no_brand__") return -1;
+        if (b.brand === "__no_brand__") return 1;
+        return a.brand.localeCompare(b.brand);
+      });
   }, [products]);
 
   // Filter by supplier within goodies tab
@@ -233,7 +239,7 @@ const CatalogProducts = () => {
       else if (textileSupplier === "manual") filtered = tabProducts.filter((p) => !p.midocean_id);
       // Further filter by TopTex brand
       if (textileSupplier === "toptex" && toptexBrandFilter !== "all") {
-        filtered = filtered.filter((p) => p.brand === toptexBrandFilter);
+        filtered = filtered.filter((p) => toptexBrandFilter === "__no_brand__" ? !p.brand : p.brand === toptexBrandFilter);
       }
       return filtered;
     }
@@ -656,7 +662,7 @@ const CatalogProducts = () => {
                     className="h-6 text-[11px] rounded-full px-2.5"
                     onClick={() => setToptexBrandFilter(b.brand)}
                   >
-                    {b.brand} ({b.total})
+                    {b.brand === "__no_brand__" ? "Sans marque" : b.brand} ({b.total})
                     {b.active < b.total && (
                       <span className="ml-0.5 text-[9px] text-muted-foreground">· {b.active} actifs</span>
                     )}
@@ -1357,13 +1363,14 @@ const CatalogProducts = () => {
                 {toptexBrandsInCatalog.map((b) => {
                   const allActive = b.active === b.total;
                   const noneActive = b.active === 0;
+                  const displayName = b.brand === "__no_brand__" ? "⚠ Sans marque (re-sync nécessaire)" : b.brand;
                   return (
                     <div
                       key={b.brand}
                       className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/30 transition-colors"
                     >
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{b.brand}</p>
+                        <p className="text-sm font-medium truncate">{displayName}</p>
                         <p className="text-xs text-muted-foreground">
                           {b.total} produits · <span className={allActive ? "text-emerald-600" : noneActive ? "text-destructive" : "text-amber-600"}>{b.active} actifs</span>
                         </p>
@@ -1371,12 +1378,12 @@ const CatalogProducts = () => {
                       <Switch
                         checked={allActive}
                         onCheckedChange={async (checked) => {
-                          const ids = (products || []).filter(p => p.midocean_id?.startsWith("TT-") && p.brand === b.brand).map(p => p.id);
+                          const ids = (products || []).filter(p => p.midocean_id?.startsWith("TT-") && (b.brand === "__no_brand__" ? !p.brand : p.brand === b.brand)).map(p => p.id);
                           const batchSize = 500;
                           for (let i = 0; i < ids.length; i += batchSize) {
                             await supabase.from("catalog_products").update({ active: checked }).in("id", ids.slice(i, i + batchSize));
                           }
-                          toast.success(`${b.brand} : ${ids.length} produits ${checked ? "activés" : "désactivés"}`);
+                          toast.success(`${b.brand === "__no_brand__" ? "Sans marque" : b.brand} : ${ids.length} produits ${checked ? "activés" : "désactivés"}`);
                           qc.invalidateQueries({ queryKey: ["catalog-products"] });
                         }}
                       />
