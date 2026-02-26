@@ -9,6 +9,7 @@ import { RequireSuperAdmin, RequireTenantUser, RequireEmployee, RequireShopManag
 import AppLayout from "./components/AppLayout";
 import TenantAdminLayout from "./components/TenantAdminLayout";
 import StorefrontLayout from "./components/StorefrontLayout";
+import CookieConsent from "./components/CookieConsent";
 import Dashboard from "./pages/Dashboard";
 import Tenants from "./pages/Tenants";
 import TenantDetail from "./pages/TenantDetail";
@@ -40,6 +41,9 @@ import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import LandingPage from "./pages/LandingPage";
 import ResetPassword from "./pages/ResetPassword";
+import MentionsLegales from "./pages/legal/MentionsLegales";
+import CGU from "./pages/legal/CGU";
+import PolitiqueConfidentialite from "./pages/legal/PolitiqueConfidentialite";
 import SubdomainRouter, { useSubdomain } from "./components/SubdomainRouter";
 
 const queryClient = new QueryClient();
@@ -54,6 +58,9 @@ const SubdomainAwareRoutes = () => {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/mentions-legales" element={<MentionsLegales />} />
+        <Route path="/conditions-generales" element={<CGU />} />
+        <Route path="/politique-de-confidentialite" element={<PolitiqueConfidentialite />} />
 
         {/* Public landing page for subdomain */}
         <Route path="/" element={<LandingPage />} />
@@ -97,6 +104,9 @@ const SubdomainAwareRoutes = () => {
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<Login />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/mentions-legales" element={<MentionsLegales />} />
+      <Route path="/conditions-generales" element={<CGU />} />
+      <Route path="/politique-de-confidentialite" element={<PolitiqueConfidentialite />} />
 
       {/* Super Admin routes */}
       <Route element={<RequireSuperAdmin><AppLayout /></RequireSuperAdmin>}>
@@ -157,6 +167,7 @@ const App = () => (
           <BrowserRouter>
             <SubdomainRouter>
               <SubdomainAwareRoutes />
+              <CookieConsent />
             </SubdomainRouter>
           </BrowserRouter>
         </TooltipProvider>

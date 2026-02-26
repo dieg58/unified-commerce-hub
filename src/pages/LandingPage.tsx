@@ -432,9 +432,16 @@ const LandingPage = () => {
 
       {/* Footer */}
       <footer className="border-t border-border py-10">
-        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
-          <img src={inkooFullNoir} alt="INKOO" className="h-6" />
-          <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} INKOO B2B. {t("landing.allRights")}</p>
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <img src={inkooFullNoir} alt="INKOO" className="h-6" />
+            <nav className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
+              <a href="/mentions-legales" className="hover:text-foreground transition-colors">Mentions légales</a>
+              <a href="/conditions-generales" className="hover:text-foreground transition-colors">CGU</a>
+              <a href="/politique-de-confidentialite" className="hover:text-foreground transition-colors">Confidentialité</a>
+            </nav>
+            <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} INKOO B2B. {t("landing.allRights")}</p>
+          </div>
         </div>
       </footer>
 
