@@ -73,20 +73,45 @@ serve(async (req) => {
       full_name: fullName, email, company, phone: phone || null,
     });
 
-    // 2. Create user
+    // 2. Create user (or reuse existing)
     const password = generatePassword();
+    let userId: string;
     const { data: userData, error: userErr } = await supabase.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
       user_metadata: { full_name: fullName },
     });
-    if (userErr) throw new Error(`User creation failed: ${userErr.message}`);
-    const userId = userData.user.id;
+    if (userErr) {
+      if (userErr.message?.includes("already been registered")) {
+        // User exists — update password and reuse
+        const { data: listData } = await supabase.auth.admin.listUsers();
+        const existingUser = listData?.users?.find((u: any) => u.email === email);
+        if (!existingUser) throw new Error("User exists but could not be found");
+        userId = existingUser.id;
+        await supabase.auth.admin.updateUserById(userId, { password });
+      } else {
+        throw new Error(`User creation failed: ${userErr.message}`);
+      }
+    } else {
+      userId = userData.user.id;
+    }
+
+    // Check if user already has a tenant (returning user)
+    const { data: existingProfile } = await supabase
+      .from("profiles").select("tenant_id").eq("id", userId).single();
+    if (existingProfile?.tenant_id) {
+      // User already has a demo tenant — fetch slug and return
+      const { data: existingTenant } = await supabase
+        .from("tenants").select("slug").eq("id", existingProfile.tenant_id).single();
+      console.log(`Returning existing demo for ${email}: ${existingTenant?.slug}`);
+      return new Response(JSON.stringify({ slug: existingTenant?.slug || "", email, password }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // 3. Create tenant
     let slug = toSlug(company);
-    // Ensure unique slug
     const { data: slugCheck } = await supabase.from("tenants").select("id").eq("slug", slug).limit(1);
     if (slugCheck && slugCheck.length > 0) {
       slug = `${slug}-${Date.now().toString(36).slice(-4)}`;
