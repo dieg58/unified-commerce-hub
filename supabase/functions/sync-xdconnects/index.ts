@@ -171,13 +171,13 @@ Deno.serve(async (req) => {
     let body: any = {};
     try { body = await req.json(); } catch (_) { /* no body */ }
     const offset = body.offset || 0;
-    const BATCH_SIZE = body.batch_size || 300;
+    const BATCH_SIZE = body.batch_size || 150;
 
     const startCpu = performance.now();
     const deadline = startCpu + MAX_CPU_MS;
 
-    // Fetch FR feed (primary) — and EN/NL for translations
-    console.log("Fetching XD Connects feeds...");
+    // Fetch FR feed only (primary) to avoid memory limit
+    console.log("Fetching XD Connects FR feed...");
     const frData = await fetchFeed(FEEDS.fr);
 
     // The V6 feed structure: root object with Products array, or root is the array
@@ -194,33 +194,41 @@ Deno.serve(async (req) => {
 
     console.log(`XD Connects: ${frProducts.length} total products`);
 
-    // Fetch EN and NL feeds for translations (best effort)
+    // Slice for batching
+    const slice = frProducts.slice(offset, offset + BATCH_SIZE);
+    const hasMore = offset + BATCH_SIZE < frProducts.length;
+
+    // Build set of item numbers we need translations for
+    const batchItemNumbers = new Set<string>();
+    for (const p of slice) {
+      const n = p.ItemNumber || p.itemNumber;
+      if (n) batchItemNumbers.add(n);
+    }
+
+    // Fetch EN and NL feeds, but only keep items in current batch to save memory
     let enMap = new Map<string, any>();
     let nlMap = new Map<string, any>();
     try {
       const [enData, nlData] = await Promise.all([fetchFeed(FEEDS.en), fetchFeed(FEEDS.nl)]);
-      const enProducts: any[] = Array.isArray(enData)
-        ? enData
-        : enData?.Products || enData?.products || enData?.Items || enData?.items || [];
-      const nlProducts: any[] = Array.isArray(nlData)
-        ? nlData
-        : nlData?.Products || nlData?.products || nlData?.Items || nlData?.items || [];
-      for (const p of enProducts) {
-        const sku = p.ItemNumber || p.itemNumber;
-        if (sku) enMap.set(sku, p);
-      }
-      for (const p of nlProducts) {
-        const sku = p.ItemNumber || p.itemNumber;
-        if (sku) nlMap.set(sku, p);
-      }
-      console.log(`Translation feeds loaded: EN=${enMap.size}, NL=${nlMap.size}`);
+      const extractMap = (data: any): Map<string, any> => {
+        const arr: any[] = Array.isArray(data)
+          ? data
+          : data?.Products || data?.products || data?.Items || data?.items || [];
+        const m = new Map<string, any>();
+        for (const p of arr) {
+          const sku = p.ItemNumber || p.itemNumber;
+          if (sku && batchItemNumbers.has(sku)) {
+            m.set(sku, { name: p.ItemDescription || p.itemDescription, desc: p.ItemDescriptionLong || p.itemDescriptionLong });
+          }
+        }
+        return m;
+      };
+      enMap = extractMap(enData);
+      nlMap = extractMap(nlData);
+      console.log(`Translation maps: EN=${enMap.size}, NL=${nlMap.size}`);
     } catch (e) {
       console.warn("Failed to load translation feeds:", e);
     }
-
-    // Slice for batching
-    const slice = frProducts.slice(offset, offset + BATCH_SIZE);
-    const hasMore = offset + BATCH_SIZE < frProducts.length;
 
     console.log(`Processing batch ${offset}–${offset + slice.length} of ${frProducts.length}...`);
 
@@ -272,12 +280,12 @@ Deno.serve(async (req) => {
         const isNew = !!(product.ItemIsNew || product.itemIsNew);
 
         // Translations
-        const enProduct = enMap.get(itemNumber);
-        const nlProduct = nlMap.get(itemNumber);
-        const nameEn = enProduct?.ItemDescription || enProduct?.itemDescription || null;
-        const nameNl = nlProduct?.ItemDescription || nlProduct?.itemDescription || null;
-        const descEn = enProduct?.ItemDescriptionLong || enProduct?.itemDescriptionLong || null;
-        const descNl = nlProduct?.ItemDescriptionLong || nlProduct?.itemDescriptionLong || null;
+        const enT = enMap.get(itemNumber);
+        const nlT = nlMap.get(itemNumber);
+        const nameEn = enT?.name || null;
+        const nameNl = nlT?.name || null;
+        const descEn = enT?.desc || null;
+        const descNl = nlT?.desc || null;
 
         const existingId = existingMap.get(midoceanId);
         const payload: any = {
