@@ -251,53 +251,52 @@ export type Database = {
       demo_product_templates: {
         Row: {
           active: boolean
-          base_image: string
-          category: string
+          catalog_product_id: string | null
           id: string
           logo_blend: string
+          logo_mode: string
           logo_opacity: number
           logo_rotation: number
           logo_width: number
           logo_x: number
           logo_y: number
-          name: string
-          price: number
-          sku: string
           sort_order: number
         }
         Insert: {
           active?: boolean
-          base_image: string
-          category?: string
+          catalog_product_id?: string | null
           id?: string
           logo_blend?: string
+          logo_mode?: string
           logo_opacity?: number
           logo_rotation?: number
           logo_width?: number
           logo_x?: number
           logo_y?: number
-          name: string
-          price?: number
-          sku: string
           sort_order?: number
         }
         Update: {
           active?: boolean
-          base_image?: string
-          category?: string
+          catalog_product_id?: string | null
           id?: string
           logo_blend?: string
+          logo_mode?: string
           logo_opacity?: number
           logo_rotation?: number
           logo_width?: number
           logo_x?: number
           logo_y?: number
-          name?: string
-          price?: number
-          sku?: string
           sort_order?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "demo_product_templates_catalog_product_id_fkey"
+            columns: ["catalog_product_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       demo_requests: {
         Row: {

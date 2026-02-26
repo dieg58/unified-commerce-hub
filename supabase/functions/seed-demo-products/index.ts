@@ -38,7 +38,7 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const { tenant_id, entity_id, app_url } = body;
+    const { tenant_id, entity_id } = body;
 
     if (!tenant_id || !entity_id) {
       return new Response(JSON.stringify({ error: "tenant_id and entity_id required" }), {
@@ -48,12 +48,11 @@ serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, serviceRoleKey);
-    const baseUrl = app_url || "https://b2b-inkoo.lovable.app";
 
-    // Read templates from demo_product_templates
+    // Read templates with joined catalog product data
     const { data: templates, error: tplErr } = await supabase
       .from("demo_product_templates")
-      .select("*")
+      .select("*, catalog_products(*)")
       .eq("active", true)
       .order("sort_order");
 
@@ -67,6 +66,9 @@ serve(async (req) => {
 
     let created = 0;
     for (const tpl of templates) {
+      const catalogProduct = (tpl as any).catalog_products;
+      if (!catalogProduct) continue;
+
       const logoPlacement = {
         x: Number(tpl.logo_x),
         y: Number(tpl.logo_y),
@@ -74,16 +76,17 @@ serve(async (req) => {
         rotation: Number(tpl.logo_rotation),
         blend: tpl.logo_blend,
         opacity: Number(tpl.logo_opacity),
+        mode: tpl.logo_mode,
       };
 
       const { data: prod, error: prodErr } = await supabase
         .from("products")
         .insert({
           tenant_id,
-          name: tpl.name,
-          sku: tpl.sku,
-          category: tpl.category,
-          image_url: `${baseUrl}/demo/${tpl.base_image}`,
+          name: catalogProduct.name,
+          sku: catalogProduct.sku,
+          category: catalogProduct.category || "general",
+          image_url: catalogProduct.image_url,
           logo_placement: logoPlacement,
           active: true,
           active_bulk: true,
@@ -95,19 +98,20 @@ serve(async (req) => {
         .single();
 
       if (prodErr) {
-        console.error(`Insert error for ${tpl.sku}:`, prodErr);
+        console.error(`Insert error for ${catalogProduct.sku}:`, prodErr);
         continue;
       }
 
+      const price = Number(catalogProduct.base_price) || 10;
       await supabase.from("product_prices").insert([
-        { product_id: prod.id, tenant_id, store_type: "bulk" as const, price: Number(tpl.price) },
-        { product_id: prod.id, tenant_id, store_type: "staff" as const, price: Math.round(Number(tpl.price) * 0.8 * 100) / 100 },
+        { product_id: prod.id, tenant_id, store_type: "bulk" as const, price },
+        { product_id: prod.id, tenant_id, store_type: "staff" as const, price: Math.round(price * 0.8 * 100) / 100 },
       ]);
 
       created++;
     }
 
-    console.log(`✓ ${created} demo products created from templates`);
+    console.log(`✓ ${created} demo products created from catalog templates`);
 
     return new Response(JSON.stringify({ created }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
