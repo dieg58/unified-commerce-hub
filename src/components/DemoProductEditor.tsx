@@ -337,20 +337,24 @@ const LogoPlacementDialog = ({ template, logoUrl, onClose, onSave, saving }: Log
   const [t, setT] = useState<DemoTemplate>(template);
   const containerRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
-  const resizing = useRef(false);
-  const startPos = useRef({ mx: 0, my: 0, x: 0, y: 0, w: 0 });
+  const resizingW = useRef(false);
+  const resizingH = useRef(false);
+  const resizingWH = useRef(false);
+  const startPos = useRef({ mx: 0, my: 0, x: 0, y: 0, w: 0, h: 0 });
 
   const update = useCallback((patch: Partial<DemoTemplate>) => {
     setT((prev) => ({ ...prev, ...patch }));
   }, []);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent, mode: "drag" | "resize") => {
+  const handleMouseDown = useCallback((e: React.MouseEvent, mode: "drag" | "resize-w" | "resize-h" | "resize-wh") => {
     e.preventDefault();
     e.stopPropagation();
     if (mode === "drag") dragging.current = true;
-    else resizing.current = true;
-    startPos.current = { mx: e.clientX, my: e.clientY, x: Number(t.logo_x), y: Number(t.logo_y), w: Number(t.logo_width) };
-  }, [t.logo_x, t.logo_y, t.logo_width]);
+    else if (mode === "resize-w") resizingW.current = true;
+    else if (mode === "resize-h") resizingH.current = true;
+    else resizingWH.current = true;
+    startPos.current = { mx: e.clientX, my: e.clientY, x: Number(t.logo_x), y: Number(t.logo_y), w: Number(t.logo_width), h: Number(t.logo_max_height) };
+  }, [t.logo_x, t.logo_y, t.logo_width, t.logo_max_height]);
 
   useEffect(() => {
     const handleMove = (e: MouseEvent) => {
@@ -365,17 +369,29 @@ const LogoPlacementDialog = ({ template, logoUrl, onClose, onSave, saving }: Log
           logo_y: Math.max(0, Math.min(100, startPos.current.y + dy)),
         });
       }
-      if (resizing.current) {
+      if (resizingW.current) {
         const dx = ((e.clientX - startPos.current.mx) / rect.width) * 100;
+        update({ logo_width: Math.max(5, Math.min(80, startPos.current.w + dx)) });
+      }
+      if (resizingH.current) {
+        const dy = ((e.clientY - startPos.current.my) / rect.height) * 100;
+        update({ logo_max_height: Math.max(5, Math.min(80, startPos.current.h + dy)) });
+      }
+      if (resizingWH.current) {
+        const dx = ((e.clientX - startPos.current.mx) / rect.width) * 100;
+        const dy = ((e.clientY - startPos.current.my) / rect.height) * 100;
         update({
           logo_width: Math.max(5, Math.min(80, startPos.current.w + dx)),
+          logo_max_height: Math.max(5, Math.min(80, startPos.current.h + dy)),
         });
       }
     };
 
     const handleUp = () => {
       dragging.current = false;
-      resizing.current = false;
+      resizingW.current = false;
+      resizingH.current = false;
+      resizingWH.current = false;
     };
 
     window.addEventListener("mousemove", handleMove);
@@ -449,10 +465,20 @@ const LogoPlacementDialog = ({ template, logoUrl, onClose, onSave, saving }: Log
                     }}
                     draggable={false}
                   />
-                  {/* Resize handle */}
+                  {/* Resize handle: width only (right edge) */}
+                  <div
+                    className="absolute top-1/2 -right-1.5 w-2.5 h-5 bg-primary rounded-sm cursor-e-resize border-2 border-background shadow -translate-y-1/2"
+                    onMouseDown={(e) => handleMouseDown(e, "resize-w")}
+                  />
+                  {/* Resize handle: height only (bottom edge) */}
+                  <div
+                    className="absolute -bottom-1.5 left-1/2 w-5 h-2.5 bg-primary rounded-sm cursor-s-resize border-2 border-background shadow -translate-x-1/2"
+                    onMouseDown={(e) => handleMouseDown(e, "resize-h")}
+                  />
+                  {/* Resize handle: both (bottom-right corner) */}
                   <div
                     className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-primary rounded-full cursor-se-resize border-2 border-background shadow"
-                    onMouseDown={(e) => handleMouseDown(e, "resize")}
+                    onMouseDown={(e) => handleMouseDown(e, "resize-wh")}
                   />
                   {/* Move indicator */}
                   <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 bg-primary rounded px-1">
