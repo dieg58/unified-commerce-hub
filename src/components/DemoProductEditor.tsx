@@ -235,16 +235,29 @@ const CatalogPickerDialog = ({
   adding: boolean;
 }) => {
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const { data: catalogProducts, isLoading } = useQuery({
-    queryKey: ["catalog-products-for-demo"],
+    queryKey: ["catalog-products-for-demo", debouncedSearch],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("catalog_products")
         .select("id, name, sku, image_url, category, base_price")
         .eq("active", true)
         .order("name")
-        .limit(500);
+        .limit(60);
+
+      if (debouncedSearch) {
+        const q = `%${debouncedSearch}%`;
+        query = query.or(`name.ilike.${q},sku.ilike.${q},category.ilike.${q}`);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
@@ -252,13 +265,8 @@ const CatalogPickerDialog = ({
 
   const filtered = useMemo(() => {
     if (!catalogProducts) return [];
-    const q = search.toLowerCase();
-    return catalogProducts.filter(
-      (p) =>
-        !selectedIds.has(p.id) &&
-        (!q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || (p.category || "").toLowerCase().includes(q))
-    );
-  }, [catalogProducts, search, selectedIds]);
+    return catalogProducts.filter((p) => !selectedIds.has(p.id));
+  }, [catalogProducts, selectedIds]);
 
   return (
     <Dialog open onOpenChange={() => onClose()}>
