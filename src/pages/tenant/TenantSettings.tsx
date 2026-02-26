@@ -10,8 +10,12 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   Save, Loader2, Palette, Building2, Globe, Image, Upload, ShieldCheck,
-  Bell, Store, Info, ExternalLink, Copy, Check
+  Bell, Store, Info, ExternalLink, Copy, Check, RefreshCw, AlertTriangle
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
@@ -430,6 +434,23 @@ const TenantSettings = () => {
           </div>
         </Section>
 
+        {/* ─── Données de démonstration ─────────────────────────── */}
+        <Section icon={RefreshCw} title="Produits de démonstration" description="Régénérer les 20 produits démo avec le logo de la boutique.">
+          <div className="space-y-4">
+            <div className="rounded-md bg-destructive/5 border border-destructive/20 px-4 py-3 flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-foreground">Attention : action destructive</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Cette action va <strong>supprimer tous les produits existants</strong> de la boutique (y compris les commandes liées) 
+                  puis recréer 20 produits de démonstration avec le logo actuel. Cette opération est irréversible.
+                </p>
+              </div>
+            </div>
+            <RegenerateDemoButton tenantId={tenantId} logoUrl={logoUrl} />
+          </div>
+        </Section>
+
         {/* ─── Informations techniques ────────────────────────────── */}
         <Section icon={Info} title={t("tenantSettings.technicalInfo")} description={t("tenantSettings.technicalInfoDesc")}>
           <div className="space-y-1 divide-y divide-border">
@@ -442,6 +463,89 @@ const TenantSettings = () => {
         </Section>
       </div>
     </>
+  );
+};
+
+/* ─── Regenerate Demo Button with confirmation ───────────────────────── */
+const RegenerateDemoButton = ({ tenantId, logoUrl }: { tenantId?: string | null; logoUrl: string }) => {
+  const [loading, setLoading] = useState(false);
+  const qc = useQueryClient();
+
+  const handleRegenerate = async () => {
+    if (!tenantId) return;
+    setLoading(true);
+    toast.info("Suppression des anciens produits et régénération en cours…", {
+      description: "Les packshots personnalisés seront prêts dans quelques instants.",
+    });
+
+    try {
+      // Delete existing products (cascade will handle prices, variants, order_items)
+      const { error: delErr } = await supabase
+        .from("products")
+        .delete()
+        .eq("tenant_id", tenantId);
+      if (delErr) throw delErr;
+
+      // Get first entity for the tenant
+      const { data: entities } = await supabase
+        .from("entities")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .limit(1);
+      const entityId = entities?.[0]?.id;
+
+      // Invoke seed function
+      const { error: fnErr } = await supabase.functions.invoke("seed-demo-products", {
+        body: {
+          tenant_id: tenantId,
+          entity_id: entityId,
+          logo_url: logoUrl || null,
+          app_url: "https://b2b-inkoo.lovable.app",
+        },
+      });
+      if (fnErr) throw fnErr;
+
+      toast.success("20 produits démo régénérés avec succès !");
+      qc.invalidateQueries({ queryKey: ["tenant-products-manage"] });
+      qc.invalidateQueries({ queryKey: ["tenant-settings-stats"] });
+    } catch (err: any) {
+      console.error("Regenerate demo error:", err);
+      toast.error(err.message || "Erreur lors de la régénération");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button variant="destructive" size="sm" className="gap-2" disabled={loading || !tenantId}>
+          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+          {loading ? "Régénération en cours…" : "Régénérer les produits démo"}
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Régénérer les produits de démonstration ?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Cette action va <strong>supprimer définitivement tous les produits</strong> de cette boutique, 
+            puis recréer 20 produits de démonstration avec le logo actuel. 
+            Les commandes existantes liées à ces produits seront également impactées.
+            <br /><br />
+            <strong>Cette action est irréversible.</strong>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Annuler</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={handleRegenerate}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            Oui, régénérer
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 };
 
