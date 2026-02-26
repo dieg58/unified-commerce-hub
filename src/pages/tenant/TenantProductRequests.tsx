@@ -695,6 +695,15 @@ const TenantProductRequests = () => {
                     const displayColors = colors.filter(c => c.hex || c.image_url).slice(0, 6);
                     const extraColors = Math.max(0, colors.length - 6);
 
+                    // Pick packshot matching active color filter
+                    const cardImage = (() => {
+                      if (filterColors.size > 0 && colors.length > 0) {
+                        const match = colors.find(c => filterColors.has(getColorFamily(c.color)) && c.image_url);
+                        if (match?.image_url) return match.image_url;
+                      }
+                      return p.image_url;
+                    })();
+
                     return (
                       <button
                         key={p.id}
@@ -703,9 +712,9 @@ const TenantProductRequests = () => {
                       >
                         {/* Image */}
                         <div className="relative aspect-square bg-muted overflow-hidden">
-                          {p.image_url ? (
+                          {cardImage ? (
                             <img
-                              src={p.image_url}
+                              src={cardImage}
                               alt={p.name}
                               loading="lazy"
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
