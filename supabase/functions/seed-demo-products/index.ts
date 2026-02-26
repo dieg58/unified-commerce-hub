@@ -59,6 +59,54 @@ async function fetchImageAsBase64(url: string): Promise<{ b64: string; mime: str
   }
 }
 
+async function convertSvgToPng(svgB64: string, apiKey: string): Promise<{ b64: string; mime: string } | null> {
+  try {
+    // Decode SVG base64 to get the XML text
+    const svgText = atob(svgB64);
+    console.log("Converting SVG logo to PNG via Gemini...");
+    
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-3-pro-image-preview",
+        messages: [
+          {
+            role: "user",
+            content: `Render this SVG logo as a clean, high-resolution PNG image. Keep the EXACT same design, colors, shapes and proportions. Use a pure white background. Do not add any extra elements. Here is the SVG code:\n\n${svgText}`,
+          },
+        ],
+        modalities: ["image", "text"],
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error("SVG conversion error:", response.status, errText);
+      return null;
+    }
+
+    const data = await response.json();
+    const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    if (!imageUrl || !imageUrl.startsWith("data:")) {
+      console.error("No image in SVG conversion response");
+      return null;
+    }
+
+    const commaIdx = imageUrl.indexOf(",");
+    if (commaIdx <= 0) return null;
+    
+    console.log("✓ SVG logo converted to PNG successfully");
+    return { b64: imageUrl.substring(commaIdx + 1), mime: "image/png" };
+  } catch (e) {
+    console.error("SVG conversion error:", e);
+    return null;
+  }
+}
+
 async function generateBrandedImage(
   productB64: string,
   productMime: string,
@@ -161,7 +209,24 @@ serve(async (req) => {
     let logoData: { b64: string; mime: string } | null = null;
     if (logo_url) {
       logoData = await fetchImageAsBase64(logo_url);
-      if (!logoData) console.warn("Could not fetch logo, will use base images only");
+      if (!logoData) {
+        console.warn("Could not fetch logo, will use base images only");
+      } else if (logoData.mime.includes("svg")) {
+        // SVG is not supported by Gemini — convert to PNG first
+        console.log("Logo is SVG, converting to PNG...");
+        if (lovableApiKey) {
+          const pngLogo = await convertSvgToPng(logoData.b64, lovableApiKey);
+          if (pngLogo) {
+            logoData = pngLogo;
+          } else {
+            console.warn("SVG to PNG conversion failed, will use base images only");
+            logoData = null;
+          }
+        } else {
+          console.warn("No API key for SVG conversion, will use base images only");
+          logoData = null;
+        }
+      }
     }
 
     const baseUrl = app_url || "https://b2b-inkoo.lovable.app";
