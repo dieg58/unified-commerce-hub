@@ -254,6 +254,7 @@ export type Database = {
           catalog_product_id: string | null
           id: string
           logo_blend: string
+          logo_max_height: number
           logo_mode: string
           logo_opacity: number
           logo_rotation: number
@@ -267,6 +268,7 @@ export type Database = {
           catalog_product_id?: string | null
           id?: string
           logo_blend?: string
+          logo_max_height?: number
           logo_mode?: string
           logo_opacity?: number
           logo_rotation?: number
@@ -280,6 +282,7 @@ export type Database = {
           catalog_product_id?: string | null
           id?: string
           logo_blend?: string
+          logo_max_height?: number
           logo_mode?: string
           logo_opacity?: number
           logo_rotation?: number
