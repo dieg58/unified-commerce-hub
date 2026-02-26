@@ -1359,16 +1359,16 @@ const CatalogProducts = () => {
 
       {/* TopTex Brand Manage Dialog */}
       <Dialog open={toptexBrandManageOpen} onOpenChange={setToptexBrandManageOpen}>
-        <DialogContent className="max-w-lg max-h-[80vh]">
-          <DialogHeader>
+        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
+          <DialogHeader className="shrink-0">
             <DialogTitle>Gérer les marques TopTex</DialogTitle>
             <p className="text-sm text-muted-foreground">Activez ou désactivez les marques pour les rendre visibles dans le catalogue.</p>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="flex flex-col gap-4 min-h-0 flex-1">
             {/* Global actions */}
-            <div className="flex items-center justify-between border-b border-border pb-3">
+            <div className="flex items-center justify-between border-b border-border pb-3 shrink-0 flex-wrap gap-2">
               <p className="text-sm font-medium">{toptexBrandsInCatalog.length} marques · {toptexBrandsInCatalog.reduce((s, b) => s + b.total, 0)} produits</p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 {toptexBrandsInCatalog.some(b => b.brand === "__no_brand__") && (
                   <Button
                     size="sm"
@@ -1417,7 +1417,7 @@ const CatalogProducts = () => {
                 </Button>
               </div>
             </div>
-            <ScrollArea className="max-h-[55vh]">
+            <ScrollArea className="flex-1 min-h-0">
               <div className="space-y-1 pr-3">
                 {toptexBrandsInCatalog.map((b) => {
                   const allActive = b.active === b.total;
