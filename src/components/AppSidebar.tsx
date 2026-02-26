@@ -16,6 +16,7 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useTranslation } from "react-i18next";
+import inkooPicktoBeige from "@/assets/inkoo-picto-beige.svg";
 
 const AppSidebar = () => {
   const [collapsed, setCollapsed] = useState(false);
@@ -48,8 +49,8 @@ const AppSidebar = () => {
       )}
     >
       <div className="flex items-center gap-3 px-4 h-16 border-b border-sidebar-border">
-        <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center shrink-0">
-          <Package className="w-4 h-4 text-primary-foreground" />
+        <div className="w-8 h-8 rounded-lg bg-foreground flex items-center justify-center shrink-0">
+          <img src={inkooPicktoBeige} alt="INKOO" className="w-5 h-5" />
         </div>
         {!collapsed && (
           <span className="text-sidebar-accent-foreground font-semibold text-sm tracking-tight truncate">
