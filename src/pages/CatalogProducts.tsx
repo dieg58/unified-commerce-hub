@@ -196,7 +196,7 @@ const CatalogProducts = () => {
   });
 
   // Goodies supplier filter
-  const [goodiesSupplier, setGoodiesSupplier] = useState<"all" | "midocean" | "pfconcept" | "manual">("all");
+  const [goodiesSupplier, setGoodiesSupplier] = useState<"all" | "midocean" | "pfconcept" | "xdconnects" | "manual">("all");
   const [autreSupplier, setAutreSupplier] = useState<"all" | "printcom" | "manual">("all");
   const [textileSupplier, setTextileSupplier] = useState<"all" | "stanleystella" | "toptex" | "manual">("all");
   const [toptexBrandFilter, setToptexBrandFilter] = useState<string>("all");
@@ -228,8 +228,9 @@ const CatalogProducts = () => {
   const supplierFilteredProducts = useMemo(() => {
     if (activeTab === "goodies") {
       if (goodiesSupplier === "all") return tabProducts;
-      if (goodiesSupplier === "midocean") return tabProducts.filter((p) => p.midocean_id && !p.midocean_id.startsWith("PFC-"));
+      if (goodiesSupplier === "midocean") return tabProducts.filter((p) => p.midocean_id && !p.midocean_id.startsWith("PFC-") && !p.midocean_id.startsWith("XDC-"));
       if (goodiesSupplier === "pfconcept") return tabProducts.filter((p) => p.midocean_id?.startsWith("PFC-"));
+      if (goodiesSupplier === "xdconnects") return tabProducts.filter((p) => p.midocean_id?.startsWith("XDC-"));
       return tabProducts.filter((p) => !p.midocean_id);
     }
     if (activeTab === "textile") {
@@ -464,6 +465,32 @@ const CatalogProducts = () => {
   }
   const visibleProducts = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
   const hasMore = visibleCount < filtered.length;
+
+  const syncXdConnects = useMutation({
+    mutationFn: async () => {
+      let totalCreated = 0, totalUpdated = 0, totalErrors = 0;
+      let offset = 0;
+      let hasMore = true;
+      while (hasMore) {
+        const { data, error } = await supabase.functions.invoke("sync-xdconnects", {
+          body: { offset, batch_size: 300 },
+        });
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+        totalCreated += data.created || 0;
+        totalUpdated += data.updated || 0;
+        totalErrors += data.errors || 0;
+        hasMore = data.has_more || false;
+        offset = data.next_offset || 0;
+      }
+      return { created: totalCreated, updated: totalUpdated, errors: totalErrors };
+    },
+    onSuccess: (data) => {
+      toast.success(`XD Connects : ${data.created} créés, ${data.updated} mis à jour`);
+      qc.invalidateQueries({ queryKey: ["catalog-products"] });
+    },
+    onError: (err: any) => toast.error(`Erreur sync XD Connects : ${err.message}`),
+  });
 
   const syncPfConcept = useMutation({
     mutationFn: async () => {
@@ -703,8 +730,9 @@ const CatalogProducts = () => {
             <span className="text-xs text-muted-foreground mr-1">Fournisseur :</span>
             {([
               ["all", "Tous", tabProducts.length],
-              ["midocean", "Midocean", tabProducts.filter(p => p.midocean_id && !p.midocean_id.startsWith("PFC-")).length],
+              ["midocean", "Midocean", tabProducts.filter(p => p.midocean_id && !p.midocean_id.startsWith("PFC-") && !p.midocean_id.startsWith("XDC-")).length],
               ["pfconcept", "PF Concept", tabProducts.filter(p => p.midocean_id?.startsWith("PFC-")).length],
+              ["xdconnects", "XD Connects", tabProducts.filter(p => p.midocean_id?.startsWith("XDC-")).length],
               ["manual", "Manuel", tabProducts.filter(p => !p.midocean_id).length],
             ] as [string, string, number][]).filter(([, , count]) => count > 0).map(([key, label, count]) => (
               <Button
@@ -984,6 +1012,10 @@ const CatalogProducts = () => {
                       <Button size="sm" variant="outline" className="gap-1.5" onClick={() => syncPfConcept.mutate()} disabled={syncPfConcept.isPending}>
                         {syncPfConcept.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                         Sync PF Concept
+                      </Button>
+                      <Button size="sm" variant="outline" className="gap-1.5" onClick={() => syncXdConnects.mutate()} disabled={syncXdConnects.isPending}>
+                        {syncXdConnects.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                        Sync XD Connects
                       </Button>
                     </>
                   )}
