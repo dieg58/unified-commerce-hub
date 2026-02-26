@@ -1,96 +1,71 @@
 
 
-# Plan : Optimisation SEO & GEO complète pour INKOO B2B
+# Plan : Optimisation pour les résultats de recherche des LLM
 
-## Contexte actuel
+## Contexte
 
-L'application est une SPA React sans aucune optimisation SEO :
-- Pas de balises `<title>` dynamiques par page
-- Pas de sitemap.xml
-- robots.txt basique sans lien sitemap
-- Pas de données structurées (JSON-LD / Schema.org)
-- `<html lang="en">` alors que le contenu est en français par défaut
-- Pas de balises `hreflang` pour le multilingue (fr/nl/en)
-- Pas de balises canonical
-- Pas de meta geo pour le GEO (localisation géographique)
-- Open Graph et Twitter Cards statiques (pas dynamiques par page)
+Les LLM (ChatGPT, Perplexity, Claude, Gemini, etc.) utilisent des crawlers specifiques pour indexer le web et repondre aux requetes des utilisateurs. Pour apparaitre dans leurs resultats, il faut :
 
-## Modifications prévues
+1. **Autoriser leurs crawlers** dans `robots.txt`
+2. **Fournir du contenu semantique riche** que les LLM peuvent facilement extraire et comprendre
+3. **Ajouter des meta-donnees specifiques** pour le Generative Engine Optimization (GEO)
+4. **Creer une page `/llms.txt`** — un standard emergent pour fournir aux LLM un resume structure du site
 
-### 1. Composant SEO réutilisable (`src/components/SEOHead.tsx`)
+## Modifications prevues
 
-Creer un composant qui utilise `document.title` et manipule les meta tags du `<head>` dynamiquement via `useEffect` :
-- `title` dynamique par page
-- `meta description` dynamique
-- `canonical` URL
-- Open Graph (`og:title`, `og:description`, `og:url`, `og:image`, `og:locale`)
-- Twitter Cards
-- `hreflang` alternates (fr, nl, en)
-- Meta geo-tags (`geo.region`, `geo.placename`, `geo.position`, `ICBM`)
+### 1. Mise a jour de `robots.txt` — Autoriser les crawlers LLM
 
-### 2. Mise a jour de `index.html`
+Ajouter des regles explicites pour les crawlers connus :
 
-- Changer `lang="en"` en `lang="fr"` (langue par defaut)
-- Ajouter les meta geo statiques pour INKOO (Belgique)
-- Ajouter le lien canonical par defaut
-- Ajouter le JSON-LD `Organization` inline
+- `GPTBot` (OpenAI / ChatGPT)
+- `Google-Extended` (Gemini)
+- `ClaudeBot` (Anthropic / Claude)
+- `PerplexityBot` (Perplexity)
+- `Bytespider` (ByteDance)
+- `CCBot` (Common Crawl, utilise par beaucoup de LLM)
 
-### 3. Donnees structurees JSON-LD (Schema.org)
+### 2. Nouveau fichier `public/llms.txt`
 
-Injecter via le composant SEO :
-- **Organization** : nom, logo, URL, coordonnees, reseaux sociaux
-- **WebSite** avec SearchAction
-- **FAQPage** sur la landing page (les 6 FAQ existantes)
-- **Service** pour chaque service INKOO (sourcing, webshop, stockage, expedition)
+Le standard `llms.txt` (propose par llmstxt.org) permet aux LLM de comprendre rapidement un site. Il s'agit d'un fichier texte/markdown structure avec :
 
-### 4. Integration du composant SEO dans les pages publiques
+- Nom et description de l'entreprise
+- Services proposes
+- Informations de contact
+- FAQ resumee
+- Liens vers les pages cles
 
-- **LandingPage** : titre principal + description riche + FAQ structured data
-- **Login** : titre "Connexion — INKOO B2B"
-- **NotFound** : titre "Page introuvable — INKOO B2B"
+### 3. Nouveau fichier `public/llms-full.txt`
 
-### 5. Sitemap statique (`public/sitemap.xml`)
+Version detaillee de `llms.txt` avec des informations plus completes sur chaque service, les avantages differenciants, les temoignages, et les stats cles.
 
-```xml
-<urlset>
-  <url><loc>https://inkoo.eu/</loc><priority>1.0</priority></url>
-  <url><loc>https://inkoo.eu/login</loc><priority>0.5</priority></url>
-</urlset>
-```
-Avec les balises `xhtml:link` hreflang pour chaque URL.
+### 4. Enrichissement du JSON-LD dans `index.html`
 
-### 6. Mise a jour de `robots.txt`
+Ajouter au JSON-LD Organization existant :
+- `sameAs` pour les profils reseaux sociaux
+- `areaServed` pour preciser la zone geographique
+- `knowsAbout` pour les sujets d'expertise
 
-Ajouter la directive `Sitemap: https://inkoo.eu/sitemap.xml`.
+### 5. Enrichissement du JSON-LD dynamique dans `LandingPage.tsx`
 
-### 7. Meta GEO (Geolocalisation)
+Ajouter un bloc `WebSite` avec `potentialAction` (SearchAction) pour aider les LLM a comprendre la structure du site.
 
-Ajout des balises GEO pour positionner INKOO en Belgique :
-- `geo.region` : BE
-- `geo.placename` : Brussels
-- `geo.position` : latitude;longitude
-- `ICBM` : latitude, longitude
+### 6. Meta-tag `robots` specifique dans `SEOHead.tsx`
 
-### 8. Lang dynamique sur `<html>`
+Ajouter la meta `robots` avec `max-snippet:-1, max-image-preview:large` pour permettre aux LLM/moteurs d'extraire des snippets complets du contenu.
 
-Le composant SEO mettra a jour `document.documentElement.lang` en fonction de la langue i18next active (fr/nl/en).
+### 7. Ajout d'un lien `<link>` vers `llms.txt` dans `index.html`
+
+Ajouter `<link rel="help" type="text/plain" href="/llms.txt">` pour faciliter la decouverte du fichier.
 
 ## Details techniques
 
-- Pas de dependance supplementaire (pas de react-helmet) — manipulation directe du DOM dans `useEffect` avec cleanup
-- Le composant SEO sera leger (~80 lignes) et reutilisable
-- Les pages protegees (dashboard, tenant, shop) n'ont pas besoin de SEO car elles sont derriere une authentification
-- Le JSON-LD FAQ sera genere dynamiquement depuis les cles i18n existantes
-
-## Fichiers impactes
-
 | Fichier | Action |
 |---|---|
-| `src/components/SEOHead.tsx` | Nouveau — composant SEO reutilisable |
-| `index.html` | Modifier — lang, geo, canonical, JSON-LD Organization |
-| `public/robots.txt` | Modifier — ajouter Sitemap |
-| `public/sitemap.xml` | Nouveau — sitemap statique |
-| `src/pages/LandingPage.tsx` | Modifier — integrer SEOHead + FAQ JSON-LD |
-| `src/pages/Login.tsx` | Modifier — integrer SEOHead |
-| `src/pages/NotFound.tsx` | Modifier — integrer SEOHead |
+| `public/robots.txt` | Modifier — ajouter crawlers LLM |
+| `public/llms.txt` | Nouveau — resume structure pour LLM |
+| `public/llms-full.txt` | Nouveau — version detaillee |
+| `index.html` | Modifier — lien llms.txt + enrichir JSON-LD |
+| `src/components/SEOHead.tsx` | Modifier — meta robots max-snippet |
+
+Aucune nouvelle dependance requise. Tous les fichiers sont statiques ou modifient des composants existants.
 
