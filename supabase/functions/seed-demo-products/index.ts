@@ -169,47 +169,51 @@ serve(async (req) => {
 
     for (const product of DEMO_PRODUCTS) {
       try {
-        // Fetch base product image
+        // Base product image URL (served from public/demo/)
         const productImageUrl = `${baseUrl}/demo/${product.image}`;
-        const productData = await fetchImageAsBase64(productImageUrl);
 
-        let finalImageUrl: string | null = null;
+        let finalImageUrl: string | null = productImageUrl;
 
-        if (productData && logoData && lovableApiKey) {
-          // Generate branded image via Gemini
-          console.log(`Generating branded image for ${product.sku}...`);
-          const generatedB64 = await generateBrandedImage(
-            productData.b64,
-            productData.mime,
-            logoData.b64,
-            logoData.mime,
-            product.prompt,
-            lovableApiKey,
-          );
+        if (logoData && lovableApiKey) {
+          // Fetch base product image for AI compositing
+          const productData = await fetchImageAsBase64(productImageUrl);
+          if (productData) {
+            // Generate branded image via Gemini
+            console.log(`Generating branded image for ${product.sku}...`);
+            const generatedB64 = await generateBrandedImage(
+              productData.b64,
+              productData.mime,
+              logoData.b64,
+              logoData.mime,
+              product.prompt,
+              lovableApiKey,
+            );
 
-          if (generatedB64) {
-            // Upload to storage
-            const filePath = `${tenant_id}/demo-${product.sku.toLowerCase()}.jpg`;
-            const fileBytes = Uint8Array.from(atob(generatedB64), (c) => c.charCodeAt(0));
-            const { error: uploadErr } = await supabase.storage
-              .from("product-images")
-              .upload(filePath, fileBytes, {
-                contentType: "image/png",
-                upsert: true,
-              });
+            if (generatedB64) {
+              // Upload to storage
+              const filePath = `${tenant_id}/demo-${product.sku.toLowerCase()}.jpg`;
+              const fileBytes = Uint8Array.from(atob(generatedB64), (c) => c.charCodeAt(0));
+              const { error: uploadErr } = await supabase.storage
+                .from("product-images")
+                .upload(filePath, fileBytes, {
+                  contentType: "image/png",
+                  upsert: true,
+                });
 
-            if (!uploadErr) {
-              const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(filePath);
-              finalImageUrl = urlData.publicUrl;
+              if (!uploadErr) {
+                const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(filePath);
+                finalImageUrl = urlData.publicUrl;
+              } else {
+                console.error(`Upload error for ${product.sku}:`, uploadErr);
+              }
             } else {
-              console.error(`Upload error for ${product.sku}:`, uploadErr);
+              console.warn(`AI generation failed for ${product.sku}, using base image`);
             }
+          } else {
+            console.warn(`Could not fetch base image for ${product.sku}, using URL directly`);
           }
-        }
-
-        // Fallback: use original image URL
-        if (!finalImageUrl && productData) {
-          finalImageUrl = productImageUrl;
+        } else {
+          console.log(`No logo or API key, using base image URL for ${product.sku}`);
         }
 
         // Insert product
