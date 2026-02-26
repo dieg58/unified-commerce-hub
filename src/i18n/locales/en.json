@@ -873,5 +873,18 @@
     "selectEntityError": "Please select a billing and shipping entity.",
     "reorder": "Re-order",
     "reorderSuccess": "Items added to cart"
+  },
+  "onboarding": {
+    "title": "Set up your shop",
+    "subtitle": "{{completed}} of {{total}} steps completed",
+    "dismiss": "Dismiss",
+    "stepBrandingTitle": "Customize your shop",
+    "stepBrandingDesc": "Add your logo, colors, and brand identity",
+    "stepEntitiesTitle": "Create your entities",
+    "stepEntitiesDesc": "Set up departments, shipping addresses, and budgets",
+    "stepProductsTitle": "Add products",
+    "stepProductsDesc": "Select products from the catalog or create your own",
+    "stepUsersTitle": "Invite your team",
+    "stepUsersDesc": "Add employees who can order from the shop"
   }
 }

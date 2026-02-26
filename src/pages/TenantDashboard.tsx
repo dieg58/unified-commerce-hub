@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/DashboardWidgets";
 import CatalogProductDetailDialog from "@/components/CatalogProductDetailDialog";
+import OnboardingCard from "@/components/OnboardingCard";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocaleDate } from "@/hooks/useLocaleDate";
@@ -123,6 +124,9 @@ const TenantDashboard = () => {
     <>
       <TopBar title={t("tenantDash.title")} subtitle={t("tenantDash.welcome", { name: profile?.full_name || profile?.email })} />
       <div className="p-6 space-y-6 overflow-auto">
+        {/* Onboarding */}
+        <OnboardingCard />
+
         {/* Welcome card */}
         <div className="bg-card rounded-lg border border-border p-6 animate-fade-in">
           <h2 className="text-lg font-bold text-foreground">{tenant?.name || t("tenantDash.myShop")}</h2>
