@@ -88,12 +88,12 @@ const CatalogProductDetailDialog = ({ product, open, onOpenChange, alreadyReques
       <DialogContent className="sm:max-w-2xl p-0 gap-0 max-h-[85vh] overflow-hidden">
         <div className="flex flex-col sm:flex-row max-h-[85vh]">
           {/* Left: Image */}
-          <div className="sm:w-1/2 bg-muted flex items-center justify-center shrink-0 relative min-h-[200px] sm:min-h-0">
+          <div className="sm:w-1/2 bg-muted flex items-center justify-center shrink-0 relative aspect-square">
             {displayImage ? (
               <img
                 src={displayImage}
                 alt={product.name}
-                className="w-full h-full object-cover sm:absolute sm:inset-0 transition-all duration-200"
+                className="w-full h-full object-contain sm:absolute sm:inset-0 transition-all duration-200 p-2"
               />
             ) : (
               <Package className="w-16 h-16 text-muted-foreground/20" />
