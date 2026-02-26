@@ -60,38 +60,82 @@ serve(async (req) => {
 
     console.log("Extracting branding from:", formattedUrl);
 
-    const response = await fetch("https://api.firecrawl.dev/v1/scrape", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        url: formattedUrl,
-        formats: ["branding", "markdown"],
-        onlyMainContent: true,
-      }),
-    });
+    // Try branding format first, fallback to metadata-only if it times out
+    let data: any = null;
+    let usedFallback = false;
 
-    const data = await response.json();
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 25000);
 
-    if (!response.ok) {
-      console.error("Firecrawl error:", data);
-      return new Response(
-        JSON.stringify({ success: false, error: "Scrape failed" }),
-        { status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      const response = await fetch("https://api.firecrawl.dev/v1/scrape", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          url: formattedUrl,
+          formats: ["branding"],
+          timeout: 20000,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      data = await response.json();
+
+      if (!response.ok) {
+        console.warn("Branding format failed, trying metadata fallback:", data?.error || data?.code);
+        usedFallback = true;
+      }
+    } catch (e) {
+      console.warn("Branding request timed out or failed, trying metadata fallback");
+      usedFallback = true;
     }
 
-    const branding = data.data?.branding || data.branding || {};
-    const metadata = data.data?.metadata || data.metadata || {};
+    // Fallback: just grab metadata (much faster, no JS rendering needed)
+    if (usedFallback) {
+      try {
+        const fallbackResp = await fetch("https://api.firecrawl.dev/v1/scrape", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            url: formattedUrl,
+            formats: ["markdown"],
+            onlyMainContent: false,
+            timeout: 15000,
+          }),
+        });
+        data = await fallbackResp.json();
+        if (!fallbackResp.ok) {
+          console.error("Fallback scrape also failed:", data);
+          return new Response(
+            JSON.stringify({ success: false, error: "Scrape failed" }),
+            { status: fallbackResp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      } catch (e2) {
+        console.error("Fallback also failed:", e2);
+        return new Response(
+          JSON.stringify({ success: false, error: "Scrape timed out" }),
+          { status: 504, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    const branding = data?.data?.branding || data?.branding || {};
+    const metadata = data?.data?.metadata || data?.metadata || {};
 
     const result = {
       success: true,
       branding: {
         primaryColor: branding.colors?.primary || null,
         accentColor: branding.colors?.accent || branding.colors?.secondary || null,
-        logo: branding.images?.logo || branding.logo || null,
+        logo: branding.images?.logo || branding.logo || metadata.ogImage || null,
         favicon: branding.images?.favicon || null,
         title: metadata.title || metadata.ogTitle || null,
         description: metadata.description || metadata.ogDescription || null,
