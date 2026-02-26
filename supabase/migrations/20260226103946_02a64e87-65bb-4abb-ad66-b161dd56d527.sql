@@ -1,0 +1,2 @@
+DELETE FROM product_prices WHERE tenant_id = '1035b31f-0a71-4441-ae66-833888330bff' AND product_id IN (SELECT id FROM products WHERE tenant_id = '1035b31f-0a71-4441-ae66-833888330bff' AND sku LIKE 'DEMO-%');
+DELETE FROM products WHERE tenant_id = '1035b31f-0a71-4441-ae66-833888330bff' AND sku LIKE 'DEMO-%';
