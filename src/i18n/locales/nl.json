@@ -873,5 +873,18 @@
     "selectEntityError": "Selecteer een facturerings- en leveringsentiteit.",
     "reorder": "Opnieuw bestellen",
     "reorderSuccess": "Artikelen toegevoegd aan winkelwagen"
+  },
+  "onboarding": {
+    "title": "Stel uw winkel in",
+    "subtitle": "{{completed}} van {{total}} stappen voltooid",
+    "dismiss": "Sluiten",
+    "stepBrandingTitle": "Pas uw winkel aan",
+    "stepBrandingDesc": "Voeg uw logo, kleuren en merkidentiteit toe",
+    "stepEntitiesTitle": "Maak uw entiteiten",
+    "stepEntitiesDesc": "Stel afdelingen, leveringsadressen en budgetten in",
+    "stepProductsTitle": "Voeg producten toe",
+    "stepProductsDesc": "Selecteer producten uit de catalogus of maak uw eigen",
+    "stepUsersTitle": "Nodig uw team uit",
+    "stepUsersDesc": "Voeg medewerkers toe die kunnen bestellen in de winkel"
   }
 }

@@ -873,5 +873,18 @@
     "selectEntityError": "Veuillez sélectionner une entité de facturation et de livraison.",
     "reorder": "Re-commander",
     "reorderSuccess": "Articles ajoutés au panier"
+  },
+  "onboarding": {
+    "title": "Configurez votre boutique",
+    "subtitle": "{{completed}} sur {{total}} étapes complétées",
+    "dismiss": "Masquer",
+    "stepBrandingTitle": "Personnaliser votre boutique",
+    "stepBrandingDesc": "Ajoutez votre logo, vos couleurs et votre identité visuelle",
+    "stepEntitiesTitle": "Créer vos entités",
+    "stepEntitiesDesc": "Définissez vos départements, adresses de livraison et budgets",
+    "stepProductsTitle": "Ajouter des produits",
+    "stepProductsDesc": "Sélectionnez des produits du catalogue ou créez les vôtres",
+    "stepUsersTitle": "Inviter votre équipe",
+    "stepUsersDesc": "Ajoutez les employés qui pourront commander sur la boutique"
   }
 }
