@@ -38,7 +38,7 @@ const Storefront = () => {
   const { isFavorite, toggleFavorite } = useWishlist();
   const [storeType, setStoreType] = useState<"staff" | "bulk">("bulk");
   const [search, setSearch] = useState("");
-  const [activeCategory, setActiveCategory] = useState("Tous");
+  const [activeCategory, setActiveCategory] = useState("__all__");
   const [sortBy, setSortBy] = useState<"name" | "price_asc" | "price_desc">("name");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
@@ -173,11 +173,11 @@ const Storefront = () => {
 
   const categories = useMemo(() => {
     if (tenantCategories?.length) {
-      return [t("storefront.allCategories"), ...tenantCategories.map((c) => c.name)];
+      return [{ value: "__all__", label: t("storefront.allCategories") }, ...tenantCategories.map((c) => ({ value: c.name, label: c.name }))];
     }
-    if (!products) return [t("storefront.allCategories")];
+    if (!products) return [{ value: "__all__", label: t("storefront.allCategories") }];
     const cats = [...new Set(products.map((p) => p.category || "general"))];
-    return [t("storefront.allCategories"), ...cats.map((c) => c.charAt(0).toUpperCase() + c.slice(1))];
+    return [{ value: "__all__", label: t("storefront.allCategories") }, ...cats.map((c) => ({ value: c, label: c.charAt(0).toUpperCase() + c.slice(1) }))];
   }, [products, tenantCategories, t]);
 
   const filteredProducts = useMemo(() => {
@@ -188,7 +188,7 @@ const Storefront = () => {
       const hasPrice = prices?.some((pr: any) => pr.store_type === storeType);
       const q = search.toLowerCase();
       const matchesSearch = !q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || (p.description || "").toLowerCase().includes(q);
-      const matchesCategory = activeCategory === t("storefront.allCategories") || (p.category || "general").toLowerCase() === activeCategory.toLowerCase();
+      const matchesCategory = activeCategory === "__all__" || (p.category || "general").toLowerCase() === activeCategory.toLowerCase();
       return hasPrice && matchesSearch && matchesCategory;
     }) || [];
 
@@ -441,12 +441,12 @@ const Storefront = () => {
         <div className="flex items-center gap-2 flex-wrap flex-1">
           {categories.map((cat) => (
             <button
-              key={cat}
-              onClick={() => setActiveCategory(cat)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${activeCategory === cat ? "text-white border-transparent" : "text-foreground border-border hover:border-foreground/30 bg-card"}`}
-              style={activeCategory === cat ? { backgroundColor: primaryColor } : {}}
+              key={cat.value}
+              onClick={() => setActiveCategory(cat.value)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${activeCategory === cat.value ? "text-white border-transparent" : "text-foreground border-border hover:border-foreground/30 bg-card"}`}
+              style={activeCategory === cat.value ? { backgroundColor: primaryColor } : {}}
             >
-              {cat}
+              {cat.label}
             </button>
           ))}
         </div>
