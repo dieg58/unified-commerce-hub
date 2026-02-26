@@ -58,6 +58,13 @@ function normalizeHex(value: unknown): string | null {
   return cleaned;
 }
 
+function normalizeCatalogReference(value: unknown): string | null {
+  const text = normalizeText(value);
+  if (!text) return null;
+  const normalized = text.replace(/^TT-/i, "").trim().toUpperCase();
+  return normalized || null;
+}
+
 async function toptexAuth(): Promise<string> {
   const res = await fetch(`${TOPTEX_BASE}/v3/authenticate`, {
     method: "POST",
@@ -133,16 +140,28 @@ Deno.serve(async (req) => {
     if (action === "fix_brands") {
       console.log("fix_brands: starting");
 
-      // 1. Get all TT- products with null brand from DB
-      const { data: nullBrandProducts, error: dbErr } = await supabase
-        .from("catalog_products")
-        .select("id, sku, midocean_id")
-        .like("midocean_id", "TT-%")
-        .is("brand", null)
-        .limit(2000);
+      // 1. Get all TT- products with null brand from DB (paginated)
+      const nullBrandProducts: Array<{ id: string; sku: string; midocean_id: string | null }> = [];
+      const PAGE_SIZE_DB = 1000;
+      let from = 0;
+      while (true) {
+        const to = from + PAGE_SIZE_DB - 1;
+        const { data: batch, error: dbErr } = await supabase
+          .from("catalog_products")
+          .select("id, sku, midocean_id")
+          .like("midocean_id", "TT-%")
+          .is("brand", null)
+          .range(from, to);
 
-      if (dbErr) throw new Error(`DB query error: ${dbErr.message}`);
-      if (!nullBrandProducts?.length) {
+        if (dbErr) throw new Error(`DB query error: ${dbErr.message}`);
+        if (!batch?.length) break;
+
+        nullBrandProducts.push(...batch);
+        if (batch.length < PAGE_SIZE_DB) break;
+        from += PAGE_SIZE_DB;
+      }
+
+      if (!nullBrandProducts.length) {
         return new Response(JSON.stringify({ success: true, message: "No products with missing brand", fixed: 0 }), {
           status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -150,10 +169,16 @@ Deno.serve(async (req) => {
 
       console.log(`fix_brands: ${nullBrandProducts.length} products with null brand`);
 
-      // 2. Build a map of SKU -> product id
-      const skuToId = new Map<string, string>();
+      // 2. Build map of normalized catalog reference -> product ids
+      const refToIds = new Map<string, Set<string>>();
+      const addRef = (ref: string | null, id: string) => {
+        if (!ref) return;
+        if (!refToIds.has(ref)) refToIds.set(ref, new Set<string>());
+        refToIds.get(ref)!.add(id);
+      };
       for (const p of nullBrandProducts) {
-        skuToId.set(p.sku, p.id);
+        addRef(normalizeCatalogReference(p.sku), p.id);
+        addRef(normalizeCatalogReference(p.midocean_id), p.id);
       }
 
       // 3. Get all available brands
@@ -164,10 +189,10 @@ Deno.serve(async (req) => {
       console.log(`fix_brands: ${allBrands.length} brands to check`);
 
       let totalFixed = 0;
-      const remainingSkus = new Set(skuToId.keys());
+      const remainingRefs = new Set(refToIds.keys());
 
       for (const brandName of allBrands) {
-        if (remainingSkus.size === 0) break;
+        if (remainingRefs.size === 0) break;
 
         let page = 1;
         const PAGE_SIZE = 100;
@@ -184,24 +209,28 @@ Deno.serve(async (req) => {
           if (!items.length) break;
 
           // Collect matching product IDs for this batch
-          const idsToUpdate: string[] = [];
+          const idsToUpdate = new Set<string>();
           for (const item of items) {
-            const ref = item.catalogReference;
-            if (ref && remainingSkus.has(ref)) {
-              idsToUpdate.push(skuToId.get(ref)!);
-              remainingSkus.delete(ref);
+            const ref = normalizeCatalogReference(item.catalogReference);
+            if (ref && remainingRefs.has(ref)) {
+              const matchedIds = refToIds.get(ref);
+              if (matchedIds) {
+                for (const id of matchedIds) idsToUpdate.add(id);
+              }
+              remainingRefs.delete(ref);
             }
           }
 
           // Batch update brand for matched products
-          if (idsToUpdate.length > 0) {
+          if (idsToUpdate.size > 0) {
+            const ids = Array.from(idsToUpdate);
             const { error: updateErr } = await supabase
               .from("catalog_products")
               .update({ brand: brandName })
-              .in("id", idsToUpdate);
+              .in("id", ids);
             if (!updateErr) {
-              totalFixed += idsToUpdate.length;
-              console.log(`fix_brands: set brand="${brandName}" for ${idsToUpdate.length} products`);
+              totalFixed += ids.length;
+              console.log(`fix_brands: set brand="${brandName}" for ${ids.length} products`);
             } else {
               console.error(`fix_brands: update error for ${brandName}:`, updateErr.message);
             }
@@ -213,10 +242,10 @@ Deno.serve(async (req) => {
         }
       }
 
-      console.log(`fix_brands: done. Fixed ${totalFixed}, remaining ${remainingSkus.size} without brand`);
+      console.log(`fix_brands: done. Fixed ${totalFixed}, remaining ${remainingRefs.size} without brand`);
 
       return new Response(
-        JSON.stringify({ success: true, fixed: totalFixed, remaining: remainingSkus.size }),
+        JSON.stringify({ success: true, fixed: totalFixed, remaining: remainingRefs.size }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
