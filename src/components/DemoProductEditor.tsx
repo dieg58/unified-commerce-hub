@@ -452,11 +452,11 @@ const LogoPlacementDialog = ({ template, logoUrl, onClose, onSave, saving }: Log
                 }}
                 onMouseDown={(e) => handleMouseDown(e, "drag")}
               >
-                <div className="relative border-2 border-dashed border-primary/60 rounded p-0.5">
+                <div className="relative border-2 border-dashed border-primary/60 rounded w-full h-full">
                     <img
                     src={logoUrl}
                     alt="Logo"
-                    className="w-full pointer-events-none"
+                    className="w-full h-full pointer-events-none"
                     style={{
                       mixBlendMode: (placement.mode === "dark" ? "screen" : placement.blend) as any,
                       opacity: placement.opacity,
