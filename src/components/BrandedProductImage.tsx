@@ -18,6 +18,8 @@ interface BrandedProductImageProps {
   alt?: string;
   className?: string;
   imgClassName?: string;
+  /** Class applied to the inner wrapper that contains both image and logo overlay */
+  innerClassName?: string;
 }
 
 const BrandedProductImage = ({
@@ -27,41 +29,44 @@ const BrandedProductImage = ({
   alt = "Product",
   className,
   imgClassName,
+  innerClassName,
 }: BrandedProductImageProps) => {
   const showOverlay = logoUrl && logoPlacement;
   const isDarkBg = logoPlacement?.mode === "dark";
 
   return (
     <div className={cn("relative overflow-hidden", className)}>
-      {imageUrl ? (
-        <img
-          src={imageUrl}
-          alt={alt}
-          className={cn("w-full h-full object-cover", imgClassName)}
-        />
-      ) : (
-        <div className="w-full h-full flex items-center justify-center">
-          <Package className="w-16 h-16 text-muted-foreground/15" />
-        </div>
-      )}
-      {showOverlay && (
-        <img
-          src={logoUrl}
-          alt="Logo"
-          className="absolute pointer-events-none select-none"
-          style={{
-            left: `${logoPlacement.x}%`,
-            top: `${logoPlacement.y}%`,
-            width: `${logoPlacement.width}%`,
-            transform: `translate(-50%, -50%) rotate(${logoPlacement.rotation || 0}deg)`,
-            mixBlendMode: (isDarkBg ? "screen" : (logoPlacement.blend || "multiply")) as any,
-            opacity: logoPlacement.opacity ?? 0.85,
-            filter: isDarkBg ? "brightness(100)" : "none",
-            maxHeight: "40%",
-            objectFit: "contain",
-          }}
-        />
-      )}
+      <div className={cn("relative w-full h-full", innerClassName)}>
+        {imageUrl ? (
+          <img
+            src={imageUrl}
+            alt={alt}
+            className={cn("w-full h-full object-cover", imgClassName)}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <Package className="w-16 h-16 text-muted-foreground/15" />
+          </div>
+        )}
+        {showOverlay && (
+          <img
+            src={logoUrl}
+            alt="Logo"
+            className="absolute pointer-events-none select-none"
+            style={{
+              left: `${logoPlacement.x}%`,
+              top: `${logoPlacement.y}%`,
+              width: `${logoPlacement.width}%`,
+              transform: `translate(-50%, -50%) rotate(${logoPlacement.rotation || 0}deg)`,
+              mixBlendMode: (isDarkBg ? "screen" : (logoPlacement.blend || "multiply")) as any,
+              opacity: logoPlacement.opacity ?? 0.85,
+              filter: isDarkBg ? "brightness(100)" : "none",
+              maxHeight: "40%",
+              objectFit: "contain",
+            }}
+          />
+        )}
+      </div>
     </div>
   );
 };

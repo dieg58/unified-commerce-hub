@@ -493,7 +493,7 @@ const Storefront = () => {
                       logoPlacement={(product as any).logo_placement}
                       alt={product.name}
                       className="w-full h-full"
-                      imgClassName="group-hover:scale-105 transition-transform duration-500"
+                      innerClassName="group-hover:scale-105 transition-transform duration-500"
                     />
                     <div className="absolute top-3 left-3">
                       <Badge className="text-[10px] bg-white/90 text-foreground border-0 backdrop-blur-sm shadow-sm capitalize">
