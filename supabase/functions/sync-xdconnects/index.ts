@@ -14,85 +14,93 @@ const FEED_URL_FR =
 const MAX_CPU_MS = 25_000;
 const BATCH_SIZE = 150;
 
-// ── field accessor (try multiple casing/naming variants) ─────
-function f(p: any, ...keys: string[]): any {
-  for (const k of keys) if (p[k] !== undefined) return p[k];
-  return undefined;
+// ── XD Connects V6 feed has FLAT structure per variant ──
+// Each row = one variant (ItemCode = "ModelCode.Color.Size" or just "ModelCode")
+// We group by ModelCode to build product-level records.
+
+interface XDCItem {
+  ModelCode?: string;
+  ItemCode?: string;
+  ItemName?: string;
+  LongDescription?: string;
+  Brand?: string;
+  MainCategory?: string;
+  SubCategory?: string;
+  MainImage?: string;
+  Color?: string;
+  HexColor1?: string;
+  CurrentStock?: string | number;
+  ItemPriceNet_Qty1?: string | number;
+  IntroDate?: string;
+  [key: string]: any;
 }
 
-// ── helpers ──────────────────────────────────────────────
-
-function findMainImage(p: any): string | null {
-  const images = f(p, "Images", "images");
-  if (images && Array.isArray(images)) {
-    for (const img of images) {
-      const url = f(img, "Url", "url", "URL");
-      const type = f(img, "Type", "type");
-      if (url && (type === "MainImage" || type === "Image" || type === "main")) return url;
-    }
-    const firstUrl = f(images[0], "Url", "url", "URL");
-    if (firstUrl) return firstUrl;
-  }
-  const main = f(p, "MainImage", "mainImage", "ImageUrl", "imageUrl", "image_url");
-  if (main) return main;
-  const variants = f(p, "Variants", "variants") || [];
-  for (const v of variants) {
-    const vm = f(v, "MainImage", "mainImage", "ImageUrl", "imageUrl");
-    if (vm) return vm;
-    const vimgs = f(v, "Images", "images");
-    if (vimgs?.[0]) {
-      const u = f(vimgs[0], "Url", "url", "URL");
-      if (u) return u;
-    }
-  }
-  return null;
+interface GroupedProduct {
+  modelCode: string;
+  name: string;
+  description: string | null;
+  brand: string;
+  category: string;
+  image_url: string | null;
+  price: number;
+  stock: number;
+  is_new: boolean;
+  colors: Map<string, { color: string; hex: string | null; image_url: string | null }>;
 }
 
-function extractVariants(p: any): { colors: any[]; sizes: string[] } {
-  const cMap = new Map<string, any>();
-  const sSet = new Set<string>();
-  const variants = f(p, "Variants", "variants") || [];
-  for (const v of variants) {
-    const c = f(v, "ColorDescription", "colorDescription", "Color", "color");
-    if (c && !cMap.has(c)) {
-      cMap.set(c, {
-        color: c,
-        hex: f(v, "ColorHex", "colorHex", "ColorCode", "colorCode") || null,
-        image_url: f(v, "MainImage", "mainImage", "ImageUrl", "imageUrl") || null,
+function groupByModel(items: XDCItem[]): Map<string, GroupedProduct> {
+  const map = new Map<string, GroupedProduct>();
+
+  for (const item of items) {
+    const modelCode = item.ModelCode || item.ItemCode || "";
+    if (!modelCode) continue;
+
+    let group = map.get(modelCode);
+    if (!group) {
+      const net = Number(item.ItemPriceNet_Qty1 || 0);
+      const price = net > 0 ? Math.round(net * PRICE_MULTIPLIER * 100) / 100 : 0;
+
+      const catParts = [item.MainCategory, item.SubCategory].filter(Boolean);
+
+      // Check if intro date is recent (within last 6 months)
+      let isNew = false;
+      if (item.IntroDate) {
+        const intro = new Date(item.IntroDate);
+        const sixMonthsAgo = new Date();
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+        isNew = intro > sixMonthsAgo;
+      }
+
+      group = {
+        modelCode,
+        name: item.ItemName || modelCode,
+        description: item.LongDescription || null,
+        brand: item.Brand || "XD Collection",
+        category: catParts.join(" > ") || "general",
+        image_url: item.MainImage || null,
+        price,
+        stock: Number(item.CurrentStock || 0),
+        is_new: isNew,
+        colors: new Map(),
+      };
+      map.set(modelCode, group);
+    } else {
+      // Accumulate stock across variants
+      group.stock += Number(item.CurrentStock || 0);
+    }
+
+    // Add color variant
+    const color = item.Color;
+    if (color && !group.colors.has(color)) {
+      group.colors.set(color, {
+        color,
+        hex: item.HexColor1 || null,
+        image_url: item.MainImage || null,
       });
     }
-    const s = f(v, "SizeDescription", "sizeDescription", "Size", "size");
-    if (s) sSet.add(s);
   }
-  return { colors: [...cMap.values()], sizes: [...sSet] };
-}
 
-function buildCategory(p: any): string {
-  const parts = [
-    f(p, "CategoryLevel1", "categoryLevel1", "Category1", "category1"),
-    f(p, "CategoryLevel2", "categoryLevel2", "Category2", "category2"),
-    f(p, "CategoryLevel3", "categoryLevel3", "Category3", "category3"),
-  ].filter(Boolean);
-  return parts.join(" > ") || "general";
-}
-
-function getPrice(p: any): number {
-  const net = Number(f(p, "NetPrice", "netPrice", "Price", "price") || 0);
-  if (net > 0) return Math.round(net * PRICE_MULTIPLIER * 100) / 100;
-  const gross = Number(f(p, "GrossPrice", "grossPrice") || 0);
-  return gross > 0 ? Math.round(gross * 100) / 100 : 0;
-}
-
-function getStock(p: any): number {
-  let s = Number(f(p, "QuantityOnStock", "quantityOnStock", "Stock", "stock") || 0);
-  if (s > 0) return s;
-  const variants = f(p, "Variants", "variants") || [];
-  for (const v of variants) s += Number(f(v, "QuantityOnStock", "quantityOnStock", "Stock", "stock") || 0);
-  return s;
-}
-
-function getItemNumber(p: any): string | null {
-  return f(p, "ItemNumber", "itemNumber", "ItemCode", "itemCode", "SKU", "sku", "ProductCode", "productCode", "Code", "code") || null;
+  return map;
 }
 
 // ── main handler ─────────────────────────────────────────
@@ -137,23 +145,29 @@ Deno.serve(async (req) => {
     const feedText = await feedRes.text();
     const feedData = JSON.parse(feedText);
 
-    const allProducts: any[] = Array.isArray(feedData)
+    // Feed is a flat array of variant-level items
+    const allItems: XDCItem[] = Array.isArray(feedData)
       ? feedData
       : feedData?.Products || feedData?.products || feedData?.Items || feedData?.items || [];
 
-    const total = allProducts.length;
+    const total = allItems.length;
 
-    // Debug: log structure on first call
+    // Debug on first call
     if (offset === 0 && total > 0) {
-      const sample = allProducts[0];
-      const keys = Object.keys(sample);
-      console.log("XDC first product keys:", JSON.stringify(keys));
-      console.log("XDC sample item number:", getItemNumber(sample));
-      console.log("XDC sample snippet:", JSON.stringify(sample).substring(0, 800));
+      const sample = allItems[0];
+      console.log("XDC sample:", JSON.stringify({
+        ModelCode: sample.ModelCode,
+        ItemCode: sample.ItemCode,
+        ItemName: sample.ItemName,
+        Brand: sample.Brand,
+        MainCategory: sample.MainCategory,
+        Color: sample.Color,
+      }));
     }
 
-    const slice = allProducts.slice(offset, offset + BATCH_SIZE);
-    console.log(`XDC: Total=${total}, processing ${offset}..${offset + slice.length}`);
+    // Slice the flat items
+    const slice = allItems.slice(offset, offset + BATCH_SIZE);
+    console.log(`XDC: Total items=${total}, processing ${offset}..${offset + slice.length}`);
 
     if (slice.length === 0) {
       return new Response(
@@ -162,35 +176,31 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Group variants by ModelCode
+    const grouped = groupByModel(slice);
     const now = new Date().toISOString();
     const rows: any[] = [];
-    const startMs = Date.now();
 
-    for (const p of slice) {
-      if (Date.now() - startMs > MAX_CPU_MS) break;
-      const itemNumber = getItemNumber(p);
-      if (!itemNumber) continue;
-      const { colors, sizes } = extractVariants(p);
+    for (const [modelCode, g] of grouped) {
       rows.push({
-        name: f(p, "ItemDescription", "itemDescription", "Name", "name", "Description", "description") || itemNumber,
-        sku: itemNumber,
-        category: buildCategory(p),
-        description: f(p, "ItemDescriptionLong", "itemDescriptionLong", "LongDescription", "longDescription") || null,
-        image_url: findMainImage(p),
-        stock_qty: getStock(p),
-        base_price: getPrice(p),
-        is_new: !!(f(p, "ItemIsNew", "itemIsNew", "IsNew", "isNew")),
+        name: g.name,
+        sku: modelCode,
+        category: g.category,
+        description: g.description,
+        image_url: g.image_url,
+        stock_qty: g.stock,
+        base_price: g.price,
+        is_new: g.is_new,
         last_synced_at: now,
-        variant_colors: colors,
-        variant_sizes: sizes,
-        midocean_id: PREFIX + itemNumber,
-        brand: f(p, "ItemBrand", "itemBrand", "Brand", "brand", "BrandName", "brandName") || "XD Collection",
+        variant_colors: [...g.colors.values()],
+        variant_sizes: [], // sizes not clearly separated in V6 flat feed
+        midocean_id: PREFIX + modelCode,
+        brand: g.brand,
         active: true,
       });
     }
 
-    // Log how many rows were built vs slice size
-    console.log(`XDC: Built ${rows.length} rows from ${slice.length} products`);
+    console.log(`XDC: Grouped ${slice.length} items into ${rows.length} products`);
 
     // Lookup existing
     const mids = rows.map((r) => r.midocean_id);
