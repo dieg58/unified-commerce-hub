@@ -548,6 +548,22 @@ const CatalogProducts = () => {
     onError: (err: any) => toast.error(`Erreur sync TopTex : ${err.message}`),
   });
 
+  const fixToptexBrands = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("sync-toptex", {
+        body: { action: "fix_brands" },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success(`Marques corrigées : ${data.fixed} produits mis à jour, ${data.remaining} restants`);
+      qc.invalidateQueries({ queryKey: ["catalog-products"] });
+    },
+    onError: (err: any) => toast.error(`Erreur fix marques : ${err.message}`),
+  });
+
   const syncPrintcom = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.functions.invoke("sync-printcom");
@@ -1322,6 +1338,18 @@ const CatalogProducts = () => {
             <div className="flex items-center justify-between border-b border-border pb-3">
               <p className="text-sm font-medium">{toptexBrandsInCatalog.length} marques · {toptexBrandsInCatalog.reduce((s, b) => s + b.total, 0)} produits</p>
               <div className="flex items-center gap-2">
+                {toptexBrandsInCatalog.some(b => b.brand === "__no_brand__") && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs gap-1 border-amber-500 text-amber-700"
+                    disabled={fixToptexBrands.isPending}
+                    onClick={() => fixToptexBrands.mutate()}
+                  >
+                    {fixToptexBrands.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                    Corriger marques
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   variant="outline"
