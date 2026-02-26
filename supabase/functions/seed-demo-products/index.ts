@@ -205,14 +205,40 @@ serve(async (req) => {
     // Use service role for inserts (bypass RLS)
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    // Fetch logo once if available
+    // Fetch logo: prefer DB lookup over passed URL
     let logoData: { b64: string; mime: string } | null = null;
-    if (logo_url) {
-      logoData = await fetchImageAsBase64(logo_url);
+    let effectiveLogoUrl = logo_url;
+    
+    if (!effectiveLogoUrl) {
+      const { data: branding } = await supabase.from("tenant_branding").select("logo_url").eq("tenant_id", tenant_id).single();
+      if (branding?.logo_url) effectiveLogoUrl = branding.logo_url;
+    }
+    
+    if (effectiveLogoUrl) {
+      // Handle data URIs directly
+      if (effectiveLogoUrl.startsWith("data:")) {
+        const commaIdx = effectiveLogoUrl.indexOf(",");
+        if (commaIdx > 0) {
+          const meta = effectiveLogoUrl.substring(5, commaIdx); // e.g. "image/svg+xml;utf8" or "image/png;base64"
+          const mime = meta.split(";")[0];
+          const encoding = meta.split(";")[1] || "";
+          const rawData = effectiveLogoUrl.substring(commaIdx + 1);
+          
+          if (encoding === "base64") {
+            logoData = { b64: rawData, mime };
+          } else {
+            // UTF-8 encoded (like SVG), convert to base64
+            const decoded = decodeURIComponent(rawData);
+            logoData = { b64: btoa(decoded), mime };
+          }
+        }
+      } else {
+        logoData = await fetchImageAsBase64(effectiveLogoUrl);
+      }
+      
       if (!logoData) {
         console.warn("Could not fetch logo, will use base images only");
       } else if (logoData.mime.includes("svg")) {
-        // SVG is not supported by Gemini — convert to PNG first
         console.log("Logo is SVG, converting to PNG...");
         if (lovableApiKey) {
           const pngLogo = await convertSvgToPng(logoData.b64, lovableApiKey);
@@ -232,90 +258,79 @@ serve(async (req) => {
     const baseUrl = app_url || "https://b2b-inkoo.lovable.app";
     let created = 0;
 
+    // PHASE 1: Create all products quickly with base images
+    console.log("Phase 1: Creating all products with base images...");
+    const productIds: { sku: string; id: string; image: string; prompt: string }[] = [];
+    
     for (const product of DEMO_PRODUCTS) {
-      try {
-        // Base product image URL (served from public/demo/)
-        const productImageUrl = `${baseUrl}/demo/${product.image}`;
+      const finalImageUrl = `${baseUrl}/demo/${product.image}`;
+      const { data: prod, error: prodErr } = await supabase
+        .from("products")
+        .insert({
+          tenant_id, name: product.name, sku: product.sku,
+          category: product.category, image_url: finalImageUrl,
+          active: true, active_bulk: true, active_staff: true,
+          stock_qty: 100, stock_type: "in_stock",
+        })
+        .select("id").single();
 
-        let finalImageUrl: string | null = productImageUrl;
+      if (prodErr) { console.error(`Insert error for ${product.sku}:`, prodErr); continue; }
 
-        if (logoData && lovableApiKey) {
-          // Fetch base product image for AI compositing
-          const productData = await fetchImageAsBase64(productImageUrl);
-          if (productData) {
-            // Generate branded image via Gemini
-            console.log(`Generating branded image for ${product.sku}...`);
+      await supabase.from("product_prices").insert([
+        { product_id: prod.id, tenant_id, store_type: "bulk" as const, price: product.price },
+        { product_id: prod.id, tenant_id, store_type: "staff" as const, price: Math.round(product.price * 0.8 * 100) / 100 },
+      ]);
+      productIds.push({ sku: product.sku, id: prod.id, image: product.image, prompt: product.prompt });
+      created++;
+    }
+    console.log(`✓ Phase 1 complete: ${created} products created`);
+
+    // PHASE 2: Generate branded images in background (fire-and-forget)
+    if (logoData && lovableApiKey && productIds.length > 0) {
+      console.log("Phase 2: Starting AI branding in background...");
+      
+      // Pre-fetch unique base images
+      const uniqueImages = [...new Set(productIds.map(p => p.image))];
+      const imageCache = new Map<string, { b64: string; mime: string }>();
+      await Promise.all(uniqueImages.map(async (img) => {
+        const data = await fetchImageAsBase64(`${baseUrl}/demo/${img}`);
+        if (data) imageCache.set(img, data);
+      }));
+
+      // Process in batches of 3 (don't await — let it run)
+      const brandInBackground = async () => {
+        const BATCH_SIZE = 3;
+        let branded = 0;
+        for (let i = 0; i < productIds.length; i += BATCH_SIZE) {
+          const batch = productIds.slice(i, i + BATCH_SIZE);
+          await Promise.allSettled(batch.map(async (p) => {
+            const productData = imageCache.get(p.image);
+            if (!productData) return;
             const generatedB64 = await generateBrandedImage(
-              productData.b64,
-              productData.mime,
-              logoData.b64,
-              logoData.mime,
-              product.prompt,
-              lovableApiKey,
+              productData.b64, productData.mime,
+              logoData!.b64, logoData!.mime,
+              p.prompt, lovableApiKey!,
             );
-
             if (generatedB64) {
-              // Upload to storage
-              const filePath = `${tenant_id}/demo-${product.sku.toLowerCase()}.jpg`;
+              const filePath = `${tenant_id}/demo-${p.sku.toLowerCase()}.jpg`;
               const fileBytes = Uint8Array.from(atob(generatedB64), (c) => c.charCodeAt(0));
               const { error: uploadErr } = await supabase.storage
                 .from("product-images")
-                .upload(filePath, fileBytes, {
-                  contentType: "image/png",
-                  upsert: true,
-                });
-
+                .upload(filePath, fileBytes, { contentType: "image/png", upsert: true });
               if (!uploadErr) {
                 const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(filePath);
-                finalImageUrl = urlData.publicUrl;
-              } else {
-                console.error(`Upload error for ${product.sku}:`, uploadErr);
+                await supabase.from("products").update({ image_url: urlData.publicUrl }).eq("id", p.id);
+                branded++;
+                console.log(`✓ Branded ${p.sku} (${branded}/${productIds.length})`);
               }
-            } else {
-              console.warn(`AI generation failed for ${product.sku}, using base image`);
             }
-          } else {
-            console.warn(`Could not fetch base image for ${product.sku}, using URL directly`);
-          }
-        } else {
-          console.log(`No logo or API key, using base image URL for ${product.sku}`);
+          }));
         }
-
-        // Insert product
-        const { data: prod, error: prodErr } = await supabase
-          .from("products")
-          .insert({
-            tenant_id,
-            name: product.name,
-            sku: product.sku,
-            category: product.category,
-            image_url: finalImageUrl,
-            active: true,
-            active_bulk: true,
-            active_staff: true,
-            stock_qty: 100,
-            stock_type: "in_stock",
-          })
-          .select("id")
-          .single();
-
-        if (prodErr) {
-          console.error(`Insert error for ${product.sku}:`, prodErr);
-          continue;
-        }
-
-        // Insert prices (bulk + staff)
-        const prices = [
-          { product_id: prod.id, tenant_id, store_type: "bulk" as const, price: product.price },
-          { product_id: prod.id, tenant_id, store_type: "staff" as const, price: Math.round(product.price * 0.8 * 100) / 100 },
-        ];
-        await supabase.from("product_prices").insert(prices);
-
-        created++;
-        console.log(`✓ ${product.sku} created (${created}/${DEMO_PRODUCTS.length})`);
-      } catch (e) {
-        console.error(`Error processing ${product.sku}:`, e);
-      }
+        console.log(`✓ Phase 2 complete: ${branded} products branded`);
+      };
+      
+      // Fire and forget - don't block the response
+      brandInBackground().catch(e => console.error("Background branding error:", e));
     }
 
     return new Response(
