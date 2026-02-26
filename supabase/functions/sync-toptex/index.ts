@@ -12,7 +12,6 @@ const TOPTEX_BASE = "https://api.toptex.io";
 
 function ml(obj: unknown, fallback = ""): { fr: string; en: string; nl: string } {
   if (!obj) return { fr: fallback, en: "", nl: "" };
-  // Handle stringified JSON like '{"fr":"...","en":"..."}'
   if (typeof obj === "string") {
     try {
       const parsed = JSON.parse(obj);
@@ -73,6 +72,17 @@ function hdrs(token: string): Record<string, string> {
   return { "x-api-key": Deno.env.get("TOPTEX_API_KEY")!, "x-toptex-authorization": token };
 }
 
+/** Fetch with retry (up to 3 attempts) for TopTex 504/503 errors */
+async function fetchRetry(url: string, options: RequestInit, retries = 3): Promise<Response> {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    const res = await fetch(url, options);
+    if (res.ok || (res.status < 500 && res.status !== 429)) return res;
+    console.warn(`Attempt ${attempt}/${retries} failed for ${url}: ${res.status}`);
+    if (attempt < retries) await new Promise(r => setTimeout(r, 2000 * attempt));
+  }
+  return fetch(url, options); // final attempt, return whatever happens
+}
+
 // ── Main ──
 
 Deno.serve(async (req) => {
@@ -111,12 +121,104 @@ Deno.serve(async (req) => {
 
     // ── Action: list brands ──
     if (action === "brands") {
-      const res = await fetch(`${TOPTEX_BASE}/v3/attributes?attributes=brand`, { headers: hdrs(token) });
+      const res = await fetchRetry(`${TOPTEX_BASE}/v3/attributes?attributes=brand`, { headers: hdrs(token) });
       if (!res.ok) throw new Error(`Brands fetch failed [${res.status}]`);
       const data = await res.json();
       return new Response(JSON.stringify({ brands: data?.items?.[0]?.brand || [] }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // ── Action: fix_brands — patch brand for all TT- products with null brand ──
+    if (action === "fix_brands") {
+      console.log("fix_brands: starting");
+
+      // 1. Get all TT- products with null brand from DB
+      const { data: nullBrandProducts, error: dbErr } = await supabase
+        .from("catalog_products")
+        .select("id, sku, midocean_id")
+        .like("midocean_id", "TT-%")
+        .is("brand", null)
+        .limit(2000);
+
+      if (dbErr) throw new Error(`DB query error: ${dbErr.message}`);
+      if (!nullBrandProducts?.length) {
+        return new Response(JSON.stringify({ success: true, message: "No products with missing brand", fixed: 0 }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      console.log(`fix_brands: ${nullBrandProducts.length} products with null brand`);
+
+      // 2. Build a map of SKU -> product id
+      const skuToId = new Map<string, string>();
+      for (const p of nullBrandProducts) {
+        skuToId.set(p.sku, p.id);
+      }
+
+      // 3. Get all available brands
+      const brandsRes = await fetchRetry(`${TOPTEX_BASE}/v3/attributes?attributes=brand`, { headers: hdrs(token) });
+      if (!brandsRes.ok) throw new Error(`Brands fetch failed [${brandsRes.status}]`);
+      const brandsData = await brandsRes.json();
+      const allBrands: string[] = brandsData?.items?.[0]?.brand || [];
+      console.log(`fix_brands: ${allBrands.length} brands to check`);
+
+      let totalFixed = 0;
+      const remainingSkus = new Set(skuToId.keys());
+
+      for (const brandName of allBrands) {
+        if (remainingSkus.size === 0) break;
+
+        let page = 1;
+        const PAGE_SIZE = 100;
+
+        while (true) {
+          const url = `${TOPTEX_BASE}/v3/products/all?brand=${encodeURIComponent(brandName)}&usage_right=b2b_uniquement&page_number=${page}&page_size=${PAGE_SIZE}`;
+          const res = await fetchRetry(url, { headers: hdrs(token) });
+          if (!res.ok) {
+            console.warn(`fix_brands: page ${page} failed for ${brandName}: ${res.status}`);
+            break;
+          }
+          const data = await res.json();
+          const items = data?.items || (Array.isArray(data) ? data : [data]);
+          if (!items.length) break;
+
+          // Collect matching product IDs for this batch
+          const idsToUpdate: string[] = [];
+          for (const item of items) {
+            const ref = item.catalogReference;
+            if (ref && remainingSkus.has(ref)) {
+              idsToUpdate.push(skuToId.get(ref)!);
+              remainingSkus.delete(ref);
+            }
+          }
+
+          // Batch update brand for matched products
+          if (idsToUpdate.length > 0) {
+            const { error: updateErr } = await supabase
+              .from("catalog_products")
+              .update({ brand: brandName })
+              .in("id", idsToUpdate);
+            if (!updateErr) {
+              totalFixed += idsToUpdate.length;
+              console.log(`fix_brands: set brand="${brandName}" for ${idsToUpdate.length} products`);
+            } else {
+              console.error(`fix_brands: update error for ${brandName}:`, updateErr.message);
+            }
+          }
+
+          const totalCount = data?.total_count || items.length;
+          if (page * PAGE_SIZE >= totalCount) break;
+          page++;
+        }
+      }
+
+      console.log(`fix_brands: done. Fixed ${totalFixed}, remaining ${remainingSkus.size} without brand`);
+
+      return new Response(
+        JSON.stringify({ success: true, fixed: totalFixed, remaining: remainingSkus.size }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     // ── Action: sync brands ──
@@ -141,7 +243,7 @@ Deno.serve(async (req) => {
 
         while (true) {
           const url = `${TOPTEX_BASE}/v3/products/all?brand=${encodeURIComponent(brand)}&usage_right=b2b_uniquement&page_number=${page}&page_size=${PAGE_SIZE}`;
-          const res = await fetch(url, { headers: hdrs(token) });
+          const res = await fetchRetry(url, { headers: hdrs(token) });
           if (!res.ok) {
             console.error(`Catalog page ${page} failed for ${brand}: ${res.status}`);
             break;
@@ -158,13 +260,12 @@ Deno.serve(async (req) => {
 
         console.log(`Brand ${brand}: ${allProducts.length} products fetched`);
 
-
         // Build price map from price endpoint (paginated)
         const priceMap = new Map<string, number>();
         let pricePage = 1;
         while (true) {
           const url = `${TOPTEX_BASE}/v3/products/price?brand=${encodeURIComponent(brand)}&page_number=${pricePage}&page_size=1000`;
-          const res = await fetch(url, { headers: hdrs(token) });
+          const res = await fetchRetry(url, { headers: hdrs(token) });
           if (!res.ok) break;
           const data = await res.json();
           const items = Array.isArray(data) ? data : data?.items || [];
@@ -173,7 +274,6 @@ Deno.serve(async (req) => {
           for (const p of items) {
             if (!p?.catalogReference || !p?.prices?.length) continue;
             const ref = p.catalogReference;
-            // Use qty=1 price tier
             const tier = p.prices.find((t: any) => t.quantity === 1 || t.quantity === "1") || p.prices[0];
             const price = parseFloat(String(tier.price));
             if (!priceMap.has(ref) || price < priceMap.get(ref)!) {
@@ -197,7 +297,7 @@ Deno.serve(async (req) => {
 
         for (const [ref, items] of byRef) {
           try {
-            const product = items[0]; // Use first item for product-level info
+            const product = items[0];
 
             // ── Name (multilingual) ──
             const designation = ml(product.designation, ref);
@@ -211,14 +311,15 @@ Deno.serve(async (req) => {
             // ── Description (multilingual) ──
             const desc = ml(product.description);
 
+            // ── Brand: prefer product data, fallback to loop variable ──
+            const productBrand = normalizeText(product.brand) || brand;
+
             // ── Extract variant colors and sizes ──
-            // Strategy: try nested product.colors[] first (detail endpoint),
-            // then fall back to aggregating across all items (listing endpoint)
             const colorMap = new Map<string, { color: string; hex: string | null; image_url: string | null }>();
             const sizeSet = new Set<string>();
             let firstImage: string | null = null;
 
-            // 1) Try nested colors[] from first product (works if API returns full product detail)
+            // 1) Try nested colors[] from first product
             const productColors = product.colors || [];
             for (const colorEntry of productColors) {
               const dominantColor = Array.isArray(colorEntry.colorsDominant)
@@ -308,7 +409,7 @@ Deno.serve(async (req) => {
               }
             }
 
-            // 3) Fallback image even if no color is detected
+            // 3) Fallback image
             if (!firstImage) {
               const imgs = product.images;
               if (Array.isArray(imgs) && imgs.length) {
@@ -316,7 +417,7 @@ Deno.serve(async (req) => {
               }
             }
 
-            // 4) Ensure at least one color variant exists for catalog UX
+            // 4) Ensure at least one color variant
             if (colorMap.size === 0) {
               const fallbackImage = firstImage || product.imageUrl || product.image || product.url_image || null;
               colorMap.set("Standard", { color: "Standard", hex: null, image_url: fallbackImage });
@@ -328,7 +429,7 @@ Deno.serve(async (req) => {
             // ── Price ──
             const price = priceMap.get(ref) || 0;
 
-            // ── Novelty: check createdDate ──
+            // ── Novelty ──
             let isNew = false;
             const created = product.createdDate;
             if (created) {
@@ -351,7 +452,7 @@ Deno.serve(async (req) => {
               name_nl: designation.nl || null,
               sku: ref,
               category,
-              brand,
+              brand: productBrand,
               description: desc.fr || null,
               description_en: desc.en || null,
               description_nl: desc.nl || null,
