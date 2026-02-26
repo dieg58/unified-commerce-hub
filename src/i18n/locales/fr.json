@@ -886,5 +886,15 @@
     "stepProductsDesc": "Sélectionnez des produits du catalogue ou créez les vôtres",
     "stepUsersTitle": "Inviter votre équipe",
     "stepUsersDesc": "Ajoutez les employés qui pourront commander sur la boutique"
+  },
+  "help": {
+    "title": "Besoin d'aide ?",
+    "subject": "Sujet",
+    "subjectPlaceholder": "Ex : Bug d'affichage, question…",
+    "message": "Message",
+    "messagePlaceholder": "Décrivez votre question ou problème…",
+    "send": "Envoyer",
+    "sent": "Message envoyé ! Nous reviendrons vers vous rapidement.",
+    "error": "Erreur lors de l'envoi. Réessayez."
   }
 }

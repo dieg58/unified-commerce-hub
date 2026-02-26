@@ -886,5 +886,15 @@
     "stepProductsDesc": "Select products from the catalog or create your own",
     "stepUsersTitle": "Invite your team",
     "stepUsersDesc": "Add employees who can order from the shop"
+  },
+  "help": {
+    "title": "Need help?",
+    "subject": "Subject",
+    "subjectPlaceholder": "E.g.: Display bug, question…",
+    "message": "Message",
+    "messagePlaceholder": "Describe your question or issue…",
+    "send": "Send",
+    "sent": "Message sent! We'll get back to you shortly.",
+    "error": "Failed to send. Please try again."
   }
 }
