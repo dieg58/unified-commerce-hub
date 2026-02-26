@@ -1,0 +1,40 @@
+# INKOO B2B
+
+> Plateforme B2B de merchandising corporate basée à Bruxelles, Belgique.
+
+INKOO simplifie le merchandising d'entreprise de A à Z : sourcing de produits personnalisés, webshop dédié par entreprise, stockage en entrepôt, et expédition mondiale.
+
+## Services
+
+- **Sourcing & Personnalisation** : Accès à un catalogue de +100 000 produits (textile, objets, tech, papeterie) personnalisables avec le branding du client. Partenaires : Midocean, Stanley/Stella, PF Concept, TopTex, Printcom.
+- **Webshop B2B dédié** : Chaque entreprise cliente dispose de son propre webshop avec branding personnalisé, gestion des budgets par département, workflow d'approbation, et codes promo.
+- **Stockage en entrepôt** : Gestion de stock en temps réel avec alertes de seuil bas, mouvements de stock traçables, et synchronisation ERP (Odoo).
+- **Expédition mondiale** : Logistique intégrée avec suivi de colis, gestion multi-adresses, et livraison dans le monde entier.
+
+## Public cible
+
+- Responsables RH et marketing de grandes entreprises (onboarding kits, événements, cadeaux corporate)
+- Département achats cherchant à centraliser le merchandising
+- Entreprises européennes (Belgique, France, Pays-Bas, Luxembourg principalement)
+
+## Informations clés
+
+- **Siège** : Bruxelles, Belgique
+- **Zone desservie** : Europe et international
+- **Langues** : Français, Néerlandais, Anglais
+- **Site web** : https://inkoo.eu
+- **Contact** : Demande de démo disponible sur le site
+
+## Pages principales
+
+- [Accueil](https://inkoo.eu/)
+- [Connexion](https://inkoo.eu/login)
+- [Détails complets pour LLM](https://inkoo.eu/llms-full.txt)
+
+## FAQ
+
+- **Qu'est-ce qu'INKOO ?** INKOO est une plateforme B2B qui gère l'ensemble du cycle de merchandising corporate : sourcing, personnalisation, stockage et expédition.
+- **Comment fonctionne le webshop ?** Chaque entreprise reçoit un webshop dédié avec son propre branding, catalogue produits, gestion de budgets et workflow d'approbation.
+- **Quels types de produits proposez-vous ?** Textile (t-shirts, polos, hoodies, vestes), objets promotionnels (mugs, stylos, carnets, badges, gourdes), sacs, accessoires tech, et plus encore.
+- **Livrez-vous à l'international ?** Oui, INKOO gère l'expédition mondiale avec suivi de colis intégré.
+- **Comment demander une démo ?** Rendez-vous sur https://inkoo.eu et cliquez sur "Demander une démo".

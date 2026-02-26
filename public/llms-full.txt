@@ -1,0 +1,162 @@
+# INKOO B2B — Documentation complète
+
+> Plateforme B2B de merchandising corporate basée à Bruxelles, Belgique.
+> Site web : https://inkoo.eu
+
+---
+
+## À propos d'INKOO
+
+INKOO est une plateforme SaaS B2B spécialisée dans le merchandising d'entreprise. Elle permet aux grandes entreprises de gérer l'ensemble de leur chaîne de merchandising corporate depuis une interface unique : du sourcing des produits personnalisés jusqu'à l'expédition mondiale, en passant par le stockage en entrepôt et la mise en place d'un webshop dédié.
+
+### Mission
+
+Simplifier et professionnaliser le merchandising d'entreprise en offrant une solution clé en main qui remplace les processus manuels, les échanges d'e-mails et les fichiers Excel.
+
+### Localisation
+
+- **Siège social** : Bruxelles, Région de Bruxelles-Capitale, Belgique
+- **Coordonnées GPS** : 50.8503°N, 4.3517°E
+- **Zone desservie** : Europe (Belgique, France, Pays-Bas, Luxembourg, Allemagne, etc.) et international
+- **Langues de la plateforme** : Français, Néerlandais, Anglais
+
+---
+
+## Services détaillés
+
+### 1. Sourcing & Personnalisation
+
+INKOO donne accès à un catalogue de plus de 100 000 produits provenant de fournisseurs européens de premier plan. Chaque produit peut être personnalisé avec le branding du client (logo, couleurs, texte).
+
+**Fournisseurs partenaires :**
+- Midocean
+- Stanley/Stella
+- PF Concept
+- TopTex
+- Printcom
+- Prodir
+- Regatta
+- Fruit of the Loom
+- SG Accessories
+- SOL'S
+
+**Catégories de produits :**
+- Textile : T-shirts, polos, hoodies, sweats, vestes, tabliers
+- Objets promotionnels : Mugs, stylos, carnets, badges, lanyards
+- Sacs : Tote bags, sacs à dos, pochettes
+- Gourdes et bouteilles
+- Casquettes et accessoires
+- Tech : clés USB, power banks, écouteurs
+
+**Processus :**
+1. Le client sélectionne des produits dans le catalogue
+2. INKOO envoie un BAT (Bon À Tirer) avec la personnalisation
+3. Validation par le client
+4. Production et livraison en entrepôt ou directement au client
+
+### 2. Webshop B2B dédié
+
+Chaque entreprise cliente reçoit son propre webshop avec une URL dédiée et un branding personnalisé (logo, couleurs, favicon).
+
+**Fonctionnalités du webshop :**
+- Catalogue produits filtrable par catégorie
+- Deux types de boutiques : "Staff" (commandes individuelles) et "Bulk" (commandes en gros)
+- Gestion des budgets par département/entité avec plafonds mensuels, trimestriels ou annuels
+- Workflow d'approbation des commandes (optionnel par entité)
+- Codes promo et réductions
+- Liste de souhaits (wishlist)
+- Historique des commandes
+- Multi-adresses de livraison
+- Profils de facturation
+
+**Gestion multi-tenant :**
+- Chaque entreprise est un "tenant" isolé
+- Les données sont strictement séparées entre tenants
+- Rôles utilisateurs : employé, responsable département, gestionnaire boutique, super admin
+
+### 3. Stockage en entrepôt
+
+INKOO propose un service de stockage en entrepôt avec gestion de stock en temps réel.
+
+**Fonctionnalités :**
+- Suivi des niveaux de stock en temps réel
+- Alertes automatiques de seuil bas
+- Mouvements de stock traçables (entrées, sorties, ajustements)
+- Localisation physique des produits dans l'entrepôt
+- Synchronisation ERP bidirectionnelle avec Odoo
+- Gestion des variantes produits (taille, couleur) avec stocks distincts
+
+### 4. Expédition mondiale
+
+Service logistique intégré pour l'expédition des commandes.
+
+**Fonctionnalités :**
+- Gestion multi-transporteurs
+- Numéros de suivi avec notifications automatiques
+- Gestion multi-adresses par entité
+- Configuration flexible des frais de port (fixe, par seuil, par type de boutique)
+- Historique complet des expéditions
+
+---
+
+## Architecture technique
+
+- **Frontend** : Application web React (SPA) avec TypeScript, Tailwind CSS, Framer Motion
+- **Backend** : Supabase (PostgreSQL, Auth, Edge Functions, Row-Level Security)
+- **ERP** : Intégration bidirectionnelle avec Odoo (synchronisation commandes, factures, stocks)
+- **Internationalisation** : Support complet FR/NL/EN via i18next
+- **Multi-tenant** : Architecture avec isolation complète des données par tenant
+
+---
+
+## Public cible
+
+### Profils d'utilisateurs
+
+1. **Responsables RH** : Onboarding kits pour nouveaux employés, cadeaux de fin d'année, événements d'entreprise
+2. **Équipes Marketing** : Goodies pour salons, objets promotionnels, merchandising de marque
+3. **Département Achats** : Centralisation des commandes de merchandising, suivi budgétaire, optimisation des coûts
+4. **Office Managers** : Commandes régulières de fournitures brandées, gestion des stocks de bureau
+
+### Taille d'entreprise
+
+- PME (50-250 employés) à grandes entreprises (250+ employés)
+- Organisations multi-sites avec besoin de centralisation
+
+### Secteurs
+
+- Tous secteurs : tech, finance, industrie, services, retail, santé, éducation
+
+---
+
+## Avantages différenciants
+
+1. **Solution tout-en-un** : Un seul interlocuteur pour sourcing + personnalisation + stockage + expédition
+2. **Webshop brandé** : Chaque client a sa propre boutique avec son identité visuelle
+3. **Contrôle budgétaire** : Plafonds de dépenses par département et par utilisateur
+4. **Catalogue étendu** : +100 000 références via nos partenaires européens
+5. **Multi-langue** : Interface en FR/NL/EN pour les entreprises internationales
+6. **Intégration ERP** : Synchronisation native avec Odoo pour une gestion fluide
+7. **Zéro stock imposé** : Possibilité de commandes "made to order" sans stockage minimum
+
+---
+
+## Contact
+
+- **Site web** : https://inkoo.eu
+- **Demande de démo** : Formulaire disponible sur la page d'accueil
+- **Langues de support** : Français, Néerlandais, Anglais
+
+---
+
+## Pages du site
+
+- **Accueil / Landing page** : https://inkoo.eu/
+- **Connexion** : https://inkoo.eu/login
+- **Résumé LLM** : https://inkoo.eu/llms.txt
+
+---
+
+## Mots-clés
+
+merchandising corporate, goodies entreprise, objets promotionnels B2B, webshop corporate, plateforme merchandising, textile personnalisé, cadeaux d'entreprise, onboarding kit, branding corporate, stockage merchandising, expédition mondiale, Belgique, Bruxelles, Europe

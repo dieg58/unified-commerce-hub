@@ -54,6 +54,11 @@ const LandingPage = () => {
       "@type": "WebSite",
       "name": "INKOO B2B",
       "url": "https://inkoo.eu",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": "https://inkoo.eu/?q={search_term_string}",
+        "query-input": "required name=search_term_string"
+      }
     },
     {
       "@context": "https://schema.org",

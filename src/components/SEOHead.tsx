@@ -50,7 +50,11 @@ const SEOHead = ({ title, description, path = "/", jsonLd, noIndex }: SEOHeadPro
 
     // Basic meta
     upsertMeta("name", "description", description);
-    if (noIndex) upsertMeta("name", "robots", "noindex, nofollow");
+    if (noIndex) {
+      upsertMeta("name", "robots", "noindex, nofollow");
+    } else {
+      upsertMeta("name", "robots", "index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1");
+    }
 
     // Open Graph
     upsertMeta("property", "og:title", fullTitle);
