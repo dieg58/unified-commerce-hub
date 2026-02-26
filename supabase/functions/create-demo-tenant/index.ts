@@ -18,7 +18,7 @@ function toSlug(name: string): string {
 }
 
 function generatePassword(len = 16): string {
-  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%";
+  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   const arr = new Uint8Array(len);
   crypto.getRandomValues(arr);
   return Array.from(arr, (b) => chars[b % chars.length]).join("");
@@ -69,7 +69,11 @@ serve(async (req) => {
         const existingUser = listData?.users?.find((u: any) => u.email === email);
         if (!existingUser) throw new Error("User exists but could not be found");
         userId = existingUser.id;
-        await supabase.auth.admin.updateUserById(userId, { password });
+        const { error: updateErr } = await supabase.auth.admin.updateUserById(userId, { password, email_confirm: true });
+        if (updateErr) {
+          console.error("Password update failed:", updateErr);
+          throw new Error(`Password update failed: ${updateErr.message}`);
+        }
       } else {
         throw new Error(`User creation failed: ${userErr.message}`);
       }
