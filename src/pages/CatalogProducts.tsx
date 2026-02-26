@@ -1417,7 +1417,7 @@ const CatalogProducts = () => {
                 </Button>
               </div>
             </div>
-            <ScrollArea className="flex-1 min-h-0">
+            <div className="flex-1 min-h-0 overflow-y-auto pr-1">
               <div className="space-y-1 pr-3">
                 {toptexBrandsInCatalog.map((b) => {
                   const allActive = b.active === b.total;
@@ -1453,7 +1453,7 @@ const CatalogProducts = () => {
                   <p className="text-sm text-muted-foreground text-center py-8">Aucune marque TopTex dans le catalogue. Lancez d'abord une synchronisation.</p>
                 )}
               </div>
-            </ScrollArea>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
