@@ -54,26 +54,7 @@ serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    // Rate limit: check duplicate email in last 24h
-    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const { data: existing } = await supabase
-      .from("demo_requests")
-      .select("id")
-      .eq("email", email)
-      .gte("created_at", since)
-      .limit(1);
-    if (existing && existing.length > 0) {
-      return new Response(JSON.stringify({ error: "Demo already requested recently" }), {
-        status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // 1. Insert demo_requests
-    await supabase.from("demo_requests").insert({
-      full_name: fullName, email, company, phone: phone || null,
-    });
-
-    // 2. Create user (or reuse existing)
+    // 1. Create user (or reuse existing)
     const password = generatePassword();
     let userId: string;
     const { data: userData, error: userErr } = await supabase.auth.admin.createUser({
@@ -84,7 +65,6 @@ serve(async (req) => {
     });
     if (userErr) {
       if (userErr.message?.includes("already been registered")) {
-        // User exists — update password and reuse
         const { data: listData } = await supabase.auth.admin.listUsers();
         const existingUser = listData?.users?.find((u: any) => u.email === email);
         if (!existingUser) throw new Error("User exists but could not be found");
@@ -101,7 +81,6 @@ serve(async (req) => {
     const { data: existingProfile } = await supabase
       .from("profiles").select("tenant_id").eq("id", userId).single();
     if (existingProfile?.tenant_id) {
-      // User already has a demo tenant — fetch slug and return
       const { data: existingTenant } = await supabase
         .from("tenants").select("slug").eq("id", existingProfile.tenant_id).single();
       console.log(`Returning existing demo for ${email}: ${existingTenant?.slug}`);
@@ -109,6 +88,25 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // Rate limit: only for truly new tenants, check duplicate email in last 24h
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: existing } = await supabase
+      .from("demo_requests")
+      .select("id")
+      .eq("email", email)
+      .gte("created_at", since)
+      .limit(1);
+    if (existing && existing.length > 0) {
+      return new Response(JSON.stringify({ error: "Demo already requested recently" }), {
+        status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Insert demo_requests (lead tracking)
+    await supabase.from("demo_requests").insert({
+      full_name: fullName, email, company, phone: phone || null,
+    });
 
     // 3. Create tenant
     let slug = toSlug(company);
