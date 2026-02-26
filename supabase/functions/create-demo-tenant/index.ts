@@ -18,10 +18,31 @@ function toSlug(name: string): string {
 }
 
 function generatePassword(len = 16): string {
-  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  const arr = new Uint8Array(len);
-  crypto.getRandomValues(arr);
-  return Array.from(arr, (b) => chars[b % chars.length]).join("");
+  const lower = "abcdefghijklmnopqrstuvwxyz";
+  const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const digits = "0123456789";
+  const specials = "!@#$%^&*()_+-=[]{};:,.?";
+  const all = lower + upper + digits + specials;
+
+  const pick = (chars: string) => chars[Math.floor(Math.random() * chars.length)];
+
+  const pwd = [
+    pick(lower),
+    pick(upper),
+    pick(digits),
+    pick(specials),
+  ];
+
+  for (let i = pwd.length; i < Math.max(len, 12); i++) {
+    pwd.push(pick(all));
+  }
+
+  for (let i = pwd.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pwd[i], pwd[j]] = [pwd[j], pwd[i]];
+  }
+
+  return pwd.join("");
 }
 
 serve(async (req) => {
