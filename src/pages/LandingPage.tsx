@@ -10,6 +10,7 @@ import {
   ShoppingBag, Box, ArrowUpRight, Menu, X, HelpCircle
 } from "lucide-react";
 import heroImg from "@/assets/hero-inkoo.jpg";
+import inkooFullNoir from "@/assets/inkoo-full-noir.svg";
 import DemoRequestDialog from "@/components/DemoRequestDialog";
 import LoginDialog from "@/components/LoginDialog";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
@@ -140,7 +141,7 @@ const LandingPage = () => {
       {/* Nav */}
       <header className="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur-md">
         <div className="max-w-7xl mx-auto flex h-16 items-center justify-between px-6">
-          <span className="text-xl font-serif tracking-tight">INKOO</span>
+          <img src={inkooFullNoir} alt="INKOO" className="h-7" />
           <nav className="hidden md:flex items-center gap-8 text-sm">
             <a href="#services" className="text-muted-foreground hover:text-foreground transition-colors">{t("landing.servicesSection")}</a>
             <a href="#platform" className="text-muted-foreground hover:text-foreground transition-colors">{t("landing.platformSection")}</a>
@@ -432,7 +433,7 @@ const LandingPage = () => {
       {/* Footer */}
       <footer className="border-t border-border py-10">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
-          <span className="text-lg font-serif">INKOO</span>
+          <img src={inkooFullNoir} alt="INKOO" className="h-6" />
           <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} INKOO B2B. {t("landing.allRights")}</p>
         </div>
       </footer>
