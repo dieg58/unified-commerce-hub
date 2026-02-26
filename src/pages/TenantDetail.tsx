@@ -16,8 +16,9 @@ import {
   ArrowLeft, Loader2, Plus, Pencil, Save, X, MoreHorizontal, Trash2,
   Building2, ShoppingCart, Wallet, Package, Palette, Users, Store,
   CheckCircle, Eye, Tag, Sparkles, Boxes, AlertTriangle,
-  ArrowUpCircle, ArrowDownCircle, RefreshCw, History, Truck, Settings
+  ArrowUpCircle, ArrowDownCircle, RefreshCw, History, Truck, Settings, LayoutGrid
 } from "lucide-react";
+import DemoProductEditor from "@/components/DemoProductEditor";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/mock-data";
@@ -218,6 +219,7 @@ const TenantDetail = () => {
             <TabsTrigger value="budgets" className="text-xs gap-1"><Wallet className="w-3.5 h-3.5" /> Budgets</TabsTrigger>
             <TabsTrigger value="branding" className="text-xs gap-1"><Palette className="w-3.5 h-3.5" /> Branding</TabsTrigger>
             <TabsTrigger value="shipping" className="text-xs gap-1"><Truck className="w-3.5 h-3.5" /> Livraison</TabsTrigger>
+            <TabsTrigger value="demo" className="text-xs gap-1"><LayoutGrid className="w-3.5 h-3.5" /> Produits Démo</TabsTrigger>
             <TabsTrigger value="settings" className="text-xs gap-1"><Settings className="w-3.5 h-3.5" /> Paramètres</TabsTrigger>
           </TabsList>
 
@@ -247,6 +249,14 @@ const TenantDetail = () => {
 
           <TabsContent value="shipping" className="mt-4">
             <ShippingTab tenantId={id!} />
+          </TabsContent>
+
+          <TabsContent value="demo" className="mt-4">
+            <div className="bg-card rounded-lg border border-border p-5">
+              <h3 className="text-sm font-semibold text-foreground mb-1">Templates Produits Démo</h3>
+              <p className="text-xs text-muted-foreground mb-4">Configurez la position du logo sur chaque produit démo. Ces templates sont globaux (partagés entre toutes les boutiques).</p>
+              <DemoProductEditor previewLogoUrl={branding?.logo_url} />
+            </div>
           </TabsContent>
 
           <TabsContent value="settings" className="mt-4">
