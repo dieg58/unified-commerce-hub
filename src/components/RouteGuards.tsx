@@ -45,13 +45,13 @@ export const RequireShopManager = ({ children }: { children: ReactNode }) => {
 };
 
 export const RequireEmployee = ({ children }: { children: ReactNode }) => {
-  const { session, loading, isSuperAdmin, isShopManager, isDeptManager, rolesLoaded, profile, signOut } = useAuth();
+  const { session, loading, isSuperAdmin, rolesLoaded, profile, signOut } = useAuth();
   const { isSubdomain } = useSubdomain();
   if (loading) return <LoadingScreen />;
   if (!session) return <Navigate to="/login" replace />;
   if (!rolesLoaded) return <LoadingScreen />;
   if (isSuperAdmin) return <Navigate to="/dashboard" replace />;
-  if (isShopManager || isDeptManager) return <Navigate to="/tenant" replace />;
+  // Allow shop_manager and dept_manager to browse the storefront too
   if (isSubdomain && !profile?.tenant_id) {
     return <PendingApprovalScreen onSignOut={signOut} />;
   }
