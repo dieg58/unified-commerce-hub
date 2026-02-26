@@ -14,6 +14,7 @@ import { ArrowLeft, Heart, Loader2, Minus, Package, Plus, ShoppingCart } from "l
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
 import { toast } from "sonner";
+import BrandedProductImage from "@/components/BrandedProductImage";
 
 const ProductDetail = () => {
   const { productId } = useParams<{ productId: string }>();
@@ -27,6 +28,20 @@ const ProductDetail = () => {
   const { t } = useTranslation();
   const [storeType] = useState<"staff" | "bulk">("staff");
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
+
+  const { data: tenantBranding } = useQuery({
+    queryKey: ["tenant-branding", tenantId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tenant_branding")
+        .select("logo_url")
+        .eq("tenant_id", tenantId!)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!tenantId,
+  });
 
   const { data: product, isLoading } = useQuery({
     queryKey: ["product-detail", productId],
@@ -95,13 +110,13 @@ const ProductDetail = () => {
       <div className="grid md:grid-cols-2 gap-8">
         {/* Image */}
         <div className="relative aspect-square rounded-xl overflow-hidden bg-muted/30 border border-border">
-          {product.image_url ? (
-            <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <Package className="w-24 h-24 text-muted-foreground/15" />
-            </div>
-          )}
+          <BrandedProductImage
+            imageUrl={product.image_url}
+            logoUrl={tenantBranding?.logo_url}
+            logoPlacement={(product as any).logo_placement}
+            alt={product.name}
+            className="w-full h-full"
+          />
           <button
             onClick={() => toggleFavorite(product.id)}
             className="absolute top-4 right-4 w-10 h-10 rounded-full bg-background/90 backdrop-blur-sm flex items-center justify-center shadow-sm hover:scale-110 transition-transform"

@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import VariantMatrixDialog from "@/components/VariantMatrixDialog";
+import BrandedProductImage from "@/components/BrandedProductImage";
 import { useAuth } from "@/hooks/useAuth";
 import { useCart } from "@/hooks/useCart";
 import { useQuery } from "@tanstack/react-query";
@@ -486,13 +487,14 @@ const Storefront = () => {
               return (
                 <div key={product.id} className="group bg-card rounded-xl border border-border shadow-card hover:shadow-card-hover transition-all duration-300 overflow-hidden flex flex-col cursor-pointer" onClick={() => navigate(`/shop/product/${product.id}`)}>
                   <div className="relative aspect-square bg-muted/30 overflow-hidden">
-                    {imageUrl ? (
-                      <img src={imageUrl} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <Package className="w-16 h-16 text-muted-foreground/15" />
-                      </div>
-                    )}
+                    <BrandedProductImage
+                      imageUrl={imageUrl}
+                      logoUrl={logoUrl}
+                      logoPlacement={(product as any).logo_placement}
+                      alt={product.name}
+                      className="w-full h-full"
+                      imgClassName="group-hover:scale-105 transition-transform duration-500"
+                    />
                     <div className="absolute top-3 left-3">
                       <Badge className="text-[10px] bg-white/90 text-foreground border-0 backdrop-blur-sm shadow-sm capitalize">
                         {product.category || "general"}
