@@ -1,52 +1,39 @@
 project_id = "kjhiekuoiugwjsetosvo"
 
-[functions.invite-user]
-verify_jwt = false
-
-[functions.send-demo-request]
-verify_jwt = false
-
-[functions.extract-branding]
-verify_jwt = false
-
-[functions.check-low-stock]
-verify_jwt = false
-
-[functions.validate-vat]
-verify_jwt = false
-
-[functions.get-users-last-signin]
-verify_jwt = false
-
-[functions.notify-shipment]
-verify_jwt = false
-
-[functions.send-order-email]
-verify_jwt = false
-
-[functions.sync-to-odoo]
-verify_jwt = false
-
-[functions.odoo-webhook]
-verify_jwt = false
-
-[functions.odoo-get-invoice-pdf]
-verify_jwt = false
-
-[functions.poll-odoo-updates]
-verify_jwt = false
-
-[functions.sync-midocean]
-verify_jwt = false
-
-[functions.sync-stanleystella]
-verify_jwt = false
-
-[functions.sync-toptex]
-verify_jwt = false
-
-[functions.sync-pfconcept]
-verify_jwt = false
-
-[functions.sync-printcom]
-verify_jwt = false
+[functions]
+  [functions.auth-email-hook]
+    verify_jwt = false
+  [functions.check-low-stock]
+    verify_jwt = false
+  [functions.extract-branding]
+    verify_jwt = false
+  [functions.get-users-last-signin]
+    verify_jwt = false
+  [functions.invite-user]
+    verify_jwt = false
+  [functions.notify-shipment]
+    verify_jwt = false
+  [functions.odoo-get-invoice-pdf]
+    verify_jwt = false
+  [functions.odoo-webhook]
+    verify_jwt = false
+  [functions.poll-odoo-updates]
+    verify_jwt = false
+  [functions.send-demo-request]
+    verify_jwt = false
+  [functions.send-order-email]
+    verify_jwt = false
+  [functions.sync-midocean]
+    verify_jwt = false
+  [functions.sync-pfconcept]
+    verify_jwt = false
+  [functions.sync-printcom]
+    verify_jwt = false
+  [functions.sync-stanleystella]
+    verify_jwt = false
+  [functions.sync-to-odoo]
+    verify_jwt = false
+  [functions.sync-toptex]
+    verify_jwt = false
+  [functions.validate-vat]
+    verify_jwt = false
