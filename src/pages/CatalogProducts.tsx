@@ -468,31 +468,22 @@ const CatalogProducts = () => {
 
   const syncXdConnects = useMutation({
     mutationFn: async () => {
-      // Download the FR feed directly in the browser (more memory than edge functions)
-      const FEED_URL = "https://feeds.xindao.com/Feeds/Download/2575-Qfx-ZzmKKT2PHe7omMwPBxIOQlkIIblERsDBefwhTzMTaoPx1lxuY7cr2YRNHH-36Mf1sNFGtOupSEVZsg2Dwc4n/Xindao.V6.AllData-fr-fr-C38465.json";
-      toast.info("Téléchargement du flux XD Connects…");
-      const feedRes = await fetch(FEED_URL);
-      if (!feedRes.ok) throw new Error(`Feed HTTP ${feedRes.status}`);
-      const feedData = await feedRes.json();
-      const allProducts: any[] = Array.isArray(feedData)
-        ? feedData
-        : feedData?.Products || feedData?.products || feedData?.Items || feedData?.items || [];
-      if (allProducts.length === 0) throw new Error("Aucun produit dans le flux");
-      toast.info(`${allProducts.length} produits récupérés, import en cours…`);
-
-      // Send in batches of 100 to the edge function
-      const BATCH = 100;
+      toast.info("Synchronisation XD Connects…");
       let totalCreated = 0, totalUpdated = 0, totalErrors = 0;
-      for (let i = 0; i < allProducts.length; i += BATCH) {
-        const chunk = allProducts.slice(i, i + BATCH);
+      let offset = 0;
+      let hasMore = true;
+      while (hasMore) {
         const { data, error } = await supabase.functions.invoke("sync-xdconnects", {
-          body: { products: chunk },
+          body: { offset },
         });
         if (error) throw error;
         if (data?.error) throw new Error(data.error);
         totalCreated += data.created || 0;
         totalUpdated += data.updated || 0;
         totalErrors += data.errors || 0;
+        hasMore = !!data.hasMore;
+        offset = data.nextOffset || offset + 150;
+        if (hasMore) toast.info(`XD Connects : ${offset}/${data.total || "?"} traités…`);
       }
       return { created: totalCreated, updated: totalUpdated, errors: totalErrors };
     },
