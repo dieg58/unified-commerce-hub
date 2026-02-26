@@ -1,141 +1,139 @@
 
 
-# Plan : Produits demo avec logo realiste via IA generative
+## Plan : Gestionnaire de produits demo avec placement visuel du logo
 
-## Approche
+### Approche
 
-Utiliser le modele **Gemini 3 Pro Image Preview** (disponible nativement via Lovable AI, pas besoin de cle API) pour generer des packshots realistes ou le logo du client est imprime/brode/serigraphie sur chaque produit, comme un vrai marquage.
+Abandonner completement l'approche IA (Gemini) pour le branding des produits demo. A la place :
 
-Au lieu d'une simple superposition d'image (overlay), l'IA recoit l'image du produit + le logo et genere une nouvelle image ou le logo est integre de maniere realiste (respect des plis du textile, perspective, ombres).
+1. **Stocker la position du logo par produit** dans une nouvelle table `demo_product_templates`
+2. **Interface d'edition visuelle** avec un rectangle draggable/resizable sur chaque image produit
+3. **Affichage CSS overlay** dans le storefront : le logo est superpose en temps reel via CSS
 
 ```text
-CreateTenantWizard                    Edge Function: seed-demo-products
-─────────────────                    ────────────────────────────────────
-  handleCreate()                     Pour chaque produit demo :
-    1. Create tenant                   1. Fetch image de base (asset demo)
-    2. Create branding                 2. Fetch logo client
-    3. Create entities                 3. Appel Gemini Image via Lovable AI :
-    4. ──invoke (fire & forget)──▶        prompt = "Place this logo on the
-                                          [t-shirt/mug/bag] as if it were
-                                          really printed/embroidered"
-                                       4. Upload image generee → Storage
-                                       5. Insert produit + prix dans DB
+┌─────────────────────────────────────────────────┐
+│  Page "Produits Demo" (TenantSettings ou SA)    │
+│                                                 │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐      │
+│  │ T-Shirt  │  │  Polo    │  │ Hoodie   │      │
+│  │ ┌──┐     │  │  ┌──┐    │  │  ┌──┐    │      │
+│  │ │Lo│◄drag│  │  │Lo│    │  │  │Lo│    │      │
+│  │ └──┘     │  │  └──┘    │  │  └──┘    │      │
+│  │ x:25 y:30│  │          │  │          │      │
+│  │ w:15%    │  │          │  │          │      │
+│  └──────────┘  └──────────┘  └──────────┘      │
+│                                                 │
+│  [+ Ajouter un produit]  [Sauvegarder tout]    │
+└─────────────────────────────────────────────────┘
+
+Storefront (lecture) :
+┌────────────┐
+│ product.jpg│  ← image de base
+│   ┌──┐     │
+│   │Lo│     │  ← logo CSS overlay (position from DB)
+│   └──┘     │
+└────────────┘
 ```
 
-## Modifications prevues
+### Fichiers a creer/modifier
 
-### 1. Nouveau fichier : `supabase/functions/seed-demo-products/index.ts`
+#### 1. Migration : table `demo_product_templates`
 
-Edge Function qui :
-- Recoit `tenant_id`, `entity_id`, `logo_url` en body
-- Definit 20 produits demo avec metadata (nom, SKU, categorie, prix, type de marquage)
-- Pour chaque produit :
-  - Telecharge l'image de base depuis l'URL publique de l'app (`/assets/demo/xxx.jpg`)
-  - Telecharge le logo du client
-  - Convertit les deux images en base64
-  - Appelle **Gemini 3 Pro Image Preview** via l'API Lovable AI avec un prompt contextuel par type de produit :
-    - Textile (t-shirt, polo, hoodie) : "Place this logo on the chest area of this [product] as if it were screen-printed or embroidered. Maintain fabric texture, folds and shadows."
-    - Drinkware (mug, gourde) : "Place this logo on this [product] as if it were printed directly on the surface. Respect the curvature and reflections."
-    - Accessoires (sac, tote bag) : "Place this logo centered on this [product] as if it were printed or sewn on."
-    - Papeterie (carnet, stylo) : "Place this logo on this [product] as if it were pad-printed or laser-engraved."
-  - Upload l'image generee dans le bucket `product-images` sous `{tenant_id}/demo-{sku}.jpg`
-  - Insere le produit dans la table `products`
-  - Insere les prix dans `product_prices` (bulk + staff)
-- **Fallback** : si le logo est absent ou si Gemini echoue sur une image, utilise l'image de base sans modification
-- Retourne le nombre de produits crees
-
-### 2. Liste des 20 produits demo
-
-| # | Produit | SKU | Image base | Categorie | Prix | Marquage |
-|---|---|---|---|---|---|---|
-| 1 | T-Shirt Classic | DEMO-TSHIRT | tshirt.jpg | textile | 12.50 | serigraphie poitrine |
-| 2 | Polo Premium | DEMO-POLO | polo.jpg | textile | 24.90 | broderie poitrine |
-| 3 | Hoodie Confort | DEMO-HOODIE | hoodie.jpg | textile | 35.00 | serigraphie poitrine |
-| 4 | Veste Softshell | DEMO-JACKET | jacket.jpg | textile | 45.00 | broderie poitrine |
-| 5 | Casquette Brodee | DEMO-CAP | cap.jpg | accessories | 9.90 | broderie face |
-| 6 | Tablier Pro | DEMO-APRON | apron.jpg | textile | 18.00 | serigraphie centre |
-| 7 | Badge Nominatif | DEMO-BADGE | badge.jpg | accessories | 3.50 | impression |
-| 8 | Sac a Dos | DEMO-BAG | bag.jpg | bags | 22.00 | broderie face |
-| 9 | Gourde Isotherme | DEMO-BOTTLE | bottle.jpg | drinkware | 15.00 | gravure laser |
-| 10 | Tote Bag | DEMO-TOTEBAG | totebag.jpg | bags | 8.50 | serigraphie centre |
-| 11 | Mug Ceramique | DEMO-MUG | mug.jpg | drinkware | 7.90 | impression sublimation |
-| 12 | Carnet A5 | DEMO-NOTEBOOK | notebook.jpg | stationery | 6.50 | marquage a chaud |
-| 13 | Stylo Metal | DEMO-PEN | pen.jpg | stationery | 4.20 | gravure laser |
-| 14 | Lanyard | DEMO-LANYARD | lanyard.jpg | accessories | 2.80 | impression sublimation |
-| 15 | T-Shirt Col V | DEMO-TSHIRT-V | tshirt.jpg | textile | 13.50 | serigraphie poitrine |
-| 16 | Polo Femme | DEMO-POLO-F | polo.jpg | textile | 24.90 | broderie poitrine |
-| 17 | Hoodie Zip | DEMO-HOODIE-Z | hoodie.jpg | textile | 38.00 | serigraphie poitrine |
-| 18 | Mug XL | DEMO-MUG-XL | mug.jpg | drinkware | 9.90 | impression sublimation |
-| 19 | Stylo Bille | DEMO-PEN-B | pen.jpg | stationery | 2.50 | tampographie |
-| 20 | Sac Shopping | DEMO-BAG-S | totebag.jpg | bags | 11.00 | serigraphie centre |
-
-### 3. Appel Gemini Image — Detail technique
-
-L'edge function utilise le secret `LOVABLE_API_KEY` (deja configure) pour appeler l'API Lovable AI :
-
-```typescript
-const response = await fetch("https://api.lovable.dev/v1/chat/completions", {
-  method: "POST",
-  headers: {
-    Authorization: `Bearer ${LOVABLE_API_KEY}`,
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    model: "google/gemini-3-pro-image-preview",
-    messages: [{
-      role: "user",
-      content: [
-        { type: "text", text: prompt },
-        { type: "image_url", image_url: { url: `data:image/jpeg;base64,${productImageB64}` } },
-        { type: "image_url", image_url: { url: `data:image/png;base64,${logoB64}` } },
-      ],
-    }],
-  }),
-});
+```sql
+CREATE TABLE demo_product_templates (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  sku text NOT NULL,
+  base_image text NOT NULL,        -- ex: "tshirt.jpg"
+  category text NOT NULL DEFAULT 'textile',
+  price numeric NOT NULL DEFAULT 0,
+  logo_x numeric NOT NULL DEFAULT 25,   -- % from left
+  logo_y numeric NOT NULL DEFAULT 30,   -- % from top
+  logo_width numeric NOT NULL DEFAULT 15, -- % of container width
+  logo_rotation numeric NOT NULL DEFAULT 0,
+  logo_blend text NOT NULL DEFAULT 'multiply',
+  logo_opacity numeric NOT NULL DEFAULT 0.9,
+  sort_order integer NOT NULL DEFAULT 0,
+  active boolean NOT NULL DEFAULT true
+);
 ```
 
-Le prompt sera specifique au type de produit pour un resultat realiste. L'image generee est extraite de la reponse et uploadee dans Storage.
+Pre-inserer les 20 produits actuels avec des placements par defaut adaptes a chaque categorie. Cette table est globale (pas par tenant), car les templates demo sont les memes pour tous.
 
-### 4. Modification de `src/components/tenants/CreateTenantWizard.tsx`
+RLS : SELECT pour tous les authentifies, ALL pour super_admin.
 
-Dans `handleCreate()`, apres la creation des entites, ajouter :
+#### 2. Nouveau : `src/components/DemoProductEditor.tsx`
 
-```typescript
-// Fire-and-forget: seed demo products in background
-if (logoUrl) {
-  supabase.functions.invoke("seed-demo-products", {
-    body: {
-      tenant_id: tenant.id,
-      entity_id: firstEntityId,
-      logo_url: logoUrl,
-      app_url: window.location.origin,
-    },
-  }).then(() => {
-    toast.success("20 produits démo personnalisés ajoutés !");
-  }).catch((err) => {
-    console.error("Demo seed error:", err);
-  });
-  toast.info("Génération des produits démo en cours...", {
-    description: "Les packshots personnalisés avec votre logo seront prêts dans quelques instants.",
-  });
-}
+Composant principal d'edition :
+- Grille de cartes, chaque carte affiche l'image de base avec le logo overlay positionne
+- Clic sur une carte ouvre un dialog d'edition
+- Dans le dialog : l'image est affichee en grand, le logo est un `<div>` draggable et resizable
+- Utiliser `mousedown/mousemove/mouseup` natif (pas de lib externe) pour le drag
+- Handles de resize aux coins du rectangle logo
+- Inputs numeriques pour ajuster x, y, width, rotation, opacity en complement
+- Bouton sauvegarder qui met a jour `demo_product_templates`
+- Bouton "+ Ajouter un produit demo" pour creer de nouvelles entrees
+
+#### 3. Nouveau : `src/components/BrandedProductImage.tsx`
+
+Composant d'affichage utilise dans le storefront :
+- Props : `baseImage`, `logoUrl`, `logoX`, `logoY`, `logoWidth`, `logoRotation`, `logoBlend`, `logoOpacity`, `className`
+- Rendu : `<div relative>` + `<img product>` + `<img logo absolute>`
+- `mix-blend-mode` et `opacity` appliques au logo
+- Si pas de `logoUrl`, affiche juste l'image de base
+
+#### 4. Modifier : `supabase/functions/seed-demo-products/index.ts`
+
+Simplifier radicalement :
+- Lire les templates depuis `demo_product_templates` au lieu de la liste hardcodee
+- Pour chaque template, inserer le produit avec `image_url = baseUrl/demo/{base_image}`
+- Stocker `logo_x`, `logo_y`, `logo_width`, etc. dans un champ JSONB `logo_placement` sur la table `products` (ajouter via migration)
+- Supprimer toute la logique IA (Gemini), SVG conversion, image generation
+
+#### 5. Migration : ajouter `logo_placement jsonb` a `products`
+
+```sql
+ALTER TABLE products ADD COLUMN logo_placement jsonb;
 ```
 
-### 5. Mise a jour de `supabase/config.toml`
+Ce champ stocke `{x, y, width, rotation, blend, opacity}` copie depuis le template lors du seeding. Le storefront le lit pour positionner le logo.
 
-Ajouter la declaration de la nouvelle function (gere automatiquement).
+#### 6. Modifier : `src/pages/Storefront.tsx`
 
-## Gestion des erreurs et fallbacks
+- Importer `BrandedProductImage`
+- Remplacer `<img src={product.image_url}>` par `<BrandedProductImage>` en passant `product.logo_placement` et le `logoUrl` du tenant
+- Quand `logo_placement` est null, afficher l'image normalement
 
-- Si `logo_url` est vide → on insere les produits avec les images de base, sans generation IA
-- Si Gemini echoue sur un produit specifique → on utilise l'image de base pour ce produit et on continue avec les autres
-- Timeout global de 120s pour la generation des 20 images (traitement sequentiel avec ~5s par image)
-- Les produits sont inseres au fur et a mesure (pas de transaction globale) pour que les premiers soient disponibles rapidement
+#### 7. Modifier : `src/pages/shop/ProductDetail.tsx`
 
-## Fichiers impactes
+- Meme remplacement pour la page detail produit
+
+#### 8. Modifier : `src/pages/tenant/TenantSettings.tsx`
+
+- Ajouter une nouvelle section "Produits de demonstration" avec le composant `DemoProductEditor`
+- Remplacer le bouton de regeneration actuel par l'editeur visuel complet
+
+#### 9. Ajouter acces Super Admin
+
+- Dans la page `TenantDetail.tsx` ou dans les settings SA, integrer aussi `DemoProductEditor` pour que les SA puissent configurer les templates globaux
+
+### Comportement du drag & resize
+
+Le rectangle logo dans l'editeur :
+- **Drag** : `onMouseDown` capture la position initiale, `onMouseMove` met a jour `logo_x`/`logo_y` en % relatif au conteneur image
+- **Resize** : handle en bas-droite, modifie `logo_width` en %
+- **Contraintes** : le logo reste dans les limites de l'image (clamp 0-100%)
+- **Preview temps reel** : le logo du tenant est affiche dans le rectangle pendant l'edition
+
+### Fichiers impactes
 
 | Fichier | Action |
 |---|---|
-| `supabase/functions/seed-demo-products/index.ts` | Nouveau |
-| `src/components/tenants/CreateTenantWizard.tsx` | Modifier — appel post-creation |
+| Migration : `demo_product_templates` + `products.logo_placement` | Creer |
+| `src/components/DemoProductEditor.tsx` | Creer |
+| `src/components/BrandedProductImage.tsx` | Creer |
+| `supabase/functions/seed-demo-products/index.ts` | Simplifier (supprimer IA) |
+| `src/pages/Storefront.tsx` | Modifier (overlay) |
+| `src/pages/shop/ProductDetail.tsx` | Modifier (overlay) |
+| `src/pages/tenant/TenantSettings.tsx` | Modifier (editeur) |
 
