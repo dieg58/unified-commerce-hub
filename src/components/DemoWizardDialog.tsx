@@ -15,31 +15,71 @@ interface DemoWizardDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+const FREE_EMAIL_DOMAINS = [
+  "gmail.com", "yahoo.com", "yahoo.fr", "hotmail.com", "hotmail.fr",
+  "outlook.com", "outlook.fr", "live.com", "live.fr", "aol.com",
+  "icloud.com", "me.com", "mail.com", "gmx.com", "gmx.fr",
+  "protonmail.com", "proton.me", "ymail.com", "msn.com",
+  "wanadoo.fr", "orange.fr", "free.fr", "sfr.fr", "laposte.net",
+  "bbox.fr", "numericable.fr",
+];
+
+const PHONE_REGEX = /^\+?[\d\s\-().]{7,25}$/;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const URL_REGEX = /^(https?:\/\/)?[\w.-]+\.[a-z]{2,}(\/.*)?$/i;
+
 const DemoWizardDialog = ({ open, onOpenChange }: DemoWizardDialogProps) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  // Step 1 fields
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [company, setCompany] = useState("");
   const [phone, setPhone] = useState("");
-
-  // Step 2 fields
   const [websiteUrl, setWebsiteUrl] = useState("");
 
   const resetForm = () => {
     setStep(1);
-    setFullName("");
-    setEmail("");
-    setCompany("");
-    setPhone("");
-    setWebsiteUrl("");
-    setError("");
-    setLoading(false);
+    setFullName(""); setEmail(""); setCompany(""); setPhone(""); setWebsiteUrl("");
+    setError(""); setFieldErrors({}); setLoading(false);
+  };
+
+  const validateStep1 = (): boolean => {
+    const errors: Record<string, string> = {};
+    if (!fullName.trim()) errors.fullName = "Le nom est requis";
+    if (!email.trim()) {
+      errors.email = "L'email est requis";
+    } else if (!EMAIL_REGEX.test(email.trim())) {
+      errors.email = "Email invalide";
+    } else {
+      const domain = email.trim().split("@")[1]?.toLowerCase();
+      if (FREE_EMAIL_DOMAINS.includes(domain)) {
+        errors.email = "Merci d'utiliser votre email professionnel";
+      }
+    }
+    if (!company.trim()) errors.company = "L'entreprise est requise";
+    if (!phone.trim()) {
+      errors.phone = "Le téléphone est requis";
+    } else if (!PHONE_REGEX.test(phone.trim())) {
+      errors.phone = "Numéro de téléphone invalide";
+    }
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const validateStep2 = (): boolean => {
+    const errors: Record<string, string> = {};
+    if (!websiteUrl.trim()) {
+      errors.websiteUrl = "L'URL du site web est requise";
+    } else if (!URL_REGEX.test(websiteUrl.trim())) {
+      errors.websiteUrl = "URL invalide (ex: www.mon-entreprise.com)";
+    }
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const handleSubmit = async () => {
@@ -55,17 +95,13 @@ const DemoWizardDialog = ({ open, onOpenChange }: DemoWizardDialogProps) => {
       if (fnErr) throw new Error(fnErr.message);
       if (data?.error) throw new Error(data.error);
 
-      // Auto-login
       const { error: signInErr } = await supabase.auth.signInWithPassword({
         email: data.email,
         password: data.password,
       });
-
       if (signInErr) throw new Error(signInErr.message);
 
       setLoading(false);
-
-      // Small delay then redirect
       setTimeout(() => {
         onOpenChange(false);
         resetForm();
@@ -79,25 +115,22 @@ const DemoWizardDialog = ({ open, onOpenChange }: DemoWizardDialogProps) => {
     }
   };
 
-  const canProceedStep1 = fullName.trim() && email.trim() && company.trim();
-
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!loading) { onOpenChange(v); if (!v) resetForm(); } }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-xl font-serif">
             {step === 1 && "Créer ma boutique démo"}
-            {step === 2 && "Personnaliser ma boutique"}
+            {step === 2 && "Votre site web"}
             {step === 3 && (loading ? "Création en cours…" : "Votre boutique est prête !")}
           </DialogTitle>
           <DialogDescription>
-            {step === 1 && "Renseignez vos coordonnées pour créer votre espace démo en quelques secondes."}
-            {step === 2 && "Optionnel : ajoutez votre site web pour personnaliser automatiquement votre boutique."}
+            {step === 1 && "Renseignez vos coordonnées professionnelles pour créer votre espace démo."}
+            {step === 2 && "Nous personnaliserons automatiquement votre boutique avec vos couleurs et logo."}
             {step === 3 && (loading ? "Nous configurons votre espace, patientez…" : "Vous allez être redirigé vers votre tableau de bord.")}
           </DialogDescription>
         </DialogHeader>
 
-        {/* Progress */}
         <div className="flex items-center gap-2 mb-2">
           {[1, 2, 3].map((s) => (
             <div key={s} className={`h-1.5 flex-1 rounded-full transition-colors ${s <= step ? "bg-primary" : "bg-muted"}`} />
@@ -109,24 +142,26 @@ const DemoWizardDialog = ({ open, onOpenChange }: DemoWizardDialogProps) => {
             <motion.div key="step1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="demo-name">Nom complet *</Label>
-                <Input id="demo-name" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Jean Dupont" maxLength={100} />
+                <Input id="demo-name" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Jean Dupont" maxLength={100} className={fieldErrors.fullName ? "border-destructive" : ""} />
+                {fieldErrors.fullName && <p className="text-xs text-destructive">{fieldErrors.fullName}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="demo-email">Email professionnel *</Label>
-                <Input id="demo-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="jean@entreprise.com" maxLength={255} />
+                <Input id="demo-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="jean@entreprise.com" maxLength={255} className={fieldErrors.email ? "border-destructive" : ""} />
+                {fieldErrors.email && <p className="text-xs text-destructive">{fieldErrors.email}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="demo-company">Entreprise *</Label>
-                <Input id="demo-company" value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Mon Entreprise SA" maxLength={100} />
+                <Input id="demo-company" value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Mon Entreprise SA" maxLength={100} className={fieldErrors.company ? "border-destructive" : ""} />
+                {fieldErrors.company && <p className="text-xs text-destructive">{fieldErrors.company}</p>}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="demo-phone">Téléphone</Label>
-                <Input id="demo-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+32 470 00 00 00" maxLength={30} />
+                <Label htmlFor="demo-phone">Téléphone *</Label>
+                <Input id="demo-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+32 470 00 00 00" maxLength={30} className={fieldErrors.phone ? "border-destructive" : ""} />
+                {fieldErrors.phone && <p className="text-xs text-destructive">{fieldErrors.phone}</p>}
               </div>
-
               {error && <p className="text-sm text-destructive">{error}</p>}
-
-              <Button className="w-full rounded-full" disabled={!canProceedStep1} onClick={() => { setError(""); setStep(2); }}>
+              <Button className="w-full rounded-full" onClick={() => { if (validateStep1()) { setError(""); setStep(2); } }}>
                 Continuer <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </motion.div>
@@ -136,27 +171,20 @@ const DemoWizardDialog = ({ open, onOpenChange }: DemoWizardDialogProps) => {
             <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="demo-website" className="flex items-center gap-2">
-                  <Globe className="h-4 w-4" /> URL de votre site web
+                  <Globe className="h-4 w-4" /> URL de votre site web *
                 </Label>
-                <Input
-                  id="demo-website"
-                  value={websiteUrl}
-                  onChange={(e) => setWebsiteUrl(e.target.value)}
-                  placeholder="www.mon-entreprise.com"
-                  maxLength={500}
-                />
+                <Input id="demo-website" value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)} placeholder="www.mon-entreprise.com" maxLength={500} className={fieldErrors.websiteUrl ? "border-destructive" : ""} />
+                {fieldErrors.websiteUrl && <p className="text-xs text-destructive">{fieldErrors.websiteUrl}</p>}
                 <p className="text-xs text-muted-foreground">
-                  Si fourni, nous extrairons automatiquement vos couleurs et votre logo pour personnaliser votre boutique.
+                  Nous extrairons automatiquement vos couleurs et votre logo pour personnaliser votre boutique.
                 </p>
               </div>
-
               {error && <p className="text-sm text-destructive">{error}</p>}
-
               <div className="flex gap-3">
                 <Button variant="outline" className="flex-1 rounded-full" onClick={() => setStep(1)}>
                   <ArrowLeft className="mr-2 h-4 w-4" /> Retour
                 </Button>
-                <Button className="flex-1 rounded-full" onClick={handleSubmit}>
+                <Button className="flex-1 rounded-full" onClick={() => { if (validateStep2()) handleSubmit(); }}>
                   <Sparkles className="mr-2 h-4 w-4" /> Créer ma boutique
                 </Button>
               </div>
