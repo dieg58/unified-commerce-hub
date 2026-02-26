@@ -23,8 +23,10 @@ import { useTranslation } from "react-i18next";
 type NavItem = { to: string; icon: any; label: string } | { separator: string };
 
 const TenantAdminSidebar = () => {
-  const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
+  const isOnShop = location.pathname.startsWith("/shop");
+  const [manualCollapsed, setManualCollapsed] = useState(false);
+  const collapsed = isOnShop || manualCollapsed;
   const { isShopManager, signOut, profile } = useAuth();
   const tenantId = profile?.tenant_id;
   const { t } = useTranslation();
@@ -139,7 +141,7 @@ const TenantAdminSidebar = () => {
           {!collapsed && <span>{t("common.logout")}</span>}
         </button>
         <button
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={() => setManualCollapsed(!manualCollapsed)}
           className="flex items-center justify-center w-full h-8 text-sidebar-muted hover:text-sidebar-accent-foreground transition-colors"
         >
           {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}

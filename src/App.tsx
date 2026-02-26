@@ -9,6 +9,7 @@ import { RequireSuperAdmin, RequireTenantUser, RequireEmployee, RequireShopManag
 import AppLayout from "./components/AppLayout";
 import TenantAdminLayout from "./components/TenantAdminLayout";
 import StorefrontLayout from "./components/StorefrontLayout";
+import ShopContentWrapper from "./components/ShopContentWrapper";
 import CookieConsent from "./components/CookieConsent";
 import Dashboard from "./pages/Dashboard";
 import Tenants from "./pages/Tenants";
@@ -65,7 +66,7 @@ const SubdomainAwareRoutes = () => {
         {/* Public landing page for subdomain */}
         <Route path="/" element={<LandingPage />} />
 
-        {/* Tenant admin routes for shop_manager / dept_manager */}
+        {/* Tenant admin routes + storefront for shop_manager / dept_manager */}
         <Route element={<RequireShopManager><TenantAdminLayout /></RequireShopManager>}>
           <Route path="/tenant" element={<TenantDashboard />} />
           <Route path="/tenant/orders" element={<TenantOrders />} />
@@ -79,12 +80,18 @@ const SubdomainAwareRoutes = () => {
           <Route path="/tenant/discounts" element={<TenantDiscountCodes />} />
           <Route path="/tenant/products" element={<TenantProducts />} />
           <Route path="/tenant/product-requests" element={<TenantProductRequests />} />
-          <Route path="/tenant/storefront" element={<Storefront />} />
+          {/* Storefront nested inside admin layout — sidebar auto-collapses */}
+          <Route element={<ShopContentWrapper />}>
+            <Route path="/shop" element={<Storefront />} />
+            <Route path="/shop/product/:productId" element={<ProductDetail />} />
+            <Route path="/shop/wishlist" element={<MyWishlist />} />
+            <Route path="/shop/orders" element={<MyOrders />} />
+            <Route path="/shop/profile" element={<MyProfile />} />
+          </Route>
         </Route>
 
-        {/* Employee storefront */}
+        {/* Employee storefront (no admin sidebar) */}
         <Route element={<RequireEmployee><StorefrontLayout /></RequireEmployee>}>
-          <Route path="/shop" element={<Storefront />} />
           <Route path="/shop" element={<Storefront />} />
           <Route path="/shop/product/:productId" element={<ProductDetail />} />
           <Route path="/shop/wishlist" element={<MyWishlist />} />
@@ -123,7 +130,7 @@ const SubdomainAwareRoutes = () => {
         <Route path="/product-requests" element={<ProductRequests />} />
       </Route>
 
-      {/* Tenant admin routes (shop_manager, dept_manager) */}
+      {/* Tenant admin routes (shop_manager, dept_manager) + storefront */}
       <Route element={<RequireTenantUser><TenantAdminLayout /></RequireTenantUser>}>
         <Route path="/tenant" element={<TenantDashboard />} />
         <Route path="/tenant/orders" element={<TenantOrders />} />
@@ -139,10 +146,18 @@ const SubdomainAwareRoutes = () => {
         <Route path="/tenant/products" element={<TenantProducts />} />
         
         <Route path="/tenant/product-requests" element={<TenantProductRequests />} />
-        <Route path="/tenant/storefront" element={<Storefront />} />
+        {/* Storefront nested — sidebar auto-collapses */}
+        <Route element={<ShopContentWrapper />}>
+          <Route path="/shop" element={<Storefront />} />
+          <Route path="/shop/product/:productId" element={<ProductDetail />} />
+          <Route path="/shop/wishlist" element={<MyWishlist />} />
+          <Route path="/shop/orders" element={<MyOrders />} />
+          <Route path="/shop/profile" element={<MyProfile />} />
+          <Route path="/store" element={<Storefront />} />
+        </Route>
       </Route>
 
-      {/* Employee storefront routes – shop_managers & dept_managers are redirected to /tenant */}
+      {/* Employee storefront routes – no admin sidebar */}
         <Route element={<RequireEmployee><StorefrontLayout /></RequireEmployee>}>
           <Route path="/shop" element={<Storefront />} />
           <Route path="/shop/product/:productId" element={<ProductDetail />} />
