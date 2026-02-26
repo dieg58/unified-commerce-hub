@@ -12,6 +12,7 @@ import {
 import heroImg from "@/assets/hero-inkoo.jpg";
 import inkooFullNoir from "@/assets/inkoo-full-noir.svg";
 import DemoRequestDialog from "@/components/DemoRequestDialog";
+import DemoWizardDialog from "@/components/DemoWizardDialog";
 import LoginDialog from "@/components/LoginDialog";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useTranslation } from "react-i18next";
@@ -36,6 +37,7 @@ const clients = [
 const LandingPage = () => {
   const { session, loading, isSuperAdmin } = useAuth();
   const [demoOpen, setDemoOpen] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { t } = useTranslation();
@@ -153,7 +155,7 @@ const LandingPage = () => {
             <Button variant="outline" size="sm" className="rounded-full px-6 hidden sm:inline-flex" onClick={() => setLoginOpen(true)}>
               {t("landing.login")}
             </Button>
-            <Button size="sm" className="rounded-full px-6 hidden sm:inline-flex" onClick={() => setDemoOpen(true)}>
+            <Button size="sm" className="rounded-full px-6 hidden sm:inline-flex" onClick={() => setWizardOpen(true)}>
               {t("landing.requestDemo")}
             </Button>
             <button
@@ -174,7 +176,7 @@ const LandingPage = () => {
               <Button variant="outline" size="sm" className="rounded-full flex-1" onClick={() => { setLoginOpen(true); setMobileMenuOpen(false); }}>
                 {t("landing.login")}
               </Button>
-              <Button size="sm" className="rounded-full flex-1" onClick={() => { setDemoOpen(true); setMobileMenuOpen(false); }}>
+              <Button size="sm" className="rounded-full flex-1" onClick={() => { setWizardOpen(true); setMobileMenuOpen(false); }}>
                 {t("landing.requestDemo")}
               </Button>
             </div>
@@ -198,7 +200,7 @@ const LandingPage = () => {
               {t("landing.heroMainDesc")}
             </p>
             <div className="mt-10 flex flex-col sm:flex-row items-start gap-4">
-              <Button size="lg" className="text-base px-8 rounded-full shadow-card-hover" onClick={() => setDemoOpen(true)}>
+              <Button size="lg" className="text-base px-8 rounded-full shadow-card-hover" onClick={() => setWizardOpen(true)}>
                 {t("landing.requestFreeDemo")} <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
               <Button size="lg" variant="outline" className="text-base px-8 rounded-full" onClick={() => setLoginOpen(true)}>
@@ -418,7 +420,7 @@ const LandingPage = () => {
               <h2 className="text-3xl md:text-5xl font-serif mb-4">{t("landing.ctaReadyTitle")}</h2>
               <p className="text-primary-foreground/70 text-lg mb-10 max-w-lg mx-auto">{t("landing.ctaReadyDesc")}</p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <Button size="lg" variant="secondary" className="text-base px-8 rounded-full" onClick={() => setDemoOpen(true)}>
+                <Button size="lg" variant="secondary" className="text-base px-8 rounded-full" onClick={() => setWizardOpen(true)}>
                   {t("landing.demoCta")} <ArrowUpRight className="ml-2 h-4 w-4" />
                 </Button>
                 <Button size="lg" variant="outline" className="text-base px-8 rounded-full border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10" onClick={() => setLoginOpen(true)}>
@@ -446,6 +448,7 @@ const LandingPage = () => {
       </footer>
 
       <DemoRequestDialog open={demoOpen} onOpenChange={setDemoOpen} />
+      <DemoWizardDialog open={wizardOpen} onOpenChange={setWizardOpen} />
       <LoginDialog open={loginOpen} onOpenChange={setLoginOpen} />
     </div>
   );
