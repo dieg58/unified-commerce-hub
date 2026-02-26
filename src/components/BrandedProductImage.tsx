@@ -58,12 +58,12 @@ const BrandedProductImage = ({
               left: `${logoPlacement.x}%`,
               top: `${logoPlacement.y}%`,
               width: `${logoPlacement.width}%`,
+              height: `${logoPlacement.maxHeight ?? 40}%`,
               transform: `translate(-50%, -50%) rotate(${logoPlacement.rotation || 0}deg)`,
               mixBlendMode: (isDarkBg ? "screen" : (logoPlacement.blend || "multiply")) as any,
               opacity: logoPlacement.opacity ?? 0.85,
               filter: isDarkBg ? "brightness(100)" : "none",
-              maxHeight: `${logoPlacement.maxHeight ?? 40}%`,
-              objectFit: "contain",
+              objectFit: "fill",
             }}
           />
         )}

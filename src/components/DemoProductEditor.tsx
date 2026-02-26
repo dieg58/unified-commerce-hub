@@ -431,21 +431,21 @@ const LogoPlacementDialog = ({ template, logoUrl, onClose, onSave, saving }: Log
                   left: `${placement.x}%`,
                   top: `${placement.y}%`,
                   width: `${placement.width}%`,
+                  height: `${placement.maxHeight ?? 40}%`,
                   transform: `translate(-50%, -50%) rotate(${placement.rotation}deg)`,
                 }}
                 onMouseDown={(e) => handleMouseDown(e, "drag")}
               >
                 <div className="relative border-2 border-dashed border-primary/60 rounded p-0.5">
-                  <img
+                    <img
                     src={logoUrl}
                     alt="Logo"
-                    className="w-full object-contain pointer-events-none"
+                    className="w-full pointer-events-none"
                     style={{
                       mixBlendMode: (placement.mode === "dark" ? "screen" : placement.blend) as any,
                       opacity: placement.opacity,
                       filter: placement.mode === "dark" ? "brightness(100)" : "none",
-                      maxHeight: `${placement.maxHeight ?? 40}%`,
-                      objectFit: "contain" as const,
+                      objectFit: "fill" as const,
                     }}
                     draggable={false}
                   />
@@ -484,7 +484,7 @@ const LogoPlacementDialog = ({ template, logoUrl, onClose, onSave, saving }: Log
               <span className="text-[10px] text-muted-foreground">{Number(t.logo_y).toFixed(0)}%</span>
             </div>
             <div className="space-y-1">
-              <Label className="text-[10px]">Largeur max (%)</Label>
+              <Label className="text-[10px]">Largeur zone (%)</Label>
               <Slider
                 value={[Number(t.logo_width)]}
                 onValueChange={([v]) => update({ logo_width: v })}
@@ -493,7 +493,7 @@ const LogoPlacementDialog = ({ template, logoUrl, onClose, onSave, saving }: Log
               <span className="text-[10px] text-muted-foreground">{Number(t.logo_width).toFixed(0)}%</span>
             </div>
             <div className="space-y-1">
-              <Label className="text-[10px]">Hauteur max (%)</Label>
+              <Label className="text-[10px]">Hauteur zone (%)</Label>
               <Slider
                 value={[Number(t.logo_max_height)]}
                 onValueChange={([v]) => update({ logo_max_height: v })}
