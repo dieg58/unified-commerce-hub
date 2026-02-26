@@ -8,6 +8,11 @@ const corsHeaders = {
 
 const PREFIX = "XDC-";
 const PRICE_MULTIPLIER = 1.65;
+const FEED_URL_FR =
+  "https://feeds.xindao.com/Feeds/Download/2575-Qfx-ZzmKKT2PHe7omMwPBxIOQlkIIblERsDBefwhTzMTaoPx1lxuY7cr2YRNHH-36Mf1sNFGtOupSEVZsg2Dwc4n/Xindao.V6.AllData-fr-fr-C38465.json";
+
+const MAX_CPU_MS = 25_000; // stop before timeout
+const BATCH_SIZE = 150;
 
 // ── helpers ──────────────────────────────────────────────
 
@@ -58,8 +63,8 @@ function getStock(p: any): number {
 }
 
 // ── main handler ─────────────────────────────────────────
-// Expects body: { products: XDProduct[] }
-// The CLIENT downloads the feed and sends products in small batches.
+// Accepts { offset?: number }
+// Downloads FR feed, processes a slice starting at offset, returns hasMore flag.
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -93,20 +98,39 @@ Deno.serve(async (req) => {
       });
     }
 
-    const body = await req.json();
-    const rawProducts: any[] = body.products || [];
+    const body = await req.json().catch(() => ({}));
+    const offset = Number(body.offset) || 0;
 
-    if (rawProducts.length === 0) {
+    // Download the FR feed
+    console.log(`XDC: Fetching FR feed, offset=${offset}…`);
+    const feedRes = await fetch(FEED_URL_FR);
+    if (!feedRes.ok) throw new Error(`Feed HTTP ${feedRes.status}`);
+    const feedText = await feedRes.text();
+
+    // Parse only the slice we need to minimise memory pressure
+    const feedData = JSON.parse(feedText);
+    // Free raw text immediately
+    const allProducts: any[] = Array.isArray(feedData)
+      ? feedData
+      : feedData?.Products || feedData?.products || feedData?.Items || feedData?.items || [];
+
+    const total = allProducts.length;
+    const slice = allProducts.slice(offset, offset + BATCH_SIZE);
+    console.log(`XDC: Total=${total}, processing ${offset}..${offset + slice.length}`);
+
+    if (slice.length === 0) {
       return new Response(
-        JSON.stringify({ success: true, created: 0, updated: 0, errors: 0 }),
+        JSON.stringify({ success: true, created: 0, updated: 0, errors: 0, hasMore: false, total }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     const now = new Date().toISOString();
     const rows: any[] = [];
+    const startMs = Date.now();
 
-    for (const p of rawProducts) {
+    for (const p of slice) {
+      if (Date.now() - startMs > MAX_CPU_MS) break;
       const itemNumber = p.ItemNumber;
       if (!itemNumber) continue;
       const { colors, sizes } = extractVariants(p);
@@ -128,7 +152,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Look up existing
+    // Lookup existing
     const mids = rows.map((r) => r.midocean_id);
     const existingMap = new Map<string, string>();
     for (let i = 0; i < mids.length; i += 200) {
@@ -154,10 +178,12 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`XDC batch: ${created} created, ${updated} updated, ${errors} errors`);
+    const nextOffset = offset + slice.length;
+    const hasMore = nextOffset < total;
+    console.log(`XDC batch done: ${created} created, ${updated} updated, ${errors} errors, hasMore=${hasMore}`);
 
     return new Response(
-      JSON.stringify({ success: true, created, updated, errors }),
+      JSON.stringify({ success: true, created, updated, errors, hasMore, nextOffset, total }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {
