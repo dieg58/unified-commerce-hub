@@ -8,6 +8,7 @@ export interface LogoPlacement {
   rotation: number;
   blend: string;
   opacity: number;
+  mode?: "light" | "dark"; // light = colored logo, dark = white logo
 }
 
 interface BrandedProductImageProps {
@@ -28,6 +29,7 @@ const BrandedProductImage = ({
   imgClassName,
 }: BrandedProductImageProps) => {
   const showOverlay = logoUrl && logoPlacement;
+  const isDarkBg = logoPlacement?.mode === "dark";
 
   return (
     <div className={cn("relative overflow-hidden", className)}>
@@ -52,8 +54,9 @@ const BrandedProductImage = ({
             top: `${logoPlacement.y}%`,
             width: `${logoPlacement.width}%`,
             transform: `translate(-50%, -50%) rotate(${logoPlacement.rotation || 0}deg)`,
-            mixBlendMode: (logoPlacement.blend || "multiply") as any,
+            mixBlendMode: (isDarkBg ? "screen" : (logoPlacement.blend || "multiply")) as any,
             opacity: logoPlacement.opacity ?? 0.85,
+            filter: isDarkBg ? "brightness(100)" : "none",
             maxHeight: "40%",
             objectFit: "contain",
           }}

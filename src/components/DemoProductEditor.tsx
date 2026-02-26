@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -8,25 +8,32 @@ import { Slider } from "@/components/ui/slider";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { GripVertical, Loader2, Move, Save, X } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { GripVertical, Loader2, Move, Save, X, Plus, Search, Trash2, Sun, Moon } from "lucide-react";
 import { toast } from "sonner";
 import BrandedProductImage, { type LogoPlacement } from "./BrandedProductImage";
 
 interface DemoTemplate {
   id: string;
-  name: string;
-  sku: string;
-  base_image: string;
-  category: string;
-  price: number;
+  catalog_product_id: string;
   logo_x: number;
   logo_y: number;
   logo_width: number;
   logo_rotation: number;
   logo_blend: string;
   logo_opacity: number;
+  logo_mode: string;
   sort_order: number;
   active: boolean;
+  // joined
+  catalog_product?: {
+    id: string;
+    name: string;
+    sku: string;
+    image_url: string | null;
+    category: string;
+    base_price: number;
+  };
 }
 
 interface DemoProductEditorProps {
@@ -36,23 +43,27 @@ interface DemoProductEditorProps {
 const DemoProductEditor = ({ previewLogoUrl }: DemoProductEditorProps) => {
   const qc = useQueryClient();
   const [editingTemplate, setEditingTemplate] = useState<DemoTemplate | null>(null);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
 
   const { data: templates, isLoading } = useQuery({
     queryKey: ["demo-product-templates"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("demo_product_templates" as any)
-        .select("*")
+        .from("demo_product_templates")
+        .select("*, catalog_products(*)")
         .order("sort_order");
       if (error) throw error;
-      return data as unknown as DemoTemplate[];
+      return (data as any[]).map((d) => ({
+        ...d,
+        catalog_product: d.catalog_products,
+      })) as DemoTemplate[];
     },
   });
 
   const saveMutation = useMutation({
     mutationFn: async (t: DemoTemplate) => {
       const { error } = await supabase
-        .from("demo_product_templates" as any)
+        .from("demo_product_templates")
         .update({
           logo_x: t.logo_x,
           logo_y: t.logo_y,
@@ -60,6 +71,7 @@ const DemoProductEditor = ({ previewLogoUrl }: DemoProductEditorProps) => {
           logo_rotation: t.logo_rotation,
           logo_blend: t.logo_blend,
           logo_opacity: t.logo_opacity,
+          logo_mode: t.logo_mode,
           active: t.active,
         } as any)
         .eq("id", t.id);
@@ -73,6 +85,40 @@ const DemoProductEditor = ({ previewLogoUrl }: DemoProductEditorProps) => {
     onError: (err: any) => toast.error(err.message),
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("demo_product_templates")
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Template supprimé");
+      qc.invalidateQueries({ queryKey: ["demo-product-templates"] });
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const addMutation = useMutation({
+    mutationFn: async (catalogProductId: string) => {
+      const nextOrder = (templates?.length || 0) + 1;
+      const { error } = await supabase
+        .from("demo_product_templates")
+        .insert({
+          catalog_product_id: catalogProductId,
+          sort_order: nextOrder,
+        } as any);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Produit démo ajouté");
+      qc.invalidateQueries({ queryKey: ["demo-product-templates"] });
+      setAddDialogOpen(false);
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -81,45 +127,77 @@ const DemoProductEditor = ({ previewLogoUrl }: DemoProductEditorProps) => {
     );
   }
 
+  const selectedIds = new Set(templates?.map((t) => t.catalog_product_id) || []);
+
   return (
     <div className="space-y-4">
-      <p className="text-xs text-muted-foreground">
-        Cliquez sur un produit pour ajuster la position du logo. Les modifications sont appliquées lors de la prochaine régénération.
-      </p>
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-        {templates?.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setEditingTemplate({ ...t })}
-            className="group relative rounded-lg border border-border overflow-hidden bg-card hover:ring-2 hover:ring-primary/50 transition-all text-left"
-          >
-            <div className="aspect-square relative">
-              <BrandedProductImage
-                imageUrl={`/demo/${t.base_image}`}
-                logoUrl={previewLogoUrl}
-                logoPlacement={{
-                  x: Number(t.logo_x),
-                  y: Number(t.logo_y),
-                  width: Number(t.logo_width),
-                  rotation: Number(t.logo_rotation),
-                  blend: t.logo_blend,
-                  opacity: Number(t.logo_opacity),
-                }}
-                className="w-full h-full"
-              />
-              {!t.active && (
-                <div className="absolute inset-0 bg-background/70 flex items-center justify-center">
-                  <Badge variant="secondary" className="text-[10px]">Désactivé</Badge>
-                </div>
-              )}
-            </div>
-            <div className="p-2">
-              <p className="text-xs font-medium text-foreground truncate">{t.name}</p>
-              <p className="text-[10px] text-muted-foreground">{t.sku}</p>
-            </div>
-          </button>
-        ))}
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">
+          Sélectionnez des produits du catalogue global et définissez la zone de marquage pour chacun. Ces templates sont appliqués à toutes les nouvelles boutiques.
+        </p>
+        <Button size="sm" variant="outline" className="gap-1.5 shrink-0" onClick={() => setAddDialogOpen(true)}>
+          <Plus className="w-3.5 h-3.5" /> Ajouter
+        </Button>
       </div>
+
+      {(!templates || templates.length === 0) ? (
+        <div className="text-center py-12 text-muted-foreground text-sm">
+          Aucun produit démo configuré. Cliquez sur "Ajouter" pour sélectionner des produits du catalogue.
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+          {templates.map((t) => (
+            <div
+              key={t.id}
+              className="group relative rounded-lg border border-border overflow-hidden bg-card hover:ring-2 hover:ring-primary/50 transition-all text-left"
+            >
+              <button
+                onClick={() => setEditingTemplate({ ...t })}
+                className="w-full text-left"
+              >
+                <div className="aspect-square relative">
+                  <BrandedProductImage
+                    imageUrl={t.catalog_product?.image_url}
+                    logoUrl={previewLogoUrl}
+                    logoPlacement={{
+                      x: Number(t.logo_x),
+                      y: Number(t.logo_y),
+                      width: Number(t.logo_width),
+                      rotation: Number(t.logo_rotation),
+                      blend: t.logo_blend,
+                      opacity: Number(t.logo_opacity),
+                      mode: t.logo_mode as "light" | "dark",
+                    }}
+                    className="w-full h-full"
+                  />
+                  {!t.active && (
+                    <div className="absolute inset-0 bg-background/70 flex items-center justify-center">
+                      <Badge variant="secondary" className="text-[10px]">Désactivé</Badge>
+                    </div>
+                  )}
+                  <div className="absolute top-1.5 right-1.5">
+                    {t.logo_mode === "dark" ? (
+                      <Moon className="w-3.5 h-3.5 text-white drop-shadow" />
+                    ) : (
+                      <Sun className="w-3.5 h-3.5 text-yellow-500 drop-shadow" />
+                    )}
+                  </div>
+                </div>
+                <div className="p-2">
+                  <p className="text-xs font-medium text-foreground truncate">{t.catalog_product?.name || "—"}</p>
+                  <p className="text-[10px] text-muted-foreground">{t.catalog_product?.sku}</p>
+                </div>
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(t.id); }}
+                className="absolute top-1.5 left-1.5 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded bg-destructive/90 text-white hover:bg-destructive"
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {editingTemplate && (
         <LogoPlacementDialog
@@ -130,7 +208,107 @@ const DemoProductEditor = ({ previewLogoUrl }: DemoProductEditorProps) => {
           saving={saveMutation.isPending}
         />
       )}
+
+      {addDialogOpen && (
+        <CatalogPickerDialog
+          selectedIds={selectedIds}
+          onSelect={(id) => addMutation.mutate(id)}
+          onClose={() => setAddDialogOpen(false)}
+          adding={addMutation.isPending}
+        />
+      )}
     </div>
+  );
+};
+
+/* ─── Catalog Picker Dialog ──────────────────────────────────────── */
+
+const CatalogPickerDialog = ({
+  selectedIds,
+  onSelect,
+  onClose,
+  adding,
+}: {
+  selectedIds: Set<string>;
+  onSelect: (id: string) => void;
+  onClose: () => void;
+  adding: boolean;
+}) => {
+  const [search, setSearch] = useState("");
+
+  const { data: catalogProducts, isLoading } = useQuery({
+    queryKey: ["catalog-products-for-demo"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("catalog_products")
+        .select("id, name, sku, image_url, category, base_price")
+        .eq("active", true)
+        .order("name")
+        .limit(500);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const filtered = useMemo(() => {
+    if (!catalogProducts) return [];
+    const q = search.toLowerCase();
+    return catalogProducts.filter(
+      (p) =>
+        !selectedIds.has(p.id) &&
+        (!q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || (p.category || "").toLowerCase().includes(q))
+    );
+  }, [catalogProducts, search, selectedIds]);
+
+  return (
+    <Dialog open onOpenChange={() => onClose()}>
+      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle>Ajouter un produit démo depuis le catalogue</DialogTitle>
+        </DialogHeader>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Rechercher par nom, SKU ou catégorie..."
+            className="pl-9"
+          />
+        </div>
+        <div className="flex-1 overflow-auto min-h-0">
+          {isLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-5 h-5 animate-spin text-primary" />
+            </div>
+          ) : filtered.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">Aucun produit trouvé</p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-1">
+              {filtered.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => onSelect(p.id)}
+                  disabled={adding}
+                  className="text-left rounded-lg border border-border overflow-hidden hover:ring-2 hover:ring-primary/50 transition-all bg-card disabled:opacity-50"
+                >
+                  <div className="aspect-square bg-muted/30 overflow-hidden">
+                    {p.image_url ? (
+                      <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-muted-foreground/20 text-3xl">📦</div>
+                    )}
+                  </div>
+                  <div className="p-2">
+                    <p className="text-xs font-medium text-foreground truncate">{p.name}</p>
+                    <p className="text-[10px] text-muted-foreground">{p.sku} · {p.base_price} €</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 
@@ -204,14 +382,17 @@ const LogoPlacementDialog = ({ template, logoUrl, onClose, onSave, saving }: Log
     rotation: Number(t.logo_rotation),
     blend: t.logo_blend,
     opacity: Number(t.logo_opacity),
+    mode: t.logo_mode as "light" | "dark",
   };
+
+  const imageUrl = t.catalog_product?.image_url;
 
   return (
     <Dialog open onOpenChange={() => onClose()}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Move className="w-4 h-4" /> {t.name} — Placement du logo
+            <Move className="w-4 h-4" /> {t.catalog_product?.name || "Produit"} — Placement du logo
           </DialogTitle>
         </DialogHeader>
 
@@ -221,12 +402,16 @@ const LogoPlacementDialog = ({ template, logoUrl, onClose, onSave, saving }: Log
             ref={containerRef}
             className="relative aspect-square rounded-lg overflow-hidden border border-border bg-muted/30 cursor-crosshair select-none"
           >
-            <img
-              src={`/demo/${t.base_image}`}
-              alt={t.name}
-              className="w-full h-full object-cover"
-              draggable={false}
-            />
+            {imageUrl ? (
+              <img
+                src={imageUrl}
+                alt={t.catalog_product?.name}
+                className="w-full h-full object-cover"
+                draggable={false}
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-muted-foreground/20 text-6xl">📦</div>
+            )}
             {logoUrl && (
               <div
                 className="absolute cursor-move"
@@ -244,8 +429,9 @@ const LogoPlacementDialog = ({ template, logoUrl, onClose, onSave, saving }: Log
                     alt="Logo"
                     className="w-full object-contain pointer-events-none"
                     style={{
-                      mixBlendMode: placement.blend as any,
+                      mixBlendMode: (placement.mode === "dark" ? "screen" : placement.blend) as any,
                       opacity: placement.opacity,
+                      filter: placement.mode === "dark" ? "brightness(100)" : "none",
                       maxHeight: "100%",
                     }}
                     draggable={false}
@@ -313,6 +499,29 @@ const LogoPlacementDialog = ({ template, logoUrl, onClose, onSave, saving }: Log
                 min={10} max={100} step={5}
               />
               <span className="text-[10px] text-muted-foreground">{(Number(t.logo_opacity) * 100).toFixed(0)}%</span>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-2">
+              <Label className="text-[10px]">Fond du produit</Label>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => update({ logo_mode: "light" })}
+                  className={`flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded border text-[10px] font-medium transition-colors ${t.logo_mode === "light" ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"}`}
+                >
+                  <Sun className="w-3 h-3" /> Clair
+                </button>
+                <button
+                  onClick={() => update({ logo_mode: "dark" })}
+                  className={`flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded border text-[10px] font-medium transition-colors ${t.logo_mode === "dark" ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"}`}
+                >
+                  <Moon className="w-3 h-3" /> Foncé
+                </button>
+              </div>
+              <p className="text-[9px] text-muted-foreground">
+                {t.logo_mode === "dark" ? "Le logo apparaîtra en blanc" : "Le logo apparaîtra en couleur"}
+              </p>
             </div>
 
             <Separator />
