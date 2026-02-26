@@ -170,7 +170,7 @@ serve(async (req) => {
     for (const product of DEMO_PRODUCTS) {
       try {
         // Fetch base product image
-        const productImageUrl = `${baseUrl}/assets/demo/${product.image}`;
+        const productImageUrl = `${baseUrl}/demo/${product.image}`;
         const productData = await fetchImageAsBase64(productImageUrl);
 
         let finalImageUrl: string | null = null;
