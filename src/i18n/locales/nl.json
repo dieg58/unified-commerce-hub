@@ -886,5 +886,15 @@
     "stepProductsDesc": "Selecteer producten uit de catalogus of maak uw eigen",
     "stepUsersTitle": "Nodig uw team uit",
     "stepUsersDesc": "Voeg medewerkers toe die kunnen bestellen in de winkel"
+  },
+  "help": {
+    "title": "Hulp nodig?",
+    "subject": "Onderwerp",
+    "subjectPlaceholder": "Bijv.: Weergavefout, vraag…",
+    "message": "Bericht",
+    "messagePlaceholder": "Beschrijf uw vraag of probleem…",
+    "send": "Versturen",
+    "sent": "Bericht verzonden! We nemen snel contact op.",
+    "error": "Verzenden mislukt. Probeer opnieuw."
   }
 }
