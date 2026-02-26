@@ -1309,91 +1309,80 @@ const CatalogProducts = () => {
         <DialogContent className="max-w-lg max-h-[80vh]">
           <DialogHeader>
             <DialogTitle>Gérer les marques TopTex</DialogTitle>
+            <p className="text-sm text-muted-foreground">Activez ou désactivez les marques pour les rendre visibles dans le catalogue.</p>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                className="text-xs gap-1"
-                onClick={async () => {
-                  const ids = (products || []).filter(p => p.midocean_id?.startsWith("TT-")).map(p => p.id);
-                  if (!ids.length) return;
-                  const batchSize = 500;
-                  for (let i = 0; i < ids.length; i += batchSize) {
-                    await supabase.from("catalog_products").update({ active: true }).in("id", ids.slice(i, i + batchSize));
-                  }
-                  toast.success(`${ids.length} produits TopTex activés`);
-                  qc.invalidateQueries({ queryKey: ["catalog-products"] });
-                }}
-              >
-                <CheckCircle className="w-3.5 h-3.5" /> Tout activer
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="text-xs gap-1"
-                onClick={async () => {
-                  const ids = (products || []).filter(p => p.midocean_id?.startsWith("TT-")).map(p => p.id);
-                  if (!ids.length) return;
-                  const batchSize = 500;
-                  for (let i = 0; i < ids.length; i += batchSize) {
-                    await supabase.from("catalog_products").update({ active: false }).in("id", ids.slice(i, i + batchSize));
-                  }
-                  toast.success(`${ids.length} produits TopTex désactivés`);
-                  qc.invalidateQueries({ queryKey: ["catalog-products"] });
-                }}
-              >
-                <XCircle className="w-3.5 h-3.5" /> Tout désactiver
-              </Button>
+            {/* Global actions */}
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <p className="text-sm font-medium">{toptexBrandsInCatalog.length} marques · {toptexBrandsInCatalog.reduce((s, b) => s + b.total, 0)} produits</p>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs gap-1"
+                  onClick={async () => {
+                    const ids = (products || []).filter(p => p.midocean_id?.startsWith("TT-")).map(p => p.id);
+                    if (!ids.length) return;
+                    const batchSize = 500;
+                    for (let i = 0; i < ids.length; i += batchSize) {
+                      await supabase.from("catalog_products").update({ active: true }).in("id", ids.slice(i, i + batchSize));
+                    }
+                    toast.success(`${ids.length} produits TopTex activés`);
+                    qc.invalidateQueries({ queryKey: ["catalog-products"] });
+                  }}
+                >
+                  <CheckCircle className="w-3.5 h-3.5" /> Tout activer
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs gap-1"
+                  onClick={async () => {
+                    const ids = (products || []).filter(p => p.midocean_id?.startsWith("TT-")).map(p => p.id);
+                    if (!ids.length) return;
+                    const batchSize = 500;
+                    for (let i = 0; i < ids.length; i += batchSize) {
+                      await supabase.from("catalog_products").update({ active: false }).in("id", ids.slice(i, i + batchSize));
+                    }
+                    toast.success(`${ids.length} produits TopTex désactivés`);
+                    qc.invalidateQueries({ queryKey: ["catalog-products"] });
+                  }}
+                >
+                  <XCircle className="w-3.5 h-3.5" /> Tout désactiver
+                </Button>
+              </div>
             </div>
             <ScrollArea className="max-h-[55vh]">
               <div className="space-y-1 pr-3">
-                {toptexBrandsInCatalog.map((b) => (
-                  <div
-                    key={b.brand}
-                    className="flex items-center justify-between p-2.5 rounded-lg border border-border hover:bg-muted/30"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{b.brand}</p>
-                      <p className="text-xs text-muted-foreground">{b.total} produits · {b.active} actifs</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs gap-1"
-                        onClick={async () => {
+                {toptexBrandsInCatalog.map((b) => {
+                  const allActive = b.active === b.total;
+                  const noneActive = b.active === 0;
+                  return (
+                    <div
+                      key={b.brand}
+                      className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/30 transition-colors"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{b.brand}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {b.total} produits · <span className={allActive ? "text-emerald-600" : noneActive ? "text-destructive" : "text-amber-600"}>{b.active} actifs</span>
+                        </p>
+                      </div>
+                      <Switch
+                        checked={allActive}
+                        onCheckedChange={async (checked) => {
                           const ids = (products || []).filter(p => p.midocean_id?.startsWith("TT-") && p.brand === b.brand).map(p => p.id);
                           const batchSize = 500;
                           for (let i = 0; i < ids.length; i += batchSize) {
-                            await supabase.from("catalog_products").update({ active: true }).in("id", ids.slice(i, i + batchSize));
+                            await supabase.from("catalog_products").update({ active: checked }).in("id", ids.slice(i, i + batchSize));
                           }
-                          toast.success(`${b.brand} : ${ids.length} produits activés`);
+                          toast.success(`${b.brand} : ${ids.length} produits ${checked ? "activés" : "désactivés"}`);
                           qc.invalidateQueries({ queryKey: ["catalog-products"] });
                         }}
-                      >
-                        <CheckCircle className="w-3 h-3" /> Activer
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs gap-1"
-                        onClick={async () => {
-                          const ids = (products || []).filter(p => p.midocean_id?.startsWith("TT-") && p.brand === b.brand).map(p => p.id);
-                          const batchSize = 500;
-                          for (let i = 0; i < ids.length; i += batchSize) {
-                            await supabase.from("catalog_products").update({ active: false }).in("id", ids.slice(i, i + batchSize));
-                          }
-                          toast.success(`${b.brand} : ${ids.length} produits désactivés`);
-                          qc.invalidateQueries({ queryKey: ["catalog-products"] });
-                        }}
-                      >
-                        <XCircle className="w-3 h-3" /> Désactiver
-                      </Button>
+                      />
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {toptexBrandsInCatalog.length === 0 && (
                   <p className="text-sm text-muted-foreground text-center py-8">Aucune marque TopTex dans le catalogue. Lancez d'abord une synchronisation.</p>
                 )}
