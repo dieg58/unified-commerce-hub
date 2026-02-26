@@ -405,7 +405,12 @@ const EmailTemplatesTab = ({
             <DialogTitle>{tr("settings.previewTitle")}</DialogTitle>
           </DialogHeader>
           {previewHtml && (
-            <div className="border border-border rounded-md p-4 bg-white" dangerouslySetInnerHTML={{ __html: previewHtml }} />
+            <iframe
+              sandbox=""
+              srcDoc={previewHtml}
+              className="border border-border rounded-md w-full min-h-[400px] bg-white"
+              title={tr("settings.previewTitle")}
+            />
           )}
         </DialogContent>
       </Dialog>
