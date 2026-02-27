@@ -12,6 +12,7 @@ import StorefrontLayout from "./components/StorefrontLayout";
 import ShopContentWrapper from "./components/ShopContentWrapper";
 import CookieConsent from "./components/CookieConsent";
 import Dashboard from "./pages/Dashboard";
+import UsersPage from "./pages/UsersPage";
 import Tenants from "./pages/Tenants";
 import TenantDetail from "./pages/TenantDetail";
 import SettingsPage from "./pages/SettingsPage";
@@ -128,6 +129,7 @@ const SubdomainAwareRoutes = () => {
         <Route path="/catalog-products" element={<CatalogProducts />} />
         <Route path="/demo-products" element={<DemoProducts />} />
         <Route path="/product-requests" element={<ProductRequests />} />
+        <Route path="/users" element={<UsersPage />} />
       </Route>
 
       {/* Tenant admin routes (shop_manager, dept_manager) + storefront */}

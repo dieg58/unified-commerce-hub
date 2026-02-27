@@ -11,6 +11,7 @@ import {
   Sparkles,
   BookOpen,
   LayoutGrid,
+  Users,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,7 @@ const AppSidebar = () => {
     { to: "/catalog-products", icon: BookOpen, label: t("nav.catalogGlobal") },
     { to: "/demo-products", icon: LayoutGrid, label: "Produits Démo" },
     { to: "/product-requests", icon: Sparkles, label: t("nav.productRequests") },
+    { to: "/users", icon: Users, label: t("users.title") },
     { to: "/settings", icon: Settings, label: t("nav.settings") },
   ];
 
