@@ -435,7 +435,7 @@ const LogoPlacementEditor = ({ template, logoUrl, onClose, onSave, saving }: Log
                 key={i}
                 onClick={() => setSelectedColorIdx(i)}
                 className={cn("w-6 h-6 rounded-full border-2 shrink-0 transition-all",
-                  selectedColorIdx === i ? "border-primary ring-2 ring-primary/30 scale-110" : "border-border hover:border-muted-foreground")}
+                  selectedColorIdx === i ? "border-primary ring-2 ring-primary/30 scale-110" : "border-border hover:border-muted-foreground opacity-40")}
                 style={{ backgroundColor: c.hex || "#ccc" }}
                 title={c.color}
               />
