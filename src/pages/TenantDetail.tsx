@@ -12,11 +12,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 import {
   ArrowLeft, Loader2, Plus, Pencil, Save, X, MoreHorizontal, Trash2,
   Building2, ShoppingCart, Wallet, Package, Palette, Users, Store,
   CheckCircle, Eye, Tag, Sparkles, Boxes, AlertTriangle,
-  ArrowUpCircle, ArrowDownCircle, RefreshCw, History, Truck, Settings
+  ArrowUpCircle, ArrowDownCircle, RefreshCw, History, Truck, Settings, Search
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -286,6 +288,37 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [bulkTiers, setBulkTiers] = useState<Record<number, string>>({});
+  const [catalogSearch, setCatalogSearch] = useState("");
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  const [catalogResults, setCatalogResults] = useState<any[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+
+  // Search catalog products by name or SKU
+  const searchCatalog = async (query: string) => {
+    setCatalogSearch(query);
+    if (query.length < 2) { setCatalogResults([]); return; }
+    setCatalogLoading(true);
+    const { data } = await supabase
+      .from("catalog_products")
+      .select("id, name, sku, description, category, image_url, base_price, brand")
+      .or(`name.ilike.%${query}%,sku.ilike.%${query}%`)
+      .eq("active", true)
+      .limit(10);
+    setCatalogResults(data || []);
+    setCatalogLoading(false);
+  };
+
+  const prefillFromCatalog = (cp: any) => {
+    setName(cp.name || "");
+    if (!skuManual) setSku(generateSku(cp.name || ""));
+    setDescription(cp.description || "");
+    const matchingCat = categories.find(c => c.slug === cp.category?.toLowerCase());
+    if (matchingCat) setCategory(matchingCat.slug);
+    if (cp.base_price) setBulkPrice(String(cp.base_price));
+    setCatalogOpen(false);
+    setCatalogSearch("");
+    toast.success(`Fiche pré-remplie depuis "${cp.name}"`);
+  };
 
   // Auto-generate SKU from product name
   const generateSku = (productName: string) => {
@@ -718,6 +751,63 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader><DialogTitle className="flex items-center gap-2"><Package className="w-5 h-5" /> Nouveau produit</DialogTitle></DialogHeader>
           <div className="space-y-5 max-h-[65vh] overflow-auto pr-1">
+            {/* Catalog search to prefill */}
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold flex items-center gap-1.5"><Search className="w-4 h-4" /> Pré-remplir depuis le catalogue</Label>
+              <p className="text-xs text-muted-foreground">Cherchez un produit par nom ou référence (SKU) pour remplir automatiquement la fiche.</p>
+              <Popover open={catalogOpen} onOpenChange={setCatalogOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="w-full justify-start gap-2 text-muted-foreground font-normal h-10">
+                    <Search className="w-4 h-4" />
+                    {catalogSearch || "Rechercher dans le catalogue global…"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[460px] p-0" align="start">
+                  <Command shouldFilter={false}>
+                    <CommandInput
+                      placeholder="Nom ou SKU…"
+                      value={catalogSearch}
+                      onValueChange={searchCatalog}
+                    />
+                    <CommandList>
+                      {catalogLoading && <div className="p-3 text-center text-xs text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin mx-auto" /></div>}
+                      {!catalogLoading && catalogSearch.length >= 2 && catalogResults.length === 0 && (
+                        <CommandEmpty>Aucun produit trouvé</CommandEmpty>
+                      )}
+                      {catalogResults.length > 0 && (
+                        <CommandGroup>
+                          {catalogResults.map((cp) => (
+                            <CommandItem
+                              key={cp.id}
+                              value={cp.id}
+                              onSelect={() => prefillFromCatalog(cp)}
+                              className="flex items-center gap-3 cursor-pointer"
+                            >
+                              {cp.image_url ? (
+                                <img src={cp.image_url} alt="" className="w-8 h-8 rounded object-cover shrink-0" />
+                              ) : (
+                                <div className="w-8 h-8 rounded bg-muted flex items-center justify-center shrink-0">
+                                  <Package className="w-3.5 h-3.5 text-muted-foreground" />
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">{cp.name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {cp.sku}
+                                  {cp.brand && <span className="ml-1.5">· {cp.brand}</span>}
+                                  {cp.base_price > 0 && <span className="ml-1.5">· {cp.base_price} €</span>}
+                                </p>
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      )}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+
             {/* Basic info */}
             <div className="space-y-4">
               <div className="space-y-2">
