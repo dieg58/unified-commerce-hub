@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
     const role = typeof body.role === "string" ? body.role.trim() : "";
     const tenant_id = typeof body.tenant_id === "string" ? body.tenant_id.trim() : "";
 
-    if (!email || !tenant_id || !role) {
+    if (!email || !role) {
       return new Response(JSON.stringify({ error: "Missing required fields" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (!UUID_RE.test(tenant_id)) {
+    if (tenant_id && !UUID_RE.test(tenant_id)) {
       return new Response(JSON.stringify({ error: "Invalid tenant_id format" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -111,10 +111,9 @@ Deno.serve(async (req) => {
       userId = existingUser.id;
       tempPassword = crypto.randomUUID().slice(0, 8) + "Xk1!";
       await adminClient.auth.admin.updateUserById(userId, { password: tempPassword });
-      await adminClient
-        .from("profiles")
-        .update({ tenant_id, full_name: full_name || existingUser.user_metadata?.full_name || "" })
-        .eq("id", userId);
+      const profileUpdate: any = { full_name: full_name || existingUser.user_metadata?.full_name || "" };
+      if (tenant_id) profileUpdate.tenant_id = tenant_id;
+      await adminClient.from("profiles").update(profileUpdate).eq("id", userId);
     } else {
       tempPassword = crypto.randomUUID().slice(0, 8) + "Xk1!";
       const { data: newUser, error: createErr } = await adminClient.auth.admin.createUser({
@@ -132,10 +131,9 @@ Deno.serve(async (req) => {
       userId = newUser.user!.id;
 
       await new Promise((r) => setTimeout(r, 500));
-      await adminClient
-        .from("profiles")
-        .update({ tenant_id, full_name: full_name || "" })
-        .eq("id", userId);
+      if (tenant_id) {
+        await adminClient.from("profiles").update({ tenant_id, full_name: full_name || "" }).eq("id", userId);
+      }
     }
 
     // Set role
@@ -143,11 +141,13 @@ Deno.serve(async (req) => {
     await adminClient.from("user_roles").insert({ user_id: userId, role });
 
     // Update invitation status
-    await adminClient
-      .from("invitations")
-      .update({ status: "accepted", accepted_at: new Date().toISOString() })
-      .eq("tenant_id", tenant_id)
-      .eq("email", email.toLowerCase());
+    if (tenant_id) {
+      await adminClient
+        .from("invitations")
+        .update({ status: "accepted", accepted_at: new Date().toISOString() })
+        .eq("tenant_id", tenant_id)
+        .eq("email", email.toLowerCase());
+    }
 
     // Send invitation email via Resend
     const resendKey = Deno.env.get("RESEND_API_KEY");
