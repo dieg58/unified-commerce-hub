@@ -261,21 +261,54 @@ const CatalogProducts = () => {
     return tabProducts;
   }, [tabProducts, goodiesSupplier, autreSupplier, textileSupplier, toptexBrandFilter, activeTab]);
 
-  // Simplified categories with counts
+  // Helper: does a product pass search + active + new + color + size filters (everything EXCEPT category/subcategory)?
+  const passesNonCategoryFilters = useCallback((p: CatalogProduct, skipFilter?: "new" | "color" | "size") => {
+    if (search) {
+      const sl = search.toLowerCase();
+      if (!p.name.toLowerCase().includes(sl) && !p.sku.toLowerCase().includes(sl) && !p.category.toLowerCase().includes(sl)) return false;
+    }
+    if (filterActive !== null && p.active !== filterActive) return false;
+    if (skipFilter !== "new" && filterNew && !p.is_new) return false;
+    if (skipFilter !== "color" && filterColors.size > 0) {
+      const vd = variantData?.get(p.id);
+      const colors = vd?.variant_colors;
+      if (!Array.isArray(colors) || !colors.some((c) => filterColors.has(getColorFamily(c.color)))) return false;
+    }
+    if (skipFilter !== "size" && filterSizes.size > 0) {
+      const vd = variantData?.get(p.id);
+      const sizes = vd?.variant_sizes;
+      if (!Array.isArray(sizes) || !sizes.some((s) => filterSizes.has(getSizeGroup(s)))) return false;
+    }
+    return true;
+  }, [search, filterActive, filterNew, filterColors, filterSizes, variantData]);
+
+  // Base filtered (no category/subcategory filter) — used for category counts
+  const baseFiltered = useMemo(() => {
+    return supplierFilteredProducts.filter((p) => passesNonCategoryFilters(p));
+  }, [supplierFilteredProducts, passesNonCategoryFilters]);
+
+  // Simplified categories with counts (from baseFiltered)
   const simplifiedCategories = useMemo(() => {
     const counts: Record<string, number> = {};
-    supplierFilteredProducts.forEach((p) => {
+    baseFiltered.forEach((p) => {
       const simplified = getSimplifiedCategory(p.category, activeTab);
       counts[simplified] = (counts[simplified] || 0) + 1;
     });
     return Object.entries(counts).sort(([, a], [, b]) => b - a);
-  }, [supplierFilteredProducts, activeTab]);
+  }, [baseFiltered, activeTab]);
 
-  // Available color FAMILIES across current filtered products
+  // categFiltered = baseFiltered + category (for subcategory/color/size counts)
+  const categFiltered = useMemo(() => {
+    if (filterGroup === "all") return baseFiltered;
+    return baseFiltered.filter((p) => getSimplifiedCategory(p.category, activeTab) === filterGroup);
+  }, [baseFiltered, filterGroup, activeTab]);
+
+  // Available color FAMILIES (from categFiltered, ignoring current color filter)
   const availableColorFamilies = useMemo(() => {
     if (!variantData) return [];
     const familyMap = new Map<string, number>();
-    supplierFilteredProducts.forEach((p) => {
+    const source = supplierFilteredProducts.filter((p) => passesNonCategoryFilters(p, "color") && (filterGroup === "all" || getSimplifiedCategory(p.category, activeTab) === filterGroup));
+    source.forEach((p) => {
       const vd = variantData.get(p.id);
       const colors = vd?.variant_colors;
       if (!Array.isArray(colors)) return;
@@ -292,13 +325,14 @@ const CatalogProducts = () => {
     return Array.from(familyMap.entries())
       .sort(([, a], [, b]) => b - a)
       .map(([family, count]) => ({ family, hex: getColorFamilyHex(family), count }));
-  }, [supplierFilteredProducts, variantData]);
+  }, [supplierFilteredProducts, variantData, passesNonCategoryFilters, filterGroup, activeTab]);
 
-  // Available size GROUPS across current filtered products
+  // Available size GROUPS (from categFiltered, ignoring current size filter)
   const availableSizeGroups = useMemo(() => {
     if (!variantData) return [];
     const groupMap = new Map<string, number>();
-    supplierFilteredProducts.forEach((p) => {
+    const source = supplierFilteredProducts.filter((p) => passesNonCategoryFilters(p, "size") && (filterGroup === "all" || getSimplifiedCategory(p.category, activeTab) === filterGroup));
+    source.forEach((p) => {
       const vd = variantData.get(p.id);
       const sizes = vd?.variant_sizes;
       if (!Array.isArray(sizes)) return;
@@ -322,24 +356,24 @@ const CatalogProducts = () => {
         return a.localeCompare(b);
       })
       .map(([group, count]) => ({ group, count }));
-  }, [supplierFilteredProducts, variantData]);
+  }, [supplierFilteredProducts, variantData, passesNonCategoryFilters, filterGroup, activeTab]);
 
-  // Subcategories for the selected simplified category (normalized)
+  // Subcategories for the selected simplified category (from categFiltered)
   const subCategories = useMemo(() => {
     if (filterGroup === "all") return [];
     const counts: Record<string, number> = {};
-    supplierFilteredProducts.forEach((p) => {
-      if (getSimplifiedCategory(p.category, activeTab) === filterGroup) {
-        const sub = getSimplifiedSubCategory(p.category, filterGroup);
-        counts[sub] = (counts[sub] || 0) + 1;
-      }
+    categFiltered.forEach((p) => {
+      const sub = getSimplifiedSubCategory(p.category, filterGroup);
+      counts[sub] = (counts[sub] || 0) + 1;
     });
-    // Only show subcategories if there are at least 2 distinct ones
     const entries = Object.entries(counts).sort(([a], [b]) => a.localeCompare(b));
     return entries.length >= 2 ? entries : [];
-  }, [supplierFilteredProducts, activeTab, filterGroup]);
+  }, [categFiltered, filterGroup]);
 
-  const newCount = supplierFilteredProducts.filter((p) => p.is_new).length;
+  // newCount from products passing all filters except "new" itself
+  const newCount = useMemo(() => {
+    return supplierFilteredProducts.filter((p) => p.is_new && passesNonCategoryFilters(p, "new") && (filterGroup === "all" || getSimplifiedCategory(p.category, activeTab) === filterGroup)).length;
+  }, [supplierFilteredProducts, passesNonCategoryFilters, filterGroup, activeTab]);
 
   const filtered = useMemo(() => {
     const searchLower = search.toLowerCase();
