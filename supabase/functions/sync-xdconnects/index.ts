@@ -218,7 +218,11 @@ Deno.serve(async (req) => {
 
       for (const row of batch) {
         const eid = existingMap.get(row.midocean_id);
-        if (eid) { row.id = eid; updated++; } else { created++; }
+        if (eid) {
+          updated++;
+        } else {
+          created++;
+        }
       }
 
       for (let i = 0; i < batch.length; i += 200) {
