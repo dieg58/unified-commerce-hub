@@ -564,15 +564,24 @@ const Storefront = () => {
                     {product.description && <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{product.description}</p>}
                     <div className="mt-auto pt-2 flex items-center justify-between">
                       <div>
-                        <p className="text-lg font-bold" style={{ color: primaryColor }}>
-                          {isProductFree(product) ? (
+                        {isProductFree(product) ? (
+                          <p className="text-lg font-bold" style={{ color: primaryColor }}>
                             <span className="flex items-center gap-1.5"><span className="line-through text-sm text-muted-foreground font-normal">{formatCurrency(price)}</span><span>{t("storefront.free")}</span></span>
-                          ) : formatCurrency(price)}
-                        </p>
-                        {bestTierSavings > 0 && (
-                          <p className="text-[11px] font-medium text-success flex items-center gap-1">
-                            Économisez jusqu'à {bestTierSavings}%
                           </p>
+                        ) : hasTiers ? (
+                          <>
+                            <p className="text-xs text-muted-foreground line-through">{formatCurrency(price)}</p>
+                            <p className="text-lg font-bold" style={{ color: primaryColor }}>
+                              {formatCurrency(firstTierPrice)}
+                            </p>
+                            {bestTierSavings > 0 && (
+                              <p className="text-[11px] font-medium text-success">
+                                Jusqu'à -{bestTierSavings}%
+                              </p>
+                            )}
+                          </>
+                        ) : (
+                          <p className="text-lg font-bold" style={{ color: primaryColor }}>{formatCurrency(price)}</p>
                         )}
                       </div>
                       <Button size="sm" className="gap-1.5 text-white rounded-lg" style={{ backgroundColor: primaryColor }} onClick={(e) => { e.stopPropagation(); setDetailDialogProduct(product); }}>
