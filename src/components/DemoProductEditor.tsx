@@ -313,7 +313,7 @@ const LogoPlacementEditor = ({ template, logoUrl, onClose, onSave, saving }: Log
   const [selectedColorIdx, setSelectedColorIdx] = useState(-1);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const interactionRef = useRef<"idle" | "drag" | "resize">("idle");
+  const interactionRef = useRef<"idle" | "drag" | "resize-w" | "resize-h" | "resize-wh">("idle");
   const startRef = useRef({ mx: 0, my: 0, x: 0, y: 0, w: 0, h: 0 });
 
   const update = useCallback((patch: Partial<DemoTemplate>) => {
@@ -330,7 +330,7 @@ const LogoPlacementEditor = ({ template, logoUrl, onClose, onSave, saving }: Log
     update({ logo_x: Math.max(0, Math.min(100, x)), logo_y: Math.max(0, Math.min(100, y)) });
   }, [update]);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent, mode: "drag" | "resize") => {
+  const handleMouseDown = useCallback((e: React.MouseEvent, mode: "drag" | "resize-w" | "resize-h" | "resize-wh") => {
     e.preventDefault();
     e.stopPropagation();
     interactionRef.current = mode;
@@ -353,12 +353,14 @@ const LogoPlacementEditor = ({ template, logoUrl, onClose, onSave, saving }: Log
           logo_x: Math.max(0, Math.min(100, startRef.current.x + dx)),
           logo_y: Math.max(0, Math.min(100, startRef.current.y + dy)),
         });
-      } else if (interactionRef.current === "resize") {
-        // Proportional resize from corner
-        const delta = Math.max(dx, dy);
+      } else if (interactionRef.current === "resize-w") {
+        update({ logo_width: Math.max(5, Math.min(80, startRef.current.w + dx * 2)) });
+      } else if (interactionRef.current === "resize-h") {
+        update({ logo_max_height: Math.max(5, Math.min(80, startRef.current.h + dy * 2)) });
+      } else if (interactionRef.current === "resize-wh") {
         update({
-          logo_width: Math.max(5, Math.min(80, startRef.current.w + delta)),
-          logo_max_height: Math.max(5, Math.min(80, startRef.current.h + delta)),
+          logo_width: Math.max(5, Math.min(80, startRef.current.w + dx * 2)),
+          logo_max_height: Math.max(5, Math.min(80, startRef.current.h + dy * 2)),
         });
       }
     };
@@ -398,7 +400,7 @@ const LogoPlacementEditor = ({ template, logoUrl, onClose, onSave, saving }: Log
 
   return (
     <Dialog open onOpenChange={() => onClose()}>
-      <DialogContent className="max-w-3xl p-0 overflow-hidden">
+      <DialogContent className="max-w-lg p-0 overflow-hidden max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="px-5 pt-5 pb-3 flex items-center justify-between">
           <div>
@@ -502,10 +504,20 @@ const LogoPlacementEditor = ({ template, logoUrl, onClose, onSave, saving }: Log
                 </div>
               </div>
 
+              {/* Right edge resize handle */}
+              <div
+                className="absolute top-1/2 -right-1.5 w-3 h-8 -translate-y-1/2 bg-primary rounded-sm cursor-e-resize border border-background shadow-md opacity-0 group-hover/logo:opacity-100 transition-opacity"
+                onMouseDown={(e) => handleMouseDown(e, "resize-w")}
+              />
+              {/* Bottom edge resize handle */}
+              <div
+                className="absolute left-1/2 -bottom-1.5 h-3 w-8 -translate-x-1/2 bg-primary rounded-sm cursor-s-resize border border-background shadow-md opacity-0 group-hover/logo:opacity-100 transition-opacity"
+                onMouseDown={(e) => handleMouseDown(e, "resize-h")}
+              />
               {/* Corner resize handle */}
               <div
                 className="absolute -bottom-2 -right-2 w-4 h-4 bg-primary rounded-full cursor-se-resize border-2 border-background shadow-md opacity-0 group-hover/logo:opacity-100 transition-opacity"
-                onMouseDown={(e) => handleMouseDown(e, "resize")}
+                onMouseDown={(e) => handleMouseDown(e, "resize-wh")}
               />
 
               {/* Size label */}
