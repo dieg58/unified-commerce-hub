@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import VariantMatrixDialog from "@/components/VariantMatrixDialog";
+import BulkPriceTierDialog from "@/components/BulkPriceTierDialog";
 import BrandedProductImage from "@/components/BrandedProductImage";
 import { useAuth } from "@/hooks/useAuth";
 import { useCart } from "@/hooks/useCart";
@@ -52,6 +53,7 @@ const Storefront = () => {
   const [shippingAddressId, setShippingAddressId] = useState<string>("");
   const [switchStoreTarget, setSwitchStoreTarget] = useState<"bulk" | "staff" | null>(null);
   const [checkoutError, setCheckoutError] = useState<string>("");
+  const [tierDialogProduct, setTierDialogProduct] = useState<any | null>(null);
   const { t } = useTranslation();
 
   const { tenantId: paramTenantId } = useParams<{ tenantId: string }>();
@@ -150,6 +152,29 @@ const Storefront = () => {
     },
     enabled: !!shippingEntityId,
   });
+
+  // Fetch price tiers for all products
+  const { data: allPriceTiers } = useQuery({
+    queryKey: ["store-price-tiers", tenantId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("product_price_tiers")
+        .select("product_id, min_qty, unit_price")
+        .eq("tenant_id", tenantId!);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!tenantId,
+  });
+
+  const priceTiersByProduct = useMemo(() => {
+    const map = new Map<string, { min_qty: number; unit_price: number }[]>();
+    for (const tier of allPriceTiers || []) {
+      if (!map.has(tier.product_id)) map.set(tier.product_id, []);
+      map.get(tier.product_id)!.push({ min_qty: tier.min_qty, unit_price: Number(tier.unit_price) });
+    }
+    return map;
+  }, [allPriceTiers]);
 
   const branding = tenant?.tenant_branding as any;
   const primaryColor = branding?.primary_color || "#0ea5e9";
@@ -480,6 +505,8 @@ const Storefront = () => {
               const productVariants = (product as any).product_variants as any[] || [];
               const activeVariants = productVariants.filter((v: any) => v.active);
               const hasVariants = activeVariants.length > 0;
+              const productTiers = priceTiersByProduct.get(product.id) || [];
+              const hasTiers = storeType === "bulk" && productTiers.length > 0;
               const inCart = items.find((i) => i.productId === product.id && !i.variantId);
               const variantItemsInCart = items.filter((i) => i.productId === product.id && i.variantId);
               const totalInCart = (inCart?.qty || 0) + variantItemsInCart.reduce((s, i) => s + i.qty, 0);
@@ -535,6 +562,22 @@ const Storefront = () => {
                             <span />
                             <Button size="sm" className="gap-1.5 text-white rounded-lg" style={{ backgroundColor: primaryColor }} onClick={(e) => { e.stopPropagation(); setVariantMatrixProduct(product); }}>
                               <Plus className="w-3.5 h-3.5" /> {t("storefront.choose")}
+                            </Button>
+                          </>
+                        )
+                      ) : hasTiers ? (
+                        inCart ? (
+                          <>
+                            <span className="text-xs font-medium text-muted-foreground">{inCart.qty} {t("storefront.inCart")}</span>
+                            <Button size="sm" variant="outline" className="gap-1 text-xs rounded-lg" onClick={(e) => { e.stopPropagation(); setTierDialogProduct(product); }}>
+                              <Plus className="w-3 h-3" /> {t("storefront.modify")}
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <span />
+                            <Button size="sm" className="gap-1.5 text-white rounded-lg" style={{ backgroundColor: primaryColor }} onClick={(e) => { e.stopPropagation(); setTierDialogProduct(product); }}>
+                              <Plus className="w-3.5 h-3.5" /> {t("storefront.addToCart")}
                             </Button>
                           </>
                         )
@@ -694,7 +737,34 @@ const Storefront = () => {
         />
       )}
 
-      {/* Order Confirmation Dialog */}
+      {tierDialogProduct && (
+        <BulkPriceTierDialog
+          open={!!tierDialogProduct}
+          onOpenChange={(v) => { if (!v) setTierDialogProduct(null); }}
+          product={tierDialogProduct}
+          basePrice={getPrice(tierDialogProduct)}
+          tiers={priceTiersByProduct.get(tierDialogProduct.id) || []}
+          primaryColor={primaryColor}
+          existingQty={items.find((i) => i.productId === tierDialogProduct.id && !i.variantId)?.qty}
+          onConfirm={(qty, unitPrice) => {
+            const existing = items.find((i) => i.productId === tierDialogProduct.id && !i.variantId);
+            if (existing) {
+              removeItem(tierDialogProduct.id);
+            }
+            addItem({
+              productId: tierDialogProduct.id,
+              name: tierDialogProduct.name,
+              sku: tierDialogProduct.sku,
+              price: unitPrice,
+              storeType,
+              imageUrl: tierDialogProduct.image_url || undefined,
+            }, qty);
+            setCartOpen(true);
+          }}
+        />
+      )}
+
+
       <Dialog open={!!confirmedOrder} onOpenChange={(v) => { if (!v) setConfirmedOrder(null); }}>
         <DialogContent className="sm:max-w-md text-center">
           <div className="flex flex-col items-center gap-4 py-4">
