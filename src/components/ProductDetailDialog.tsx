@@ -71,10 +71,10 @@ export default function ProductDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-auto p-0">
-        <div className="grid sm:grid-cols-2 gap-0">
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-auto p-0">
+        <div className="grid sm:grid-cols-[65%_35%] gap-0">
           {/* Image */}
-          <div className="relative aspect-square bg-muted/30 overflow-hidden sm:rounded-l-lg">
+          <div className="relative aspect-square sm:aspect-auto sm:min-h-[500px] bg-muted/30 overflow-hidden sm:rounded-l-lg">
             <BrandedProductImage
               imageUrl={product.image_url}
               logoUrl={logoUrl}
