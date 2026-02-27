@@ -359,7 +359,7 @@ Deno.serve(async (req) => {
     for (const p of allPayloads) {
       const existingId = existingMap.get(p.midocean_id);
       if (existingId) {
-        const { midocean_id, ...rest } = p;
+        const { midocean_id, active, ...rest } = p;
         toUpdate.push({ id: existingId, payload: rest });
       } else {
         toInsert.push(p);

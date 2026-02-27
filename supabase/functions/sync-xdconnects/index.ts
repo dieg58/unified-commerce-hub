@@ -188,7 +188,6 @@ Deno.serve(async (req) => {
         variant_sizes: [],
         midocean_id: PREFIX + modelCode,
         brand: g.brand,
-        active: true,
       });
     }
 
@@ -198,7 +197,6 @@ Deno.serve(async (req) => {
     const startMs = Date.now();
 
     for (let batchStart = 0; batchStart < allRows.length; batchStart += BATCH_SIZE) {
-      // Time-box: stop if approaching CPU limit
       if (Date.now() - startMs > MAX_CPU_MS) {
         console.log(`XDC: Time-box reached at product ${batchStart}/${allRows.length}`);
         break;
@@ -216,21 +214,38 @@ Deno.serve(async (req) => {
         if (existing) for (const r of existing) if (r.midocean_id) existingMap.set(r.midocean_id, r.id);
       }
 
+      // Separate inserts (new) and updates (existing) to preserve active status
+      const toInsert: any[] = [];
+      const toUpdate: any[] = [];
+
       for (const row of batch) {
         const eid = existingMap.get(row.midocean_id);
         if (eid) {
+          toUpdate.push({ ...row, id: eid });
           updated++;
         } else {
+          toInsert.push({ ...row, active: true });
           created++;
         }
       }
 
-      for (let i = 0; i < batch.length; i += 200) {
-        const chunk = batch.slice(i, i + 200);
-        const { error: upsertError } = await supabase
+      // Insert new products with active=true
+      for (let i = 0; i < toInsert.length; i += 200) {
+        const chunk = toInsert.slice(i, i + 200);
+        const { error: insertError } = await supabase.from("catalog_products").insert(chunk);
+        if (insertError) {
+          console.error("Insert error:", insertError.message);
+          errors += chunk.length;
+        }
+      }
+
+      // Update existing products without touching active
+      for (let i = 0; i < toUpdate.length; i += 200) {
+        const chunk = toUpdate.slice(i, i + 200);
+        const { error: updateError } = await supabase
           .from("catalog_products").upsert(chunk, { onConflict: "midocean_id" });
-        if (upsertError) {
-          console.error("Upsert error:", upsertError.message);
+        if (updateError) {
+          console.error("Update error:", updateError.message);
           errors += chunk.length;
         }
       }

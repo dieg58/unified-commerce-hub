@@ -21,6 +21,12 @@ import { Plus, Search, Loader2, MoreHorizontal, Pencil, Trash2, Package, Upload,
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/mock-data";
+
+/** TopTex products store purchase price — apply 1.81× markup for selling price */
+function getSellingPrice(basePrice: number, midoceanId?: string | null): number {
+  if (midoceanId && midoceanId.startsWith("TT-")) return basePrice * 1.81;
+  return basePrice;
+}
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { getSimplifiedCategory, getCatalogTabByCategory, getSimplifiedSubCategory } from "@/lib/catalog-category-map";
@@ -1137,7 +1143,7 @@ const CatalogProducts = () => {
                       <TableCell>
                         <Badge variant="outline" className="text-[10px] capitalize" title={product.category}>{getSimplifiedCategory(product.category, activeTab)}</Badge>
                       </TableCell>
-                      <TableCell className="font-medium">{formatCurrency(product.base_price)}</TableCell>
+                      <TableCell className="font-medium">{formatCurrency(getSellingPrice(product.base_price, product.midocean_id))}</TableCell>
                       <TableCell className="text-xs font-medium">{product.stock_qty}</TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <Switch

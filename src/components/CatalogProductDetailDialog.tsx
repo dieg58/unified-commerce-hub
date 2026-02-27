@@ -3,6 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Package, Sparkles, Loader2 } from "lucide-react";
 import { formatCurrency } from "@/lib/mock-data";
+
+/** TopTex products store purchase price — apply 1.81× markup for selling price */
+function getSellingPrice(basePrice: number, midoceanId?: string | null): number {
+  if (midoceanId && midoceanId.startsWith("TT-")) return basePrice * 1.81;
+  return basePrice;
+}
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -28,6 +34,7 @@ interface CatalogProduct {
   is_new: boolean;
   variant_colors?: VariantColor[] | null;
   variant_sizes?: string[] | null;
+  midocean_id?: string | null;
 }
 
 interface Props {
@@ -134,7 +141,7 @@ const CatalogProductDetailDialog = ({ product, open, onOpenChange, alreadyReques
 
             {/* Price & stock */}
             <div className="flex items-baseline gap-3">
-              <span className="text-lg font-bold text-primary">{formatCurrency(Number(product.base_price))}</span>
+              <span className="text-lg font-bold text-primary">{formatCurrency(getSellingPrice(Number(product.base_price), product.midocean_id))}</span>
               <span className="text-xs text-muted-foreground">Stock : {product.stock_qty}</span>
             </div>
 

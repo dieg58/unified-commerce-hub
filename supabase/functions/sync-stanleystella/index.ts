@@ -239,9 +239,14 @@ Deno.serve(async (req) => {
         const isNew = !!(product.NewProduct || product.NewStyle || (product as Record<string, unknown>).StylePublishedNewCollection);
         const firstVariantStartDate = variants[0]?.SKU_Start_Date || null;
 
-        const { error: upsertError } = await supabase
+        // Check if product already exists
+        const { data: existing } = await supabase
           .from("catalog_products")
-          .upsert({
+          .select("id")
+          .eq("sku", styleCode)
+          .maybeSingle();
+
+        const payload: any = {
             sku: styleCode,
             midocean_id: `SS-${styleCode}`,
             name: `${product.StyleName} (${styleCode})`,
@@ -254,13 +259,21 @@ Deno.serve(async (req) => {
             base_price: finalPrice,
             stock_qty: totalStock,
             image_url: imageUrl,
-            active: true,
             is_new: isNew,
             release_date: firstVariantStartDate,
             last_synced_at: new Date().toISOString(),
             variant_colors: variantColors,
             variant_sizes: variantSizes,
-          }, { onConflict: "sku" });
+        };
+
+        // Only set active on new products
+        if (!existing) {
+          payload.active = true;
+        }
+
+        const { error: upsertError } = await supabase
+          .from("catalog_products")
+          .upsert(payload, { onConflict: "sku" });
 
         if (upsertError) {
           console.error(`Error upserting ${styleCode}:`, upsertError.message);
