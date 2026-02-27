@@ -512,7 +512,7 @@ const Storefront = () => {
               const totalInCart = (inCart?.qty || 0) + variantItemsInCart.reduce((s, i) => s + i.qty, 0);
               const imageUrl = product.image_url;
               return (
-                <div key={product.id} className="group bg-card rounded-xl border border-border shadow-card hover:shadow-card-hover transition-all duration-300 overflow-hidden flex flex-col cursor-pointer" onClick={() => navigate(`/shop/product/${product.id}`)}>
+                <div key={product.id} className="group bg-card rounded-xl border border-border shadow-card hover:shadow-card-hover transition-all duration-300 overflow-hidden flex flex-col cursor-pointer" onClick={() => navigate(paramTenantId ? `/store/${paramTenantId}/product/${product.id}` : `/shop/product/${product.id}`)}>
                   <div className="relative aspect-square bg-muted/30 overflow-hidden">
                     <BrandedProductImage
                       imageUrl={imageUrl}

@@ -125,6 +125,7 @@ const SubdomainAwareRoutes = () => {
         <Route path="/orders" element={<Orders />} />
         <Route path="/orders/:orderId" element={<OrderDetail />} />
         <Route path="/store/:tenantId" element={<Storefront />} />
+        <Route path="/store/:tenantId/product/:productId" element={<ProductDetail />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/catalog-products" element={<CatalogProducts />} />
         <Route path="/demo-products" element={<DemoProducts />} />
