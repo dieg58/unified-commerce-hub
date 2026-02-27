@@ -125,7 +125,9 @@ const TenantDashboard = () => {
       <TopBar title={t("tenantDash.title")} subtitle={t("tenantDash.welcome", { name: profile?.full_name || profile?.email })} />
       <div className="p-6 space-y-6 overflow-auto">
         {/* Onboarding */}
-        <OnboardingCard />
+        <div data-tour="onboarding">
+          <OnboardingCard />
+        </div>
 
         {/* Welcome card */}
         <div className="bg-card rounded-lg border border-border p-6 animate-fade-in">
@@ -136,7 +138,7 @@ const TenantDashboard = () => {
         </div>
 
         {/* KPIs */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div data-tour="kpis" className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
             { icon: ShoppingCart, label: t("tenantDash.orders"), value: stats?.totalOrders || 0, color: "text-primary", to: "/tenant/orders" },
             { icon: TrendingUp, label: t("tenantDash.revenue"), value: formatCurrency(stats?.totalRevenue || 0), color: "text-success", to: "/tenant/stats" },
