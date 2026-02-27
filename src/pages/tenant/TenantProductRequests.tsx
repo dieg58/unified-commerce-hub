@@ -940,7 +940,7 @@ const TenantProductRequests = () => {
                     <img
                       src={displayImage}
                       alt={detailProduct.name}
-                      className="w-full h-full object-cover sm:absolute sm:inset-0 transition-all duration-300"
+                      className="w-full h-full object-contain p-2 sm:absolute sm:inset-0 transition-all duration-300"
                     />
                   ) : (
                     <Package className="w-16 h-16 text-muted-foreground/20" />
