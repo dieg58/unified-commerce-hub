@@ -120,8 +120,11 @@ const CatalogProducts = () => {
   const bulkActivateMutation = useMutation({
     mutationFn: async (activate: boolean) => {
       const ids = Array.from(selected);
-      const { error } = await supabase.from("catalog_products").update({ active: activate }).in("id", ids);
-      if (error) throw error;
+      const batchSize = 500;
+      for (let i = 0; i < ids.length; i += batchSize) {
+        const { error } = await supabase.from("catalog_products").update({ active: activate }).in("id", ids.slice(i, i + batchSize));
+        if (error) throw error;
+      }
     },
     onSuccess: (_, activate) => {
       toast.success(`${selected.size} produit(s) ${activate ? "activé(s)" : "désactivé(s)"}`);
