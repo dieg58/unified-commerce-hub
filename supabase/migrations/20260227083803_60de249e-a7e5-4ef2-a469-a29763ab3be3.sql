@@ -1,0 +1,1 @@
+UPDATE catalog_products SET active = false WHERE midocean_id LIKE 'XDC-%'
