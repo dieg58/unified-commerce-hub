@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import ExportMenu from "@/components/ExportMenu";
 import { fmtDate } from "@/lib/export-utils";
 import VariantAxisEditor, { variantsToAxesAndCombinations, type VariantAxis, type VariantCombination } from "@/components/VariantAxisEditor";
+import BulkPriceTiers, { TIER_QTYS } from "@/components/BulkPriceTiers";
 import { UsersTab, EntitiesTab, OrdersTab, BudgetsTab } from "@/components/tenant-detail";
 
 const TenantDetail = () => {
@@ -284,6 +285,7 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
   const [minBulkQty, setMinBulkQty] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [bulkTiers, setBulkTiers] = useState<Record<number, string>>({});
 
   // Auto-generate SKU from product name
   const generateSku = (productName: string) => {
@@ -313,7 +315,7 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
   const [variantAxes, setVariantAxes] = useState<VariantAxis[]>([]);
   const [variantCombinations, setVariantCombinations] = useState<VariantCombination[]>([]);
 
-  const openEdit = (p: any) => {
+  const openEdit = async (p: any) => {
     const prices = p.product_prices as any[];
     const pvariants = p.product_variants as any[];
     const bulk = prices?.find((pr: any) => pr.store_type === "bulk");
@@ -336,6 +338,15 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
     const { axes, combinations } = variantsToAxesAndCombinations(pvariants || []);
     setVariantAxes(axes);
     setVariantCombinations(combinations);
+    // Load price tiers
+    const { data: tiersData } = await supabase
+      .from("product_price_tiers")
+      .select("min_qty, unit_price")
+      .eq("product_id", p.id)
+      .eq("tenant_id", tenantId);
+    const loadedTiers: Record<number, string> = {};
+    tiersData?.forEach((t: any) => { loadedTiers[t.min_qty] = String(t.unit_price); });
+    setBulkTiers(loadedTiers);
     setEditingProduct(p);
   };
 
@@ -344,7 +355,7 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
     setBulkPrice(""); setStaffPrice(""); setImageFile(null);
     setStockType("in_stock"); setStockQty(""); setProductLocation("");
     setNoBillingBulk(false); setNoBillingStaff(false); setLowStockThreshold(""); setMinBulkQty("");
-    setVariantAxes([]); setVariantCombinations([]); setEditingProduct(null);
+    setVariantAxes([]); setVariantCombinations([]); setEditingProduct(null); setBulkTiers({});
   };
 
   const uploadImage = async (productId: string, file: File) => {
@@ -409,6 +420,14 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
         );
         if (vErr) throw vErr;
       }
+
+      // Save bulk price tiers
+      const tierRows = TIER_QTYS
+        .filter((qty) => bulkTiers[qty] && parseFloat(bulkTiers[qty]) > 0)
+        .map((qty) => ({ product_id: product.id, tenant_id: tenantId, min_qty: qty, unit_price: parseFloat(bulkTiers[qty]) }));
+      if (tierRows.length) {
+        await supabase.from("product_price_tiers").insert(tierRows);
+      }
     },
     onSuccess: () => {
       toast.success("Produit créé");
@@ -470,6 +489,15 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
             sort_order: i,
           }))
         );
+      }
+
+      // Save bulk price tiers
+      await supabase.from("product_price_tiers").delete().eq("product_id", editingProduct.id).eq("tenant_id", tenantId);
+      const tierRows = TIER_QTYS
+        .filter((qty) => bulkTiers[qty] && parseFloat(bulkTiers[qty]) > 0)
+        .map((qty) => ({ product_id: editingProduct.id, tenant_id: tenantId, min_qty: qty, unit_price: parseFloat(bulkTiers[qty]) }));
+      if (tierRows.length) {
+        await supabase.from("product_price_tiers").insert(tierRows);
       }
     },
     onSuccess: () => {
@@ -774,6 +802,9 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
               </div>
               </div>
 
+            {/* Bulk Price Tiers */}
+            <BulkPriceTiers tiers={bulkTiers} onChange={setBulkTiers} basePrice={bulkPrice} />
+
             {/* Stock (product-level) */}
             <div>
               <Label className="text-sm font-semibold flex items-center gap-1.5"><Boxes className="w-4 h-4" /> Stock produit</Label>
@@ -905,6 +936,9 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
                 <Input type="number" value={minBulkQty} onChange={(e) => setMinBulkQty(e.target.value)} placeholder="1" min="1" />
               </div>
               </div>
+
+            {/* Bulk Price Tiers */}
+            <BulkPriceTiers tiers={bulkTiers} onChange={setBulkTiers} basePrice={bulkPrice} />
 
             {/* Stock (product-level) */}
             <div>
