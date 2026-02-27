@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from "react-router-dom"; // sidebar nav
+import { NavLink, useLocation, useSearchParams } from "react-router-dom"; // sidebar nav
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -15,7 +15,7 @@ import {
   ClipboardCheck,
   Sparkles,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useTranslation } from "react-i18next";
@@ -24,8 +24,16 @@ type NavItem = { to: string; icon: any; label: string } | { separator: string };
 
 const TenantAdminSidebar = () => {
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const isOnShop = location.pathname.startsWith("/shop");
+  const isDemo = searchParams.get("demo") === "1";
   const [manualCollapsed, setManualCollapsed] = useState(false);
+
+  // Auto-collapse sidebar when arriving from demo creation
+  useEffect(() => {
+    if (isDemo) setManualCollapsed(true);
+  }, [isDemo]);
+
   const collapsed = isOnShop || manualCollapsed;
   const { isShopManager, signOut, profile } = useAuth();
   const tenantId = profile?.tenant_id;
@@ -60,6 +68,7 @@ const TenantAdminSidebar = () => {
 
   return (
     <aside
+      data-tour="sidebar"
       className={cn(
         "gradient-sidebar flex flex-col border-r border-sidebar-border transition-all duration-300 h-screen sticky top-0",
         collapsed ? "w-[68px]" : "w-[240px]"
@@ -114,6 +123,7 @@ const TenantAdminSidebar = () => {
       <div className="px-2 pb-1">
         <NavLink
           to="/shop"
+          data-tour="view-shop"
           className={cn(
             "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors w-full",
             location.pathname.startsWith("/shop")
