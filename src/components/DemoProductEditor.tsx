@@ -33,6 +33,7 @@ interface DemoTemplate {
     image_url: string | null;
     category: string;
     base_price: number;
+    variant_colors?: { color: string; hex?: string; image_url?: string }[] | null;
   };
 }
 
@@ -309,6 +310,7 @@ interface LogoPlacementEditorProps {
 
 const LogoPlacementEditor = ({ template, logoUrl, onClose, onSave, saving }: LogoPlacementEditorProps) => {
   const [t, setT] = useState<DemoTemplate>(template);
+  const [selectedColorIdx, setSelectedColorIdx] = useState(-1);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const interactionRef = useRef<"idle" | "drag" | "resize">("idle");
@@ -381,6 +383,19 @@ const LogoPlacementEditor = ({ template, logoUrl, onClose, onSave, saving }: Log
     opacity: Number(t.logo_opacity), mode: t.logo_mode as "light" | "dark",
   };
 
+  const colors = useMemo(() => {
+    const vc = t.catalog_product?.variant_colors;
+    if (!Array.isArray(vc)) return [];
+    return vc.filter(c => c.hex || c.image_url);
+  }, [t.catalog_product?.variant_colors]);
+
+  const canvasImageUrl = useMemo(() => {
+    if (selectedColorIdx >= 0 && colors[selectedColorIdx]?.image_url) {
+      return colors[selectedColorIdx].image_url;
+    }
+    return t.catalog_product?.image_url || null;
+  }, [selectedColorIdx, colors, t.catalog_product?.image_url]);
+
   return (
     <Dialog open onOpenChange={() => onClose()}>
       <DialogContent className="max-w-3xl p-0 overflow-hidden">
@@ -401,15 +416,40 @@ const LogoPlacementEditor = ({ template, logoUrl, onClose, onSave, saving }: Log
           </div>
         </div>
 
+        {/* Color variant swatches */}
+        {colors.length > 0 && (
+          <div className="px-5 py-2 flex items-center gap-2 border-b border-border overflow-x-auto">
+            <span className="text-[10px] text-muted-foreground shrink-0">Couleur :</span>
+            <button
+              onClick={() => setSelectedColorIdx(-1)}
+              className={cn("w-6 h-6 rounded-full border-2 shrink-0 flex items-center justify-center text-[8px] font-bold transition-all",
+                selectedColorIdx === -1 ? "border-primary ring-2 ring-primary/30" : "border-border hover:border-muted-foreground")}
+              title="Image par défaut"
+            >
+              <span className="text-muted-foreground">—</span>
+            </button>
+            {colors.map((c, i) => (
+              <button
+                key={i}
+                onClick={() => setSelectedColorIdx(i)}
+                className={cn("w-6 h-6 rounded-full border-2 shrink-0 transition-all",
+                  selectedColorIdx === i ? "border-primary ring-2 ring-primary/30 scale-110" : "border-border hover:border-muted-foreground")}
+                style={{ backgroundColor: c.hex || "#ccc" }}
+                title={c.color}
+              />
+            ))}
+          </div>
+        )}
+
         {/* Canvas — large, full width */}
         <div
           ref={containerRef}
-          className="relative w-full aspect-square bg-muted/20 cursor-crosshair select-none border-y border-border"
+          className="relative w-full aspect-square bg-muted/20 cursor-crosshair select-none border-b border-border"
           onClick={handleCanvasClick}
         >
-          {t.catalog_product?.image_url ? (
+          {canvasImageUrl ? (
             <img
-              src={t.catalog_product.image_url}
+              src={canvasImageUrl}
               alt={t.catalog_product?.name}
               className="w-full h-full object-contain"
               draggable={false}
