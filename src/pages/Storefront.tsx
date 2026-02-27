@@ -513,9 +513,11 @@ const Storefront = () => {
               const variantItemsInCart = items.filter((i) => i.productId === product.id && i.variantId);
               const totalInCart = (inCart?.qty || 0) + variantItemsInCart.reduce((s, i) => s + i.qty, 0);
               const imageUrl = product.image_url;
-              // Best discount % from tiers
-              const bestTierSavings = hasTiers && price > 0
-                ? Math.max(...productTiers.map(t => Math.round((1 - Number(t.unit_price) / price) * 100)))
+              // Best discount % relative to first tier (50 pcs)
+              const sortedProductTiers = [...productTiers].sort((a, b) => a.min_qty - b.min_qty);
+              const firstTierPrice = sortedProductTiers.length > 0 ? Number(sortedProductTiers[0].unit_price) : 0;
+              const bestTierSavings = hasTiers && firstTierPrice > 0 && sortedProductTiers.length > 1
+                ? Math.max(...sortedProductTiers.slice(1).map(t => Math.round((1 - Number(t.unit_price) / firstTierPrice) * 100)))
                 : 0;
               return (
                 <div key={product.id} className="group bg-card rounded-xl border border-border shadow-card hover:shadow-card-hover transition-all duration-300 overflow-hidden flex flex-col cursor-pointer" onClick={() => setDetailDialogProduct(product)}>
