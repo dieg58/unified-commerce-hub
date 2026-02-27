@@ -11,8 +11,8 @@ const PRICE_MULTIPLIER = 1.65;
 const FEED_URL_FR =
   "https://feeds.xindao.com/Feeds/Download/2575-Qfx-ZzmKKT2PHe7omMwPBxIOQlkIIblERsDBefwhTzMTaoPx1lxuY7cr2YRNHH-36Mf1sNFGtOupSEVZsg2Dwc4n/Xindao.V6.AllData-fr-fr-C38465.json";
 
-const MAX_CPU_MS = 25_000;
-const BATCH_SIZE = 150;
+const MAX_CPU_MS = 50_000;
+const BATCH_SIZE = 2000;
 
 // ── XD Connects V6 feed has FLAT structure per variant ──
 // Each row = one variant (ItemCode = "ModelCode.Color.Size" or just "ModelCode")
