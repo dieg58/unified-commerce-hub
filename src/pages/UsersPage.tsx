@@ -4,10 +4,12 @@ import { StatusBadge, SectionHeader } from "@/components/DashboardWidgets";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, MoreHorizontal, Loader2, Trash2, UserCog } from "lucide-react";
+import { Search, MoreHorizontal, Loader2, Trash2, UserCog, UserPlus, Send } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -18,6 +20,11 @@ const UsersPage = () => {
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
+  const [showInvite, setShowInvite] = useState(false);
+  const [invEmail, setInvEmail] = useState("");
+  const [invName, setInvName] = useState("");
+  const [invRole, setInvRole] = useState("employee");
+  const [invTenantId, setInvTenantId] = useState("none");
 
   const roleLabels: Record<string, string> = {
     super_admin: t("users.superAdmin"),
@@ -51,6 +58,32 @@ const UsersPage = () => {
     },
   });
 
+  const { data: tenants } = useQuery({
+    queryKey: ["all-tenants"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("tenants").select("id, name").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const inviteUser = useMutation({
+    mutationFn: async () => {
+      const body: any = { email: invEmail, full_name: invName, role: invRole };
+      if (invTenantId !== "none") body.tenant_id = invTenantId;
+      const { data, error } = await supabase.functions.invoke("invite-user", { body });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+    },
+    onSuccess: () => {
+      toast.success("Utilisateur créé et invitation envoyée !");
+      setShowInvite(false); setInvEmail(""); setInvName(""); setInvRole("employee"); setInvTenantId("none");
+      qc.invalidateQueries({ queryKey: ["all-profiles"] });
+      qc.invalidateQueries({ queryKey: ["all-roles"] });
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
   const changeRole = useMutation({
     mutationFn: async ({ userId, newRole }: { userId: string; newRole: string }) => {
       await supabase.from("user_roles").delete().eq("user_id", userId);
@@ -77,6 +110,44 @@ const UsersPage = () => {
   return (
     <>
       <TopBar title={t("users.title")} subtitle={t("users.subtitle")} />
+
+      <Dialog open={showInvite} onOpenChange={setShowInvite}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Ajouter un utilisateur</DialogTitle></DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div><Label className="text-xs">Nom complet</Label><Input value={invName} onChange={(e) => setInvName(e.target.value)} placeholder="Jean Dupont" /></div>
+            <div><Label className="text-xs">Email</Label><Input type="email" value={invEmail} onChange={(e) => setInvEmail(e.target.value)} placeholder="jean@example.com" /></div>
+            <div><Label className="text-xs">Rôle</Label>
+              <Select value={invRole} onValueChange={setInvRole}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="super_admin">Super Admin</SelectItem>
+                  <SelectItem value="shop_manager">Responsable Boutique</SelectItem>
+                  <SelectItem value="dept_manager">Responsable Département</SelectItem>
+                  <SelectItem value="employee">Employé</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {invRole !== "super_admin" && (
+              <div><Label className="text-xs">Boutique</Label>
+                <Select value={invTenantId} onValueChange={setInvTenantId}>
+                  <SelectTrigger><SelectValue placeholder="Sélectionner une boutique" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">— Aucune —</SelectItem>
+                    {tenants?.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <Button className="w-full gap-1.5" disabled={!invEmail || inviteUser.isPending} onClick={() => inviteUser.mutate()}>
+              {inviteUser.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Créer & envoyer l'invitation
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <div className="p-6 space-y-6 overflow-auto">
         <div className="bg-card rounded-lg border border-border shadow-card animate-fade-in">
           <div className="p-5 border-b border-border">
@@ -100,6 +171,9 @@ const UsersPage = () => {
                       <SelectItem value="employee">{t("users.employee")}</SelectItem>
                     </SelectContent>
                   </Select>
+                  <Button size="sm" className="gap-1.5" onClick={() => setShowInvite(true)}>
+                    <UserPlus className="w-4 h-4" /> Ajouter
+                  </Button>
                 </div>
               }
             />
@@ -158,14 +232,17 @@ const UsersPage = () => {
                             <Button variant="ghost" size="sm" className="h-8 w-8 p-0"><MoreHorizontal className="w-4 h-4" /></Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => changeRole.mutate({ userId: user.id, newRole: "super_admin" })} disabled={currentRole === "super_admin"}>
+                              <UserCog className="w-4 h-4 mr-2" /> {"→"} {t("users.superAdmin")}
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => changeRole.mutate({ userId: user.id, newRole: "shop_manager" })} disabled={currentRole === "shop_manager"}>
-                              <UserCog className="w-4 h-4 mr-2" /> → {t("users.shopManager")}
+                              <UserCog className="w-4 h-4 mr-2" /> {"→"} {t("users.shopManager")}
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => changeRole.mutate({ userId: user.id, newRole: "dept_manager" })} disabled={currentRole === "dept_manager"}>
-                              <UserCog className="w-4 h-4 mr-2" /> → {t("users.deptManager")}
+                              <UserCog className="w-4 h-4 mr-2" /> {"→"} {t("users.deptManager")}
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => changeRole.mutate({ userId: user.id, newRole: "employee" })} disabled={currentRole === "employee"}>
-                              <UserCog className="w-4 h-4 mr-2" /> → {t("users.employee")}
+                              <UserCog className="w-4 h-4 mr-2" /> {"→"} {t("users.employee")}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
