@@ -3,6 +3,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/mock-data";
+
+/** TopTex products store purchase price — apply 1.81× markup for selling price */
+function getSellingPrice(basePrice: number, midoceanId?: string | null): number {
+  if (midoceanId && midoceanId.startsWith("TT-")) return basePrice * 1.81;
+  return basePrice;
+}
 import { ShoppingCart, Package, Users, TrendingUp, Loader2, AlertTriangle, Clock, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -215,7 +221,7 @@ const TenantDashboard = () => {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-foreground truncate">{product.name}</p>
                       <p className="text-xs text-muted-foreground capitalize">{product.category}</p>
-                      <p className="text-sm font-semibold text-primary mt-1">{formatCurrency(Number(product.base_price))}</p>
+                      <p className="text-sm font-semibold text-primary mt-1">{formatCurrency(getSellingPrice(Number(product.base_price), product.midocean_id))}</p>
                     </div>
                   </div>
                 </button>

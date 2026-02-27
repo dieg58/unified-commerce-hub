@@ -257,13 +257,13 @@ Deno.serve(async (req) => {
           variant_colors: colors,
           variant_sizes: sizes,
           midocean_id: masterCode,
-          active: true,
         };
 
         if (existingId) {
           payload.id = existingId;
           updated++;
         } else {
+          payload.active = true;
           created++;
         }
 
