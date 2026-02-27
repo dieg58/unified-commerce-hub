@@ -128,17 +128,10 @@ export default function ProductDetailDialog({
                     <span className="text-center">Prix/u</span>
                     <span className="text-right">Économie</span>
                   </div>
-                  {/* Base price row */}
-                  <div className={`grid grid-cols-3 px-3 py-2 border-b border-border/50 ${!activeTier ? "bg-primary/5" : ""}`}>
-                    <span className="font-medium flex items-center gap-1">
-                      {!activeTier && <Check className="w-3 h-3 text-primary" />}
-                      1 pc
-                    </span>
-                    <span className="text-center font-semibold">{formatCurrency(price)}</span>
-                    <span className="text-right text-muted-foreground">—</span>
-                  </div>
-                  {sortedTiers.map((tier) => {
-                    const tierSavings = price > 0 ? Math.round((1 - Number(tier.unit_price) / price) * 100) : 0;
+                  {sortedTiers.map((tier, idx) => {
+                    const firstTierPrice = Number(sortedTiers[0].unit_price);
+                    const tierPrice = Number(tier.unit_price);
+                    const tierSavings = idx > 0 && firstTierPrice > 0 ? Math.round((1 - tierPrice / firstTierPrice) * 100) : 0;
                     const isActive = activeTier?.min_qty === tier.min_qty;
                     return (
                       <button
@@ -150,7 +143,7 @@ export default function ProductDetailDialog({
                           {isActive && <Check className="w-3 h-3 text-primary" />}
                           {tier.min_qty} pcs
                         </span>
-                        <span className="text-center font-semibold">{formatCurrency(Number(tier.unit_price))}</span>
+                        <span className="text-center font-semibold">{formatCurrency(tierPrice)}</span>
                         <span className="text-right flex justify-end">
                           {tierSavings > 0 ? (
                             <span className="inline-flex items-center px-1.5 py-0 h-4 rounded-full text-[9px] font-semibold bg-success/15 text-success">
