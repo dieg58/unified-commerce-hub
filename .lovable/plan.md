@@ -1,51 +1,55 @@
 
 
-## Plan: Wizard public de création de boutique démo avec auto-login et notification email
+## Plan : Amélioration de l'expérience démo (3 axes)
 
-### Composants
+### 1. Étape de création enrichie avec suivi détaillé du chargement
 
-#### 1. Edge Function `create-demo-tenant` (publique, sans auth)
-- Reçoit : `full_name`, `email`, `company`, `phone`, `website_url` (optionnel)
-- Validation stricte des inputs (regex email, longueurs max)
-- Anti-abus : vérifie qu'aucun `demo_requests` avec le même email n'existe dans les 24h
-- Utilise le service role key pour :
-  1. Insérer dans `demo_requests` (lead tracking)
-  2. Créer un user via `supabase.auth.admin.createUser()` avec `email_confirm: true` et un mot de passe généré
-  3. Créer le tenant avec `status = 'demo'`
-  4. Insérer `tenant_branding` (couleurs par défaut ou extraites si `website_url` fourni via appel interne à extract-branding)
-  5. Rattacher le profil au tenant (`profiles.tenant_id`)
-  6. Attribuer le rôle `shop_manager` dans `user_roles`
-  7. Créer l'entité HQ + budgets par défaut
-  8. Lancer le seed des produits démo (fire-and-forget)
-  9. Envoyer un email de notification à `diego@inkoo.eu` via Resend avec toutes les infos du lead
-- Retourne : `{ slug, email, password }` pour permettre l'auto-login côté frontend
+Actuellement, l'étape 3 du `DemoWizardDialog` affiche un simple spinner avec une progress bar statique à 60%. Le plan :
 
-#### 2. Composant `DemoWizardDialog`
-- Wizard en 3 étapes remplaçant le CTA principal :
-  - **Etape 1** : Nom, Email pro, Entreprise, Téléphone (capture lead)
-  - **Etape 2** : URL site web (optionnel) avec bouton "Auto-remplir" pour extraire le branding + aperçu couleurs/logo. L'extraction se fait via appel direct à `extract-branding` (déjà publique... non, elle requiert auth). On fera l'extraction côté edge function `create-demo-tenant` plutôt.
-  - **Etape 3** : Loader animé puis écran de succès avec auto-login et redirection vers `/tenant`
-- Après réception de `{ email, password }`, appelle `supabase.auth.signInWithPassword()` pour connecter automatiquement le prospect
-- Redirige vers `/tenant` (dashboard shop_manager)
+- Remplacer par une liste d'étapes visuelles animées qui s'activent séquentiellement :
+  1. "Analyse de votre site web..." (avec icône Globe)
+  2. "Extraction des couleurs et du logo..." (avec icône Palette)
+  3. "Création de votre espace..." (avec icône Store)
+  4. "Ajout des produits démo..." (avec icône Package)
+  5. "Configuration finale..." (avec icône Settings)
+- Chaque étape passe de "en attente" → "en cours" (spinner) → "terminé" (check vert) avec un timer progressif simulé (le backend est un seul appel, mais le frontend anime les sous-étapes toutes les 2-3s)
+- La progress bar avance en conséquence (0% → 20% → 40% → 60% → 80% → 100%)
+- Fichier modifié : `src/components/DemoWizardDialog.tsx`
 
-#### 3. Modification de la Landing Page
-- CTA principal : "Créer ma boutique démo" → ouvre `DemoWizardDialog`
-- CTA secondaire conservé : "Demander une démo" pour ceux qui préfèrent être contactés
+### 2. Sidebar repliée à l'arrivée sur la boutique démo
 
-#### 4. Notification email (dans l'edge function)
-- Utilise Resend (secret `RESEND_API_KEY` déjà configuré)
-- Template HTML avec tableau : nom, email, entreprise, téléphone, site web, slug créé
-- Envoi à `diego@inkoo.eu` depuis `Inkoo <noreply@inkoo.eu>`
+Actuellement, `TenantAdminSidebar` initialise `manualCollapsed` à `false`. Le plan :
 
-### Sécurité
-- Edge function publique (`verify_jwt = false`) car pas d'auth au moment de l'appel
-- Rate limiting via vérification doublon email 24h dans `demo_requests`
-- Inputs validés côté serveur (regex, longueurs max, sanitisation HTML)
-- Le mot de passe généré est aléatoire (16 chars) et transmis une seule fois au frontend pour l'auto-login
+- Après la création démo, naviguer vers `/tenant` avec un query param `?demo=1`
+- Dans `TenantAdminSidebar`, détecter ce param et initialiser `manualCollapsed` à `true`
+- Le gestionnaire voit ainsi la sidebar repliée au premier chargement, mettant l'accent sur le contenu principal
+- Fichiers modifiés : `src/components/DemoWizardDialog.tsx`, `src/components/TenantAdminSidebar.tsx`
 
-### Fichiers à créer/modifier
-- `supabase/functions/create-demo-tenant/index.ts` (nouveau)
-- `supabase/config.toml` (ajout config function, auto-géré)
-- `src/components/DemoWizardDialog.tsx` (nouveau)
-- `src/pages/LandingPage.tsx` (remplacement CTA)
+### 3. Guided tour interactif (onboarding pas à pas)
+
+Créer un système de "guided tour" avec des tooltips focalisés qui apparaissent séquentiellement pour expliquer les fonctionnalités clés. Implémentation sans dépendance externe :
+
+- Nouveau composant `GuidedTour.tsx` : overlay semi-transparent avec un "spotlight" (trou) sur l'élément ciblé + tooltip positionné dynamiquement
+- Étapes du tour :
+  1. Sidebar : "Voici votre menu de navigation" (cible : la sidebar)
+  2. Dashboard KPIs : "Suivez vos indicateurs clés" (cible : la grille KPI)
+  3. Onboarding card : "Complétez ces étapes pour configurer votre boutique" (cible : OnboardingCard)
+  4. Bouton boutique : "Accédez à votre boutique ici" (cible : lien /shop dans la sidebar)
+  5. Bulle d'aide : "Besoin d'aide ? Contactez-nous ici" (cible : HelpBubble)
+- Le tour se déclenche automatiquement à l'arrivée d'un nouveau gestionnaire démo (détection via `?demo=1` ou flag localStorage)
+- Boutons "Suivant" / "Passer" sur chaque étape
+- Progression persistée dans localStorage pour ne pas se relancer
+- Fichiers créés : `src/components/GuidedTour.tsx`
+- Fichiers modifiés : `src/pages/TenantDashboard.tsx`, `src/components/TenantAdminLayout.tsx`
+
+### Fichiers impactés (résumé)
+
+| Fichier | Action |
+|---|---|
+| `src/components/DemoWizardDialog.tsx` | Refonte étape 3 avec sous-étapes animées + ajout `?demo=1` |
+| `src/components/TenantAdminSidebar.tsx` | Détection `?demo=1` pour sidebar repliée |
+| `src/components/GuidedTour.tsx` | Nouveau composant tour guidé avec spotlight |
+| `src/pages/TenantDashboard.tsx` | Intégrer le GuidedTour |
+| `src/components/TenantAdminLayout.tsx` | Intégrer le GuidedTour au layout |
+| `src/i18n/locales/fr.json`, `en.json`, `nl.json` | Clés i18n pour le tour |
 
