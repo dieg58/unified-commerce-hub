@@ -17,14 +17,14 @@ import { toast } from "sonner";
 import BrandedProductImage from "@/components/BrandedProductImage";
 
 const ProductDetail = () => {
-  const { productId } = useParams<{ productId: string }>();
+  const { productId, tenantId: paramTenantId } = useParams<{ productId: string; tenantId: string }>();
   const navigate = useNavigate();
   const { profile } = useAuth();
   const { items, addItem, updateQty } = useCart();
   const { isFavorite, toggleFavorite } = useWishlist();
   const { tenantSlug } = useSubdomain();
   const { data: subdomainTenant } = useTenantBySlug(tenantSlug);
-  const tenantId = subdomainTenant?.id || profile?.tenant_id;
+  const tenantId = paramTenantId || subdomainTenant?.id || profile?.tenant_id;
   const { t } = useTranslation();
   const [storeType] = useState<"staff" | "bulk">("staff");
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
@@ -84,7 +84,7 @@ const ProductDetail = () => {
       <div className="flex-1 flex flex-col items-center justify-center py-20 gap-4">
         <Package className="w-16 h-16 text-muted-foreground/20" />
         <p className="text-muted-foreground">{t("storefront.noProducts")}</p>
-        <Button variant="outline" onClick={() => navigate("/shop")}>
+        <Button variant="outline" onClick={() => navigate(paramTenantId ? `/store/${paramTenantId}` : "/shop")}>
           <ArrowLeft className="w-4 h-4 mr-2" /> {t("common.back")}
         </Button>
       </div>
@@ -117,7 +117,7 @@ const ProductDetail = () => {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
-      <Button variant="ghost" size="sm" className="mb-6 gap-2" onClick={() => navigate("/shop")}>
+      <Button variant="ghost" size="sm" className="mb-6 gap-2" onClick={() => navigate(paramTenantId ? `/store/${paramTenantId}` : "/shop")}>
         <ArrowLeft className="w-4 h-4" /> {t("common.back")}
       </Button>
 
