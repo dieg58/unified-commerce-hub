@@ -561,11 +561,18 @@ const Storefront = () => {
                     <h3 className="text-sm font-semibold text-foreground mb-1 line-clamp-2">{product.name}</h3>
                     {product.description && <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{product.description}</p>}
                     <div className="mt-auto pt-2 flex items-center justify-between">
-                      <p className="text-lg font-bold" style={{ color: primaryColor }}>
-                        {isProductFree(product) ? (
-                          <span className="flex items-center gap-1.5"><span className="line-through text-sm text-muted-foreground font-normal">{formatCurrency(price)}</span><span>{t("storefront.free")}</span></span>
-                        ) : formatCurrency(price)}
-                      </p>
+                      <div>
+                        <p className="text-lg font-bold" style={{ color: primaryColor }}>
+                          {isProductFree(product) ? (
+                            <span className="flex items-center gap-1.5"><span className="line-through text-sm text-muted-foreground font-normal">{formatCurrency(price)}</span><span>{t("storefront.free")}</span></span>
+                          ) : formatCurrency(price)}
+                        </p>
+                        {bestTierSavings > 0 && (
+                          <p className="text-[11px] font-medium text-success flex items-center gap-1">
+                            Économisez jusqu'à {bestTierSavings}%
+                          </p>
+                        )}
+                      </div>
                       <Button size="sm" className="gap-1.5 text-white rounded-lg" style={{ backgroundColor: primaryColor }} onClick={(e) => { e.stopPropagation(); setDetailDialogProduct(product); }}>
                         <Plus className="w-3.5 h-3.5" /> {totalInCart > 0 ? t("storefront.modify") : t("storefront.addToCart")}
                       </Button>
