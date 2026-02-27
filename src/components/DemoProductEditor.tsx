@@ -491,7 +491,7 @@ const LogoPlacementEditor = ({ template, logoUrl, onClose, onSave, saving }: Log
                     mixBlendMode: (placement.mode === "dark" ? "screen" : placement.blend) as any,
                     opacity: placement.opacity,
                     filter: placement.mode === "dark" ? "brightness(100)" : "none",
-                    objectFit: "fill",
+                    objectFit: "contain",
                   }}
                   draggable={false}
                 />

@@ -63,7 +63,7 @@ const BrandedProductImage = ({
               mixBlendMode: (isDarkBg ? "screen" : (logoPlacement.blend || "multiply")) as any,
               opacity: logoPlacement.opacity ?? 0.85,
               filter: isDarkBg ? "brightness(100)" : "none",
-              objectFit: "fill",
+              objectFit: "contain",
             }}
           />
         )}
