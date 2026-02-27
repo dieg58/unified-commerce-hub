@@ -6,7 +6,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Plus, MoreHorizontal, Loader2, Pencil, Power, PowerOff, Search, Store, ExternalLink, Globe, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, MoreHorizontal, Loader2, Pencil, Power, PowerOff, Search, Store, ExternalLink, Globe, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -22,6 +23,7 @@ const Tenants = () => {
   const { t } = useTranslation();
   const [wizardOpen, setWizardOpen] = useState(false);
   const [editTenant, setEditTenant] = useState<any>(null);
+  const [deleteTenant, setDeleteTenant] = useState<any>(null);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
 
@@ -59,6 +61,19 @@ const Tenants = () => {
     onSuccess: (next) => {
       toast.success(next === "active" ? t("tenants.shopActivated") : t("tenants.shopSuspended"));
       qc.invalidateQueries({ queryKey: ["tenants"] });
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const removeTenant = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("tenants").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success(t("tenants.shopDeleted"));
+      qc.invalidateQueries({ queryKey: ["tenants"] });
+      setDeleteTenant(null);
     },
     onError: (err: any) => toast.error(err.message),
   });
@@ -186,6 +201,9 @@ const Tenants = () => {
                               <DropdownMenuItem onClick={(e) => { e.stopPropagation(); toggleStatus.mutate({ id: tenant.id, current: tenant.status }); }}>
                                 {tenant.status === "active" ? <><PowerOff className="w-4 h-4 mr-2" /> {t("tenants.suspend")}</> : <><Power className="w-4 h-4 mr-2" /> {t("tenants.activate")}</>}
                               </DropdownMenuItem>
+                              <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={(e) => { e.stopPropagation(); setDeleteTenant(tenant); }}>
+                                <Trash2 className="w-4 h-4 mr-2" /> {t("common.delete")}
+                              </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>
@@ -216,6 +234,27 @@ const Tenants = () => {
 
       <CreateTenantWizard open={wizardOpen} onOpenChange={setWizardOpen} />
       <EditTenantDialog tenant={editTenant} onClose={() => setEditTenant(null)} />
+
+      <AlertDialog open={!!deleteTenant} onOpenChange={(o) => !o && setDeleteTenant(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("tenants.deleteTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("tenants.deleteDescription", { name: deleteTenant?.name })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => removeTenant.mutate(deleteTenant.id)}
+            >
+              {removeTenant.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              {t("common.delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 };
