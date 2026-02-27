@@ -302,7 +302,6 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
       .from("catalog_products")
       .select("id, name, sku, description, category, image_url, base_price, brand")
       .or(`name.ilike.%${query}%,sku.ilike.%${query}%`)
-      .eq("active", true)
       .limit(10);
     setCatalogResults(data || []);
     setCatalogLoading(false);
