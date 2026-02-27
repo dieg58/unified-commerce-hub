@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 const PREFIX = "XDC-";
-const PRICE_MULTIPLIER = 1.65;
+const PRICE_MULTIPLIER = 1.81;
 const FEED_URL_FR =
   "https://feeds.xindao.com/Feeds/Download/2575-Qfx-ZzmKKT2PHe7omMwPBxIOQlkIIblERsDBefwhTzMTaoPx1lxuY7cr2YRNHH-36Mf1sNFGtOupSEVZsg2Dwc4n/Xindao.V6.AllData-fr-fr-C38465.json";
 
