@@ -141,9 +141,8 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const offset = Number(body.offset) || 0;
 
-    console.log(`XDC: Fetching FR feed, offset=${offset}…`);
+    console.log(`XDC: Fetching FR feed…`);
     const feedRes = await fetch(FEED_URL_FR);
     if (!feedRes.ok) throw new Error(`Feed HTTP ${feedRes.status}`);
     const feedText = await feedRes.text();
@@ -155,9 +154,9 @@ Deno.serve(async (req) => {
       : feedData?.Products || feedData?.products || feedData?.Items || feedData?.items || [];
 
     const total = allItems.length;
+    console.log(`XDC: Total variant items in feed: ${total}`);
 
-    // Debug on first call
-    if (offset === 0 && total > 0) {
+    if (total > 0) {
       const sample = allItems[0];
       console.log("XDC sample:", JSON.stringify({
         ModelCode: sample.ModelCode,
@@ -169,24 +168,13 @@ Deno.serve(async (req) => {
       }));
     }
 
-    // Slice the flat items
-    const slice = allItems.slice(offset, offset + BATCH_SIZE);
-    console.log(`XDC: Total items=${total}, processing ${offset}..${offset + slice.length}`);
-
-    if (slice.length === 0) {
-      return new Response(
-        JSON.stringify({ success: true, created: 0, updated: 0, errors: 0, hasMore: false, total }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Group variants by ModelCode
-    const grouped = groupByModel(slice);
+    // Group ALL variants by ModelCode in one pass
+    const grouped = groupByModel(allItems);
     const now = new Date().toISOString();
-    const rows: any[] = [];
+    const allRows: any[] = [];
 
     for (const [modelCode, g] of grouped) {
-      rows.push({
+      allRows.push({
         name: g.name,
         sku: modelCode,
         category: g.category,
@@ -197,47 +185,59 @@ Deno.serve(async (req) => {
         is_new: g.is_new,
         last_synced_at: now,
         variant_colors: [...g.colors.values()],
-        variant_sizes: [], // sizes not clearly separated in V6 flat feed
+        variant_sizes: [],
         midocean_id: PREFIX + modelCode,
         brand: g.brand,
         active: true,
       });
     }
 
-    console.log(`XDC: Grouped ${slice.length} items into ${rows.length} products`);
-
-    // Lookup existing
-    const mids = rows.map((r) => r.midocean_id);
-    const existingMap = new Map<string, string>();
-    for (let i = 0; i < mids.length; i += 200) {
-      const chunk = mids.slice(i, i + 200);
-      const { data: existing } = await supabase
-        .from("catalog_products").select("id, midocean_id").in("midocean_id", chunk);
-      if (existing) for (const r of existing) if (r.midocean_id) existingMap.set(r.midocean_id, r.id);
-    }
+    console.log(`XDC: Grouped ${total} items into ${allRows.length} products. Upserting in batches…`);
 
     let created = 0, updated = 0, errors = 0;
-    for (const row of rows) {
-      const eid = existingMap.get(row.midocean_id);
-      if (eid) { row.id = eid; updated++; } else { created++; }
-    }
+    const startMs = Date.now();
 
-    for (let i = 0; i < rows.length; i += 200) {
-      const chunk = rows.slice(i, i + 200);
-      const { error: upsertError } = await supabase
-        .from("catalog_products").upsert(chunk, { onConflict: "midocean_id" });
-      if (upsertError) {
-        console.error("Upsert error:", upsertError.message);
-        errors += chunk.length;
+    for (let batchStart = 0; batchStart < allRows.length; batchStart += BATCH_SIZE) {
+      // Time-box: stop if approaching CPU limit
+      if (Date.now() - startMs > MAX_CPU_MS) {
+        console.log(`XDC: Time-box reached at product ${batchStart}/${allRows.length}`);
+        break;
       }
+
+      const batch = allRows.slice(batchStart, batchStart + BATCH_SIZE);
+
+      // Lookup existing for this batch
+      const mids = batch.map((r: any) => r.midocean_id);
+      const existingMap = new Map<string, string>();
+      for (let i = 0; i < mids.length; i += 200) {
+        const chunk = mids.slice(i, i + 200);
+        const { data: existing } = await supabase
+          .from("catalog_products").select("id, midocean_id").in("midocean_id", chunk);
+        if (existing) for (const r of existing) if (r.midocean_id) existingMap.set(r.midocean_id, r.id);
+      }
+
+      for (const row of batch) {
+        const eid = existingMap.get(row.midocean_id);
+        if (eid) { row.id = eid; updated++; } else { created++; }
+      }
+
+      for (let i = 0; i < batch.length; i += 200) {
+        const chunk = batch.slice(i, i + 200);
+        const { error: upsertError } = await supabase
+          .from("catalog_products").upsert(chunk, { onConflict: "midocean_id" });
+        if (upsertError) {
+          console.error("Upsert error:", upsertError.message);
+          errors += chunk.length;
+        }
+      }
+
+      console.log(`XDC: batch ${batchStart}-${batchStart + batch.length}: +${batch.length} products`);
     }
 
-    const nextOffset = offset + slice.length;
-    const hasMore = nextOffset < total;
-    console.log(`XDC batch done: ${created} created, ${updated} updated, ${errors} errors, hasMore=${hasMore}`);
+    console.log(`XDC sync complete: ${created} created, ${updated} updated, ${errors} errors, ${allRows.length} total products`);
 
     return new Response(
-      JSON.stringify({ success: true, created, updated, errors, hasMore, nextOffset, total }),
+      JSON.stringify({ success: true, created, updated, errors, total: allRows.length, hasMore: false }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {
