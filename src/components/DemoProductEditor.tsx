@@ -6,12 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { GripVertical, Loader2, Move, Save, X, Plus, Search, Trash2, Sun, Moon } from "lucide-react";
+import { Loader2, Save, X, Plus, Search, Trash2, Sun, Moon, RotateCw, Eye, EyeOff, ChevronDown, MousePointer2, Move } from "lucide-react";
 import { toast } from "sonner";
 import BrandedProductImage, { type LogoPlacement } from "./BrandedProductImage";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { cn } from "@/lib/utils";
 
 interface DemoTemplate {
   id: string;
@@ -26,7 +26,6 @@ interface DemoTemplate {
   logo_max_height: number;
   sort_order: number;
   active: boolean;
-  // joined
   catalog_product?: {
     id: string;
     name: string;
@@ -89,10 +88,7 @@ const DemoProductEditor = ({ previewLogoUrl }: DemoProductEditorProps) => {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("demo_product_templates")
-        .delete()
-        .eq("id", id);
+      const { error } = await supabase.from("demo_product_templates").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -107,10 +103,7 @@ const DemoProductEditor = ({ previewLogoUrl }: DemoProductEditorProps) => {
       const nextOrder = (templates?.length || 0) + 1;
       const { error } = await supabase
         .from("demo_product_templates")
-        .insert({
-          catalog_product_id: catalogProductId,
-          sort_order: nextOrder,
-        } as any);
+        .insert({ catalog_product_id: catalogProductId, sort_order: nextOrder } as any);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -135,7 +128,7 @@ const DemoProductEditor = ({ previewLogoUrl }: DemoProductEditorProps) => {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-xs text-muted-foreground">
-          Sélectionnez des produits du catalogue global et définissez la zone de marquage pour chacun. Ces templates sont appliqués à toutes les nouvelles boutiques.
+          Sélectionnez des produits du catalogue global et définissez la zone de marquage pour chacun.
         </p>
         <Button size="sm" variant="outline" className="gap-1.5 shrink-0" onClick={() => setAddDialogOpen(true)}>
           <Plus className="w-3.5 h-3.5" /> Ajouter
@@ -144,32 +137,25 @@ const DemoProductEditor = ({ previewLogoUrl }: DemoProductEditorProps) => {
 
       {(!templates || templates.length === 0) ? (
         <div className="text-center py-12 text-muted-foreground text-sm">
-          Aucun produit démo configuré. Cliquez sur "Ajouter" pour sélectionner des produits du catalogue.
+          Aucun produit démo configuré. Cliquez sur "Ajouter" pour commencer.
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
           {templates.map((t) => (
             <div
               key={t.id}
-              className="group relative rounded-lg border border-border overflow-hidden bg-card hover:ring-2 hover:ring-primary/50 transition-all text-left"
+              className="group relative rounded-lg border border-border overflow-hidden bg-card hover:ring-2 hover:ring-primary/50 transition-all"
             >
-              <button
-                onClick={() => setEditingTemplate({ ...t })}
-                className="w-full text-left"
-              >
+              <button onClick={() => setEditingTemplate({ ...t })} className="w-full text-left">
                 <div className="aspect-square relative">
                   <BrandedProductImage
                     imageUrl={t.catalog_product?.image_url}
                     logoUrl={previewLogoUrl}
                     logoPlacement={{
-                      x: Number(t.logo_x),
-                      y: Number(t.logo_y),
-                      width: Number(t.logo_width),
-                      maxHeight: Number(t.logo_max_height),
-                      rotation: Number(t.logo_rotation),
-                      blend: t.logo_blend,
-                      opacity: Number(t.logo_opacity),
-                      mode: t.logo_mode as "light" | "dark",
+                      x: Number(t.logo_x), y: Number(t.logo_y),
+                      width: Number(t.logo_width), maxHeight: Number(t.logo_max_height),
+                      rotation: Number(t.logo_rotation), blend: t.logo_blend,
+                      opacity: Number(t.logo_opacity), mode: t.logo_mode as "light" | "dark",
                     }}
                     className="w-full h-full"
                   />
@@ -203,7 +189,7 @@ const DemoProductEditor = ({ previewLogoUrl }: DemoProductEditorProps) => {
       )}
 
       {editingTemplate && (
-        <LogoPlacementDialog
+        <LogoPlacementEditor
           template={editingTemplate}
           logoUrl={previewLogoUrl}
           onClose={() => setEditingTemplate(null)}
@@ -227,10 +213,7 @@ const DemoProductEditor = ({ previewLogoUrl }: DemoProductEditorProps) => {
 /* ─── Catalog Picker Dialog ──────────────────────────────────────── */
 
 const CatalogPickerDialog = ({
-  selectedIds,
-  onSelect,
-  onClose,
-  adding,
+  selectedIds, onSelect, onClose, adding,
 }: {
   selectedIds: Set<string>;
   onSelect: (id: string) => void;
@@ -254,12 +237,10 @@ const CatalogPickerDialog = ({
         .eq("active", true)
         .order("name")
         .limit(60);
-
       if (debouncedSearch) {
         const q = `%${debouncedSearch}%`;
         query = query.or(`name.ilike.${q},sku.ilike.${q},category.ilike.${q}`);
       }
-
       const { data, error } = await query;
       if (error) throw error;
       return data;
@@ -279,18 +260,11 @@ const CatalogPickerDialog = ({
         </DialogHeader>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Rechercher par nom, SKU ou catégorie..."
-            className="pl-9"
-          />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Rechercher par nom, SKU ou catégorie..." className="pl-9" />
         </div>
         <div className="flex-1 overflow-auto min-h-0">
           {isLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="w-5 h-5 animate-spin text-primary" />
-            </div>
+            <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
           ) : filtered.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">Aucun produit trouvé</p>
           ) : (
@@ -323,9 +297,9 @@ const CatalogPickerDialog = ({
   );
 };
 
-/* ─── Drag & Resize Dialog ─────────────────────────────────────────── */
+/* ─── Redesigned Logo Placement Editor ─────────────────────────────── */
 
-interface LogoPlacementDialogProps {
+interface LogoPlacementEditorProps {
   template: DemoTemplate;
   logoUrl?: string | null;
   onClose: () => void;
@@ -333,65 +307,63 @@ interface LogoPlacementDialogProps {
   saving: boolean;
 }
 
-const LogoPlacementDialog = ({ template, logoUrl, onClose, onSave, saving }: LogoPlacementDialogProps) => {
+const LogoPlacementEditor = ({ template, logoUrl, onClose, onSave, saving }: LogoPlacementEditorProps) => {
   const [t, setT] = useState<DemoTemplate>(template);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const dragging = useRef(false);
-  const resizingW = useRef(false);
-  const resizingH = useRef(false);
-  const resizingWH = useRef(false);
-  const startPos = useRef({ mx: 0, my: 0, x: 0, y: 0, w: 0, h: 0 });
+  const interactionRef = useRef<"idle" | "drag" | "resize">("idle");
+  const startRef = useRef({ mx: 0, my: 0, x: 0, y: 0, w: 0, h: 0 });
 
   const update = useCallback((patch: Partial<DemoTemplate>) => {
     setT((prev) => ({ ...prev, ...patch }));
   }, []);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent, mode: "drag" | "resize-w" | "resize-h" | "resize-wh") => {
+  // Click on image to place logo center
+  const handleCanvasClick = useCallback((e: React.MouseEvent) => {
+    if (interactionRef.current !== "idle") return;
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    update({ logo_x: Math.max(0, Math.min(100, x)), logo_y: Math.max(0, Math.min(100, y)) });
+  }, [update]);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent, mode: "drag" | "resize") => {
     e.preventDefault();
     e.stopPropagation();
-    if (mode === "drag") dragging.current = true;
-    else if (mode === "resize-w") resizingW.current = true;
-    else if (mode === "resize-h") resizingH.current = true;
-    else resizingWH.current = true;
-    startPos.current = { mx: e.clientX, my: e.clientY, x: Number(t.logo_x), y: Number(t.logo_y), w: Number(t.logo_width), h: Number(t.logo_max_height) };
+    interactionRef.current = mode;
+    startRef.current = {
+      mx: e.clientX, my: e.clientY,
+      x: Number(t.logo_x), y: Number(t.logo_y),
+      w: Number(t.logo_width), h: Number(t.logo_max_height),
+    };
   }, [t.logo_x, t.logo_y, t.logo_width, t.logo_max_height]);
 
   useEffect(() => {
     const handleMove = (e: MouseEvent) => {
-      if (!containerRef.current) return;
+      if (!containerRef.current || interactionRef.current === "idle") return;
       const rect = containerRef.current.getBoundingClientRect();
+      const dx = ((e.clientX - startRef.current.mx) / rect.width) * 100;
+      const dy = ((e.clientY - startRef.current.my) / rect.height) * 100;
 
-      if (dragging.current) {
-        const dx = ((e.clientX - startPos.current.mx) / rect.width) * 100;
-        const dy = ((e.clientY - startPos.current.my) / rect.height) * 100;
+      if (interactionRef.current === "drag") {
         update({
-          logo_x: Math.max(0, Math.min(100, startPos.current.x + dx)),
-          logo_y: Math.max(0, Math.min(100, startPos.current.y + dy)),
+          logo_x: Math.max(0, Math.min(100, startRef.current.x + dx)),
+          logo_y: Math.max(0, Math.min(100, startRef.current.y + dy)),
         });
-      }
-      if (resizingW.current) {
-        const dx = ((e.clientX - startPos.current.mx) / rect.width) * 100;
-        update({ logo_width: Math.max(5, Math.min(80, startPos.current.w + dx)) });
-      }
-      if (resizingH.current) {
-        const dy = ((e.clientY - startPos.current.my) / rect.height) * 100;
-        update({ logo_max_height: Math.max(5, Math.min(80, startPos.current.h + dy)) });
-      }
-      if (resizingWH.current) {
-        const dx = ((e.clientX - startPos.current.mx) / rect.width) * 100;
-        const dy = ((e.clientY - startPos.current.my) / rect.height) * 100;
+      } else if (interactionRef.current === "resize") {
+        // Proportional resize from corner
+        const delta = Math.max(dx, dy);
         update({
-          logo_width: Math.max(5, Math.min(80, startPos.current.w + dx)),
-          logo_max_height: Math.max(5, Math.min(80, startPos.current.h + dy)),
+          logo_width: Math.max(5, Math.min(80, startRef.current.w + delta)),
+          logo_max_height: Math.max(5, Math.min(80, startRef.current.h + delta)),
         });
       }
     };
 
     const handleUp = () => {
-      dragging.current = false;
-      resizingW.current = false;
-      resizingH.current = false;
-      resizingWH.current = false;
+      // Small delay so click handler doesn't fire after drag
+      setTimeout(() => { interactionRef.current = "idle"; }, 50);
     };
 
     window.addEventListener("mousemove", handleMove);
@@ -403,214 +375,216 @@ const LogoPlacementDialog = ({ template, logoUrl, onClose, onSave, saving }: Log
   }, [update]);
 
   const placement: LogoPlacement = {
-    x: Number(t.logo_x),
-    y: Number(t.logo_y),
-    width: Number(t.logo_width),
-    maxHeight: Number(t.logo_max_height),
-    rotation: Number(t.logo_rotation),
-    blend: t.logo_blend,
-    opacity: Number(t.logo_opacity),
-    mode: t.logo_mode as "light" | "dark",
+    x: Number(t.logo_x), y: Number(t.logo_y),
+    width: Number(t.logo_width), maxHeight: Number(t.logo_max_height),
+    rotation: Number(t.logo_rotation), blend: t.logo_blend,
+    opacity: Number(t.logo_opacity), mode: t.logo_mode as "light" | "dark",
   };
-
-  const imageUrl = t.catalog_product?.image_url;
 
   return (
     <Dialog open onOpenChange={() => onClose()}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Move className="w-4 h-4" /> {t.catalog_product?.name || "Produit"} — Placement du logo
-          </DialogTitle>
-        </DialogHeader>
+      <DialogContent className="max-w-3xl p-0 overflow-hidden">
+        {/* Header */}
+        <div className="px-5 pt-5 pb-3 flex items-center justify-between">
+          <div>
+            <DialogTitle className="text-sm font-semibold">{t.catalog_product?.name || "Produit"}</DialogTitle>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Cliquez sur l'image pour positionner · Glissez pour déplacer · Coin pour redimensionner</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => update({ active: !t.active })}
+              className={cn("flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium border transition-colors", t.active ? "border-primary/30 bg-primary/10 text-primary" : "border-border text-muted-foreground")}
+            >
+              {t.active ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+              {t.active ? "Actif" : "Inactif"}
+            </button>
+          </div>
+        </div>
 
-        <div className="grid md:grid-cols-[1fr_200px] gap-4">
-          {/* Image with draggable logo */}
-          <div
-            ref={containerRef}
-            className="relative aspect-square rounded-lg overflow-hidden border border-border bg-muted/30 cursor-crosshair select-none"
-          >
-            {imageUrl ? (
-              <img
-                src={imageUrl}
-                alt={t.catalog_product?.name}
-                className="w-full h-full object-cover"
-                draggable={false}
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-muted-foreground/20 text-6xl">📦</div>
-            )}
-            {logoUrl && (
+        {/* Canvas — large, full width */}
+        <div
+          ref={containerRef}
+          className="relative w-full aspect-square bg-muted/20 cursor-crosshair select-none border-y border-border"
+          onClick={handleCanvasClick}
+        >
+          {t.catalog_product?.image_url ? (
+            <img
+              src={t.catalog_product.image_url}
+              alt={t.catalog_product?.name}
+              className="w-full h-full object-contain"
+              draggable={false}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-muted-foreground/20 text-6xl">📦</div>
+          )}
+
+          {/* Crosshair guides */}
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute left-1/2 top-0 bottom-0 w-px bg-muted-foreground/10" />
+            <div className="absolute top-1/2 left-0 right-0 h-px bg-muted-foreground/10" />
+          </div>
+
+          {/* Logo overlay zone */}
+          {logoUrl && (
+            <div
+              className="absolute group/logo"
+              style={{
+                left: `${placement.x}%`,
+                top: `${placement.y}%`,
+                width: `${placement.width}%`,
+                height: `${placement.maxHeight ?? 40}%`,
+                transform: `translate(-50%, -50%) rotate(${placement.rotation}deg)`,
+              }}
+            >
+              {/* Drag area */}
               <div
-                className="absolute cursor-move"
-                style={{
-                  left: `${placement.x}%`,
-                  top: `${placement.y}%`,
-                  width: `${placement.width}%`,
-                  height: `${placement.maxHeight ?? 40}%`,
-                  transform: `translate(-50%, -50%) rotate(${placement.rotation}deg)`,
-                }}
+                className="absolute inset-0 cursor-move rounded border-2 border-dashed border-primary/50 group-hover/logo:border-primary transition-colors"
                 onMouseDown={(e) => handleMouseDown(e, "drag")}
               >
-                <div className="relative border-2 border-dashed border-primary/60 rounded w-full h-full">
-                    <img
-                    src={logoUrl}
-                    alt="Logo"
-                    className="w-full h-full pointer-events-none"
-                    style={{
-                      mixBlendMode: (placement.mode === "dark" ? "screen" : placement.blend) as any,
-                      opacity: placement.opacity,
-                      filter: placement.mode === "dark" ? "brightness(100)" : "none",
-                      objectFit: "fill" as const,
-                    }}
-                    draggable={false}
-                  />
-                  {/* Resize handle: width only (right edge) */}
-                  <div
-                    className="absolute top-1/2 -right-1.5 w-2.5 h-5 bg-primary rounded-sm cursor-e-resize border-2 border-background shadow -translate-y-1/2"
-                    onMouseDown={(e) => handleMouseDown(e, "resize-w")}
-                  />
-                  {/* Resize handle: height only (bottom edge) */}
-                  <div
-                    className="absolute -bottom-1.5 left-1/2 w-5 h-2.5 bg-primary rounded-sm cursor-s-resize border-2 border-background shadow -translate-x-1/2"
-                    onMouseDown={(e) => handleMouseDown(e, "resize-h")}
-                  />
-                  {/* Resize handle: both (bottom-right corner) */}
-                  <div
-                    className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-primary rounded-full cursor-se-resize border-2 border-background shadow"
-                    onMouseDown={(e) => handleMouseDown(e, "resize-wh")}
-                  />
-                  {/* Move indicator */}
-                  <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 bg-primary rounded px-1">
-                    <GripVertical className="w-3 h-3 text-primary-foreground" />
+                <img
+                  src={logoUrl}
+                  alt="Logo"
+                  className="w-full h-full pointer-events-none"
+                  style={{
+                    mixBlendMode: (placement.mode === "dark" ? "screen" : placement.blend) as any,
+                    opacity: placement.opacity,
+                    filter: placement.mode === "dark" ? "brightness(100)" : "none",
+                    objectFit: "fill",
+                  }}
+                  draggable={false}
+                />
+
+                {/* Move indicator */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover/logo:opacity-100 transition-opacity">
+                  <div className="bg-primary/80 rounded-full p-1.5 shadow-lg">
+                    <Move className="w-3 h-3 text-primary-foreground" />
                   </div>
                 </div>
               </div>
-            )}
-          </div>
 
-          {/* Controls */}
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <Label className="text-[10px]">Position X (%)</Label>
-              <Slider
-                value={[Number(t.logo_x)]}
-                onValueChange={([v]) => update({ logo_x: v })}
-                min={0} max={100} step={1}
+              {/* Corner resize handle */}
+              <div
+                className="absolute -bottom-2 -right-2 w-4 h-4 bg-primary rounded-full cursor-se-resize border-2 border-background shadow-md opacity-0 group-hover/logo:opacity-100 transition-opacity"
+                onMouseDown={(e) => handleMouseDown(e, "resize")}
               />
-              <span className="text-[10px] text-muted-foreground">{Number(t.logo_x).toFixed(0)}%</span>
+
+              {/* Size label */}
+              <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 opacity-0 group-hover/logo:opacity-100 transition-opacity">
+                <span className="text-[9px] bg-foreground/80 text-background px-1.5 py-0.5 rounded-full whitespace-nowrap font-mono">
+                  {Number(t.logo_width).toFixed(0)}% × {Number(t.logo_max_height).toFixed(0)}%
+                </span>
+              </div>
             </div>
-            <div className="space-y-1">
-              <Label className="text-[10px]">Position Y (%)</Label>
-              <Slider
-                value={[Number(t.logo_y)]}
-                onValueChange={([v]) => update({ logo_y: v })}
-                min={0} max={100} step={1}
-              />
-              <span className="text-[10px] text-muted-foreground">{Number(t.logo_y).toFixed(0)}%</span>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-[10px]">Largeur zone (%)</Label>
+          )}
+        </div>
+
+        {/* Controls bar below the canvas */}
+        <div className="px-5 py-4 space-y-4">
+          {/* Quick controls row */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-medium text-muted-foreground">Largeur</Label>
               <Slider
                 value={[Number(t.logo_width)]}
                 onValueChange={([v]) => update({ logo_width: v })}
-                min={5} max={80} step={1}
+                min={5} max={60} step={1}
               />
-              <span className="text-[10px] text-muted-foreground">{Number(t.logo_width).toFixed(0)}%</span>
+              <span className="text-[10px] text-muted-foreground font-mono">{Number(t.logo_width).toFixed(0)}%</span>
             </div>
-            <div className="space-y-1">
-              <Label className="text-[10px]">Hauteur zone (%)</Label>
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-medium text-muted-foreground">Hauteur</Label>
               <Slider
                 value={[Number(t.logo_max_height)]}
                 onValueChange={([v]) => update({ logo_max_height: v })}
-                min={5} max={80} step={1}
+                min={5} max={60} step={1}
               />
-              <span className="text-[10px] text-muted-foreground">{Number(t.logo_max_height).toFixed(0)}%</span>
+              <span className="text-[10px] text-muted-foreground font-mono">{Number(t.logo_max_height).toFixed(0)}%</span>
             </div>
-
-            <Separator />
-
-            <div className="space-y-1">
-              <Label className="text-[10px]">Rotation (°)</Label>
-              <Slider
-                value={[Number(t.logo_rotation)]}
-                onValueChange={([v]) => update({ logo_rotation: v })}
-                min={0} max={360} step={1}
-              />
-              <span className="text-[10px] text-muted-foreground">{Number(t.logo_rotation).toFixed(0)}°</span>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-[10px]">Opacité</Label>
-              <Slider
-                value={[Number(t.logo_opacity) * 100]}
-                onValueChange={([v]) => update({ logo_opacity: v / 100 })}
-                min={10} max={100} step={5}
-              />
-              <span className="text-[10px] text-muted-foreground">{(Number(t.logo_opacity) * 100).toFixed(0)}%</span>
-            </div>
-
-            <Separator />
-
-            <div className="space-y-2">
-              <Label className="text-[10px]">Fond du produit</Label>
-              <div className="flex gap-2">
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-medium text-muted-foreground">Fond produit</Label>
+              <div className="flex gap-1">
                 <button
                   onClick={() => update({ logo_mode: "light" })}
-                  className={`flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded border text-[10px] font-medium transition-colors ${t.logo_mode === "light" ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"}`}
+                  className={cn("flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded text-[10px] font-medium border transition-colors",
+                    t.logo_mode === "light" ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted/50")}
                 >
                   <Sun className="w-3 h-3" /> Clair
                 </button>
                 <button
                   onClick={() => update({ logo_mode: "dark" })}
-                  className={`flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded border text-[10px] font-medium transition-colors ${t.logo_mode === "dark" ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"}`}
+                  className={cn("flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded text-[10px] font-medium border transition-colors",
+                    t.logo_mode === "dark" ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted/50")}
                 >
                   <Moon className="w-3 h-3" /> Foncé
                 </button>
               </div>
-              <p className="text-[9px] text-muted-foreground">
-                {t.logo_mode === "dark" ? "Le logo apparaîtra en blanc" : "Le logo apparaîtra en couleur"}
-              </p>
             </div>
-
-            <Separator />
-
-            <div className="space-y-1">
-              <Label className="text-[10px]">Blend mode</Label>
-              <select
-                value={t.logo_blend}
-                onChange={(e) => update({ logo_blend: e.target.value })}
-                className="w-full h-8 rounded border border-input bg-background px-2 text-xs"
-              >
-                <option value="multiply">Multiply</option>
-                <option value="normal">Normal</option>
-                <option value="overlay">Overlay</option>
-                <option value="darken">Darken</option>
-                <option value="screen">Screen</option>
-              </select>
-            </div>
-
-            <Separator />
-
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={t.active}
-                onChange={(e) => update({ active: e.target.checked })}
-                className="rounded"
-              />
-              <Label className="text-[10px]">Actif</Label>
+            <div className="space-y-1.5">
+              <Label className="text-[11px] font-medium text-muted-foreground">Rotation</Label>
+              <div className="flex items-center gap-2">
+                <Slider
+                  value={[Number(t.logo_rotation)]}
+                  onValueChange={([v]) => update({ logo_rotation: v })}
+                  min={0} max={360} step={1}
+                  className="flex-1"
+                />
+                <button
+                  onClick={() => update({ logo_rotation: 0 })}
+                  className="p-1 rounded border border-border text-muted-foreground hover:text-foreground transition-colors"
+                  title="Réinitialiser"
+                >
+                  <RotateCw className="w-3 h-3" />
+                </button>
+              </div>
+              <span className="text-[10px] text-muted-foreground font-mono">{Number(t.logo_rotation).toFixed(0)}°</span>
             </div>
           </div>
-        </div>
 
-        <div className="flex justify-end gap-2 mt-2">
-          <Button variant="outline" size="sm" onClick={onClose}>
-            <X className="w-3.5 h-3.5 mr-1" /> Annuler
-          </Button>
-          <Button size="sm" onClick={() => onSave(t)} disabled={saving}>
-            {saving ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1" />}
-            Sauvegarder
-          </Button>
+          {/* Advanced settings (collapsible) */}
+          <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+            <CollapsibleTrigger className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors">
+              <ChevronDown className={cn("w-3 h-3 transition-transform", advancedOpen && "rotate-180")} />
+              Paramètres avancés
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-3">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-medium text-muted-foreground">Opacité</Label>
+                  <Slider
+                    value={[Number(t.logo_opacity) * 100]}
+                    onValueChange={([v]) => update({ logo_opacity: v / 100 })}
+                    min={10} max={100} step={5}
+                  />
+                  <span className="text-[10px] text-muted-foreground font-mono">{(Number(t.logo_opacity) * 100).toFixed(0)}%</span>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-medium text-muted-foreground">Mode de fusion</Label>
+                  <select
+                    value={t.logo_blend}
+                    onChange={(e) => update({ logo_blend: e.target.value })}
+                    className="w-full h-8 rounded border border-input bg-background px-2 text-xs"
+                  >
+                    <option value="multiply">Multiply</option>
+                    <option value="normal">Normal</option>
+                    <option value="overlay">Overlay</option>
+                    <option value="darken">Darken</option>
+                    <option value="screen">Screen</option>
+                  </select>
+                </div>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          {/* Actions */}
+          <div className="flex justify-end gap-2 pt-1 border-t border-border">
+            <Button variant="outline" size="sm" onClick={onClose}>
+              <X className="w-3.5 h-3.5 mr-1" /> Annuler
+            </Button>
+            <Button size="sm" onClick={() => onSave(t)} disabled={saving}>
+              {saving ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1" />}
+              Sauvegarder
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
