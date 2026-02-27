@@ -111,6 +111,13 @@ export default function ProductDetailDialog({
                   <span className="line-through text-sm text-muted-foreground">{formatCurrency(price)}</span>
                   <span className="text-xl font-bold" style={{ color: primaryColor }}>{t("storefront.free")}</span>
                 </div>
+              ) : hasTiers ? (
+                <div>
+                  <span className="text-sm text-muted-foreground line-through">{formatCurrency(price)}</span>
+                  <p className="text-xl font-bold" style={{ color: primaryColor }}>
+                    {formatCurrency(Number(sortedTiers[0].unit_price))}
+                  </p>
+                </div>
               ) : (
                 <p className="text-xl font-bold" style={{ color: primaryColor }}>{formatCurrency(unitPrice)}</p>
               )}
