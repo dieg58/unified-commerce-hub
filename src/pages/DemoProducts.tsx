@@ -6,7 +6,7 @@ import { useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 // Simple SVG rectangle with "LOGO" text as placeholder
-const PLACEHOLDER_LOGO = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 60"><rect width="120" height="60" rx="4" fill="%23e5e7eb" stroke="%239ca3af" stroke-width="1.5" stroke-dasharray="4 2"/><text x="60" y="35" text-anchor="middle" font-family="sans-serif" font-size="16" font-weight="600" fill="%236b7280">LOGO</text></svg>')}`;
+const PLACEHOLDER_LOGO = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 60"><rect width="120" height="60" rx="4" fill="none" stroke="%239ca3af" stroke-width="1.5" stroke-dasharray="4 2"/><text x="60" y="35" text-anchor="middle" font-family="sans-serif" font-size="16" font-weight="600" fill="%236b7280">LOGO</text></svg>')}`;
 
 const DemoProducts = () => {
   const [previewTenantId, setPreviewTenantId] = useState<string>("");
