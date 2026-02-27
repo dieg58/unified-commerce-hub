@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import VariantMatrixDialog from "@/components/VariantMatrixDialog";
 import BulkPriceTierDialog from "@/components/BulkPriceTierDialog";
+import ProductDetailDialog from "@/components/ProductDetailDialog";
 import BrandedProductImage from "@/components/BrandedProductImage";
 import { useAuth } from "@/hooks/useAuth";
 import { useCart } from "@/hooks/useCart";
@@ -54,6 +55,7 @@ const Storefront = () => {
   const [switchStoreTarget, setSwitchStoreTarget] = useState<"bulk" | "staff" | null>(null);
   const [checkoutError, setCheckoutError] = useState<string>("");
   const [tierDialogProduct, setTierDialogProduct] = useState<any | null>(null);
+  const [detailDialogProduct, setDetailDialogProduct] = useState<any | null>(null);
   const { t } = useTranslation();
 
   const { tenantId: paramTenantId } = useParams<{ tenantId: string }>();
@@ -511,8 +513,12 @@ const Storefront = () => {
               const variantItemsInCart = items.filter((i) => i.productId === product.id && i.variantId);
               const totalInCart = (inCart?.qty || 0) + variantItemsInCart.reduce((s, i) => s + i.qty, 0);
               const imageUrl = product.image_url;
+              // Best discount % from tiers
+              const bestTierSavings = hasTiers && price > 0
+                ? Math.max(...productTiers.map(t => Math.round((1 - Number(t.unit_price) / price) * 100)))
+                : 0;
               return (
-                <div key={product.id} className="group bg-card rounded-xl border border-border shadow-card hover:shadow-card-hover transition-all duration-300 overflow-hidden flex flex-col cursor-pointer" onClick={() => navigate(paramTenantId ? `/store/${paramTenantId}/product/${product.id}` : `/shop/product/${product.id}`)}>
+                <div key={product.id} className="group bg-card rounded-xl border border-border shadow-card hover:shadow-card-hover transition-all duration-300 overflow-hidden flex flex-col cursor-pointer" onClick={() => setDetailDialogProduct(product)}>
                   <div className="relative aspect-square bg-muted/30 overflow-hidden">
                     <BrandedProductImage
                       imageUrl={imageUrl}
@@ -522,10 +528,15 @@ const Storefront = () => {
                       className="w-full h-full"
                       innerClassName="group-hover:scale-105 transition-transform duration-500"
                     />
-                    <div className="absolute top-3 left-3">
+                    <div className="absolute top-3 left-3 flex flex-col gap-1">
                       <Badge className="text-[10px] bg-white/90 text-foreground border-0 backdrop-blur-sm shadow-sm capitalize">
                         {product.category || "general"}
                       </Badge>
+                      {bestTierSavings > 0 && (
+                        <Badge className="text-[10px] border-0 shadow-sm bg-success/90 text-white backdrop-blur-sm">
+                          Jusqu'à -{bestTierSavings}%
+                        </Badge>
+                      )}
                     </div>
                     {storeType === "bulk" && product.min_bulk_qty > 1 ? (
                       <div className="absolute top-3 right-3">
@@ -538,67 +549,26 @@ const Storefront = () => {
                         <Heart className={`w-4 h-4 ${isFavorite(product.id) ? "text-destructive fill-destructive" : "text-muted-foreground"}`} />
                       </button>
                     )}
+                    {totalInCart > 0 && (
+                      <div className="absolute bottom-3 right-3">
+                        <Badge className="text-[10px] text-white border-0 gap-1" style={{ backgroundColor: primaryColor }}>
+                          <ShoppingCart className="w-2.5 h-2.5" /> {totalInCart}
+                        </Badge>
+                      </div>
+                    )}
                   </div>
                   <div className="p-4 flex flex-col flex-1">
                     <h3 className="text-sm font-semibold text-foreground mb-1 line-clamp-2">{product.name}</h3>
                     {product.description && <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{product.description}</p>}
-                    <div className="mt-auto pt-2 space-y-2">
+                    <div className="mt-auto pt-2 flex items-center justify-between">
                       <p className="text-lg font-bold" style={{ color: primaryColor }}>
                         {isProductFree(product) ? (
                           <span className="flex items-center gap-1.5"><span className="line-through text-sm text-muted-foreground font-normal">{formatCurrency(price)}</span><span>{t("storefront.free")}</span></span>
                         ) : formatCurrency(price)}
                       </p>
-                      <div className="flex items-center justify-between">
-                      {hasVariants ? (
-                        totalInCart > 0 ? (
-                          <>
-                            <span className="text-xs font-medium text-muted-foreground">{totalInCart} {t("storefront.inCart")}</span>
-                            <Button size="sm" variant="outline" className="gap-1 text-xs rounded-lg" onClick={(e) => { e.stopPropagation(); setVariantMatrixProduct(product); }}>
-                              <Plus className="w-3 h-3" /> {t("storefront.modify")}
-                            </Button>
-                          </>
-                        ) : (
-                          <>
-                            <span />
-                            <Button size="sm" className="gap-1.5 text-white rounded-lg" style={{ backgroundColor: primaryColor }} onClick={(e) => { e.stopPropagation(); setVariantMatrixProduct(product); }}>
-                              <Plus className="w-3.5 h-3.5" /> {t("storefront.choose")}
-                            </Button>
-                          </>
-                        )
-                      ) : hasTiers ? (
-                        inCart ? (
-                          <>
-                            <span className="text-xs font-medium text-muted-foreground">{inCart.qty} {t("storefront.inCart")}</span>
-                            <Button size="sm" variant="outline" className="gap-1 text-xs rounded-lg" onClick={(e) => { e.stopPropagation(); setTierDialogProduct(product); }}>
-                              <Plus className="w-3 h-3" /> {t("storefront.modify")}
-                            </Button>
-                          </>
-                        ) : (
-                          <>
-                            <span />
-                            <Button size="sm" className="gap-1.5 text-white rounded-lg" style={{ backgroundColor: primaryColor }} onClick={(e) => { e.stopPropagation(); setTierDialogProduct(product); }}>
-                              <Plus className="w-3.5 h-3.5" /> {t("storefront.addToCart")}
-                            </Button>
-                          </>
-                        )
-                      ) : inCart ? (
-                        <>
-                          <span />
-                          <div className="flex items-center gap-1">
-                            <button onClick={(e) => { e.stopPropagation(); const minQty = storeType === "bulk" ? product.min_bulk_qty : 1; const newQty = inCart.qty - 1; updateQty(product.id, newQty < minQty ? 0 : newQty); }} className="w-8 h-8 rounded-lg border border-border flex items-center justify-center hover:bg-muted transition-colors"><Minus className="w-3 h-3" /></button>
-                            <span className="text-sm font-bold w-6 text-center">{inCart.qty}</span>
-                            <button onClick={(e) => { e.stopPropagation(); updateQty(product.id, inCart.qty + 1); }} className="w-8 h-8 rounded-lg border border-border flex items-center justify-center hover:bg-muted transition-colors"><Plus className="w-3 h-3" /></button>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <span />
-                          <Button size="sm" className="gap-1.5 text-white rounded-lg" style={{ backgroundColor: primaryColor }} onClick={(e) => { e.stopPropagation(); addItem({ productId: product.id, name: product.name, sku: product.sku, price, storeType, imageUrl: product.image_url || undefined }, storeType === "bulk" ? Math.max(1, product.min_bulk_qty) : 1); setCartOpen(true); }}>
-                            <Plus className="w-3.5 h-3.5" /> {t("storefront.addToCart")}
-                          </Button>
-                        </>
-                      )}
-                      </div>
+                      <Button size="sm" className="gap-1.5 text-white rounded-lg" style={{ backgroundColor: primaryColor }} onClick={(e) => { e.stopPropagation(); setDetailDialogProduct(product); }}>
+                        <Plus className="w-3.5 h-3.5" /> {totalInCart > 0 ? t("storefront.modify") : t("storefront.addToCart")}
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -764,6 +734,54 @@ const Storefront = () => {
         />
       )}
 
+      {/* Product Detail Dialog */}
+      {detailDialogProduct && (
+        <ProductDetailDialog
+          open={!!detailDialogProduct}
+          onOpenChange={(v) => { if (!v) setDetailDialogProduct(null); }}
+          product={detailDialogProduct}
+          price={getPrice(detailDialogProduct)}
+          storeType={storeType}
+          primaryColor={primaryColor}
+          logoUrl={logoUrl}
+          tiers={priceTiersByProduct.get(detailDialogProduct.id) || []}
+          isFree={isProductFree(detailDialogProduct)}
+          inCartQty={items.find((i) => i.productId === detailDialogProduct.id && !i.variantId)?.qty || 0}
+          isFavorite={isFavorite(detailDialogProduct.id)}
+          onToggleFavorite={() => toggleFavorite(detailDialogProduct.id)}
+          hasVariants={((detailDialogProduct.product_variants as any[]) || []).filter((v: any) => v.active).length > 0}
+          onOpenVariantMatrix={() => { setDetailDialogProduct(null); setVariantMatrixProduct(detailDialogProduct); }}
+          onAddToCart={(qty, unitPrice) => {
+            addItem({
+              productId: detailDialogProduct.id,
+              name: detailDialogProduct.name,
+              sku: detailDialogProduct.sku,
+              price: unitPrice,
+              storeType,
+              imageUrl: detailDialogProduct.image_url || undefined,
+            }, qty);
+            setCartOpen(true);
+          }}
+          onUpdateQty={(qty) => {
+            const tiers = priceTiersByProduct.get(detailDialogProduct.id) || [];
+            const sorted = [...tiers].sort((a, b) => a.min_qty - b.min_qty);
+            let unitPrice = getPrice(detailDialogProduct);
+            for (const tier of sorted) {
+              if (qty >= tier.min_qty) unitPrice = Number(tier.unit_price);
+            }
+            removeItem(detailDialogProduct.id);
+            addItem({
+              productId: detailDialogProduct.id,
+              name: detailDialogProduct.name,
+              sku: detailDialogProduct.sku,
+              price: isProductFree(detailDialogProduct) ? 0 : unitPrice,
+              storeType,
+              imageUrl: detailDialogProduct.image_url || undefined,
+            }, qty);
+            setCartOpen(true);
+          }}
+        />
+      )}
 
       <Dialog open={!!confirmedOrder} onOpenChange={(v) => { if (!v) setConfirmedOrder(null); }}>
         <DialogContent className="sm:max-w-md text-center">
