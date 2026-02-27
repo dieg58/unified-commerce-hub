@@ -88,7 +88,7 @@ const CatalogProductDetailDialog = ({ product, open, onOpenChange, alreadyReques
       <DialogContent className="sm:max-w-4xl p-0 gap-0 max-h-[85vh] overflow-hidden">
         <div className="flex flex-col sm:flex-row max-h-[85vh]">
           {/* Left: Image */}
-          <div className="sm:w-3/4 bg-muted flex items-center justify-center shrink-0 relative min-h-[280px] sm:self-stretch">
+          <div className="sm:w-[65%] bg-muted flex items-center justify-center shrink-0 relative min-h-[280px] sm:self-stretch">
             {displayImage ? (
               <img
                 src={displayImage}
@@ -108,7 +108,7 @@ const CatalogProductDetailDialog = ({ product, open, onOpenChange, alreadyReques
           </div>
 
           {/* Right: Details */}
-          <div className="sm:w-1/4 overflow-y-auto p-5 space-y-4">
+          <div className="sm:w-[35%] overflow-y-auto p-5 space-y-4">
             {/* Category breadcrumb */}
             {categoryParts.length > 0 && (
               <div className="flex flex-wrap gap-1">
