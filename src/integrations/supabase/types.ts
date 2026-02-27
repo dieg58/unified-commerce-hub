@@ -964,6 +964,48 @@ export type Database = {
           },
         ]
       }
+      product_price_tiers: {
+        Row: {
+          created_at: string
+          id: string
+          min_qty: number
+          product_id: string
+          tenant_id: string
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          min_qty: number
+          product_id: string
+          tenant_id: string
+          unit_price?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          min_qty?: number
+          product_id?: string
+          tenant_id?: string
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_price_tiers_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_price_tiers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_prices: {
         Row: {
           currency: string

@@ -57,6 +57,20 @@ const ProductDetail = () => {
     enabled: !!productId,
   });
 
+  const { data: priceTiers } = useQuery({
+    queryKey: ["product-price-tiers", productId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("product_price_tiers")
+        .select("min_qty, unit_price")
+        .eq("product_id", productId!)
+        .order("min_qty");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!productId,
+  });
+
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center py-20">
@@ -134,6 +148,32 @@ const ProductDetail = () => {
           <p className="text-sm text-muted-foreground mt-1">SKU: {product.sku}</p>
 
           <p className="text-3xl font-bold text-primary mt-6">{formatCurrency(finalPrice)}</p>
+
+          {/* Bulk Price Tiers */}
+          {priceTiers && priceTiers.length > 0 && (
+            <div className="mt-4 rounded-lg border border-border overflow-hidden">
+              <div className="bg-muted/50 px-4 py-2 border-b border-border">
+                <h3 className="text-xs font-semibold text-foreground">Prix dégressifs (Bulk)</h3>
+              </div>
+              <div className="divide-y divide-border">
+                {priceTiers.map((tier: any) => {
+                  const tierPrice = Number(tier.unit_price);
+                  const savings = finalPrice > 0 ? Math.round((1 - tierPrice / finalPrice) * 100) : 0;
+                  return (
+                    <div key={tier.min_qty} className="flex items-center justify-between px-4 py-2 text-sm">
+                      <span className="text-muted-foreground">à partir de <span className="font-medium text-foreground">{tier.min_qty} pcs</span></span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-foreground">{formatCurrency(tierPrice)}/u</span>
+                        {savings > 0 && (
+                          <span className="text-xs font-medium px-1.5 py-0.5 rounded-full bg-success/10 text-success">-{savings}%</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {product.description && (
             <>
