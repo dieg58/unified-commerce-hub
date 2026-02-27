@@ -402,6 +402,9 @@
     "activate": "Activeren",
     "shopActivated": "Winkel geactiveerd",
     "shopSuspended": "Winkel geschorst",
+    "shopDeleted": "Winkel verwijderd",
+    "deleteTitle": "Winkel verwijderen",
+    "deleteDescription": "Weet u zeker dat u de winkel \"{{name}}\" wilt verwijderen? Deze actie is onomkeerbaar en verwijdert alle bijbehorende gegevens.",
     "notFoundTitle": "Winkel niet gevonden",
     "fullManagement": "Volledig beheer",
     "totalBudget": "Totaal budget"

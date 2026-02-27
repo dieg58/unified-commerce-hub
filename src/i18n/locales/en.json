@@ -402,6 +402,9 @@
     "activate": "Activate",
     "shopActivated": "Shop activated",
     "shopSuspended": "Shop suspended",
+    "shopDeleted": "Shop deleted",
+    "deleteTitle": "Delete shop",
+    "deleteDescription": "Are you sure you want to delete the shop \"{{name}}\"? This action is irreversible and will delete all associated data.",
     "notFoundTitle": "Shop not found",
     "fullManagement": "Full management",
     "totalBudget": "Total budget"

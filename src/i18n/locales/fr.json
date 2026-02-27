@@ -402,6 +402,9 @@
     "activate": "Activer",
     "shopActivated": "Boutique activée",
     "shopSuspended": "Boutique suspendue",
+    "shopDeleted": "Boutique supprimée",
+    "deleteTitle": "Supprimer la boutique",
+    "deleteDescription": "Êtes-vous sûr de vouloir supprimer la boutique « {{name}} » ? Cette action est irréversible et supprimera toutes les données associées.",
     "notFoundTitle": "Boutique introuvable",
     "fullManagement": "Gestion complète",
     "totalBudget": "Budget total"
