@@ -128,6 +128,15 @@ export default function ProductDetailDialog({
                     <span className="text-center">Prix/u</span>
                     <span className="text-right">Économie</span>
                   </div>
+                  {/* Base price row */}
+                  <div className={`grid grid-cols-3 px-3 py-2 border-b border-border/50 ${!activeTier ? "bg-primary/5" : ""}`}>
+                    <span className="font-medium flex items-center gap-1">
+                      {!activeTier && <Check className="w-3 h-3 text-primary" />}
+                      1 pc
+                    </span>
+                    <span className="text-center font-semibold">{formatCurrency(price)}</span>
+                    <span className="text-right text-muted-foreground">—</span>
+                  </div>
                   {sortedTiers.map((tier) => {
                     const tierSavings = price > 0 ? Math.round((1 - Number(tier.unit_price) / price) * 100) : 0;
                     const isActive = activeTier?.min_qty === tier.min_qty;
@@ -142,11 +151,13 @@ export default function ProductDetailDialog({
                           {tier.min_qty} pcs
                         </span>
                         <span className="text-center font-semibold">{formatCurrency(Number(tier.unit_price))}</span>
-                        <span className="text-right">
-                          {tierSavings > 0 && (
-                            <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 bg-success/10 text-success border-success/20">
+                        <span className="text-right flex justify-end">
+                          {tierSavings > 0 ? (
+                            <span className="inline-flex items-center px-1.5 py-0 h-4 rounded-full text-[9px] font-semibold bg-success/15 text-success">
                               -{tierSavings}%
-                            </Badge>
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
                           )}
                         </span>
                       </button>
