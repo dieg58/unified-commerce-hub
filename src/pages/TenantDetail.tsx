@@ -370,11 +370,15 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
     setLowStockThreshold(String(p.low_stock_threshold || 0));
     setMinBulkQty(String(p.min_bulk_qty || 1));
     setPendingImages([]);
-    setExistingImages(
-      pimages
-        .sort((a: any, b: any) => a.sort_order - b.sort_order)
-        .map((img: any) => ({ id: img.id, image_url: img.image_url, sort_order: img.sort_order }))
-    );
+    const sortedImages = pimages
+      .sort((a: any, b: any) => a.sort_order - b.sort_order)
+      .map((img: any) => ({ id: img.id, image_url: img.image_url, sort_order: img.sort_order }));
+    // Fallback: if no product_images rows but product has an image_url, show it
+    if (sortedImages.length === 0 && p.image_url) {
+      setExistingImages([{ id: `legacy-${p.id}`, image_url: p.image_url, sort_order: 0 }]);
+    } else {
+      setExistingImages(sortedImages);
+    }
     const { axes, combinations } = variantsToAxesAndCombinations(pvariants || []);
     setVariantAxes(axes);
     setVariantCombinations(combinations);
