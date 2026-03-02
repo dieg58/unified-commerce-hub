@@ -82,7 +82,7 @@ const Storefront = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("*, product_prices(*), product_variants(*)")
+        .select("*, product_prices(*), product_variants(*), product_images(*)")
         .eq("tenant_id", tenantId!)
         .order("name");
       if (error) throw error;

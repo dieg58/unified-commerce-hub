@@ -4,10 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Heart, Layers, Check, Minus, Package, Plus, ShoppingCart } from "lucide-react";
+import { Heart, Layers, Check, Minus, Package, Plus, ShoppingCart, ChevronLeft, ChevronRight } from "lucide-react";
 import { formatCurrency } from "@/lib/mock-data";
 import BrandedProductImage from "@/components/BrandedProductImage";
 import { useTranslation } from "react-i18next";
+import { cn } from "@/lib/utils";
 
 interface PriceTier {
   min_qty: number;
@@ -41,6 +42,17 @@ export default function ProductDetailDialog({
   const { t } = useTranslation();
   const minQty = storeType === "bulk" ? Math.max(1, product.min_bulk_qty || 1) : 1;
   const [qty, setQty] = useState<number>(inCartQty || minQty);
+  const [activeImageIdx, setActiveImageIdx] = useState(0);
+
+  // Build image list from product_images or fallback to image_url
+  const images = useMemo(() => {
+    const pImages = (product.product_images as any[] || [])
+      .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+      .map((img: any) => img.image_url);
+    if (pImages.length > 0) return pImages;
+    if (product.image_url) return [product.image_url];
+    return [];
+  }, [product]);
 
   const sortedTiers = useMemo(() => [...tiers].sort((a, b) => a.min_qty - b.min_qty), [tiers]);
   const hasTiers = storeType === "bulk" && sortedTiers.length > 0;
@@ -69,19 +81,56 @@ export default function ProductDetailDialog({
     onOpenChange(false);
   };
 
+  const goToPrev = () => setActiveImageIdx((prev) => (prev > 0 ? prev - 1 : images.length - 1));
+  const goToNext = () => setActiveImageIdx((prev) => (prev < images.length - 1 ? prev + 1 : 0));
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) setActiveImageIdx(0); }}>
       <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-auto p-0">
         <div className="grid sm:grid-cols-[65%_35%] gap-0">
           {/* Image */}
           <div className="relative aspect-square sm:aspect-auto sm:min-h-[500px] bg-muted/30 overflow-hidden sm:rounded-l-lg">
             <BrandedProductImage
-              imageUrl={product.image_url}
+              imageUrl={images[activeImageIdx] || product.image_url}
               logoUrl={logoUrl}
               logoPlacement={product.logo_placement}
               alt={product.name}
               className="w-full h-full"
             />
+            {/* Navigation arrows */}
+            {images.length > 1 && (
+              <>
+                <button
+                  onClick={goToPrev}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-background/80 backdrop-blur-sm flex items-center justify-center shadow-sm hover:bg-background transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={goToNext}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-background/80 backdrop-blur-sm flex items-center justify-center shadow-sm hover:bg-background transition-colors"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </>
+            )}
+            {/* Thumbnails */}
+            {images.length > 1 && (
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 bg-background/70 backdrop-blur-sm rounded-full px-2 py-1.5">
+                {images.map((img, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setActiveImageIdx(idx)}
+                    className={cn(
+                      "w-8 h-8 rounded-md overflow-hidden border-2 transition-all",
+                      idx === activeImageIdx ? "border-primary scale-110 shadow-sm" : "border-transparent opacity-70 hover:opacity-100"
+                    )}
+                  >
+                    <img src={img} alt="" className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
             <button
               onClick={onToggleFavorite}
               className="absolute top-3 right-3 w-9 h-9 rounded-full bg-background/90 backdrop-blur-sm flex items-center justify-center shadow-sm hover:scale-110 transition-transform"
