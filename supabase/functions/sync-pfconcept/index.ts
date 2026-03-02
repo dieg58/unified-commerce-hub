@@ -9,10 +9,10 @@ const corsHeaders = {
 const FEED_BASE = "https://www.pfconcept.com/portal/datafeed";
 const IMAGE_BASE = "https://images.pfconcept.com/ProductImages_All/JPG/500x500";
 const PRICE_MULTIPLIER = 1.65;
-const BATCH_SIZE = 25;
-const DEFAULT_LIMIT = 100;
-const MAX_LIMIT = 300;
-const MAX_CPU_MS = 6000;
+const BATCH_SIZE = 20;
+const DEFAULT_LIMIT = 50;
+const MAX_LIMIT = 150;
+const MAX_CPU_MS = 3000;
 
 function cleanCategory(groupDesc: string, catDesc: string): string {
   // Use catDesc if available, fallback to groupDesc
