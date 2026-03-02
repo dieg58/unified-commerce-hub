@@ -29,6 +29,7 @@ import { fmtDate } from "@/lib/export-utils";
 import VariantAxisEditor, { variantsToAxesAndCombinations, type VariantAxis, type VariantCombination } from "@/components/VariantAxisEditor";
 import BulkPriceTiers, { TIER_QTYS } from "@/components/BulkPriceTiers";
 import { UsersTab, EntitiesTab, OrdersTab, BudgetsTab } from "@/components/tenant-detail";
+import ProductImageManager, { uploadPendingImages, type ProductImage, type PendingImage } from "@/components/ProductImageManager";
 
 const TenantDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -78,7 +79,7 @@ const TenantDetail = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("*, product_prices(*), product_variants(*)")
+        .select("*, product_prices(*), product_variants(*), product_images(*)")
         .eq("tenant_id", id!)
         .order("name");
       if (error) throw error;
@@ -285,8 +286,9 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
   const [noBillingStaff, setNoBillingStaff] = useState(false);
   const [lowStockThreshold, setLowStockThreshold] = useState("");
   const [minBulkQty, setMinBulkQty] = useState("");
-  const [imageFile, setImageFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
+  const [existingImages, setExistingImages] = useState<ProductImage[]>([]);
   const [bulkTiers, setBulkTiers] = useState<Record<number, string>>({});
   const [catalogSearch, setCatalogSearch] = useState("");
   const [catalogOpen, setCatalogOpen] = useState(false);
@@ -350,6 +352,7 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
   const openEdit = async (p: any) => {
     const prices = p.product_prices as any[];
     const pvariants = p.product_variants as any[];
+    const pimages = (p.product_images as any[]) || [];
     const bulk = prices?.find((pr: any) => pr.store_type === "bulk");
     const staff = prices?.find((pr: any) => pr.store_type === "staff");
     setName(p.name);
@@ -366,7 +369,12 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
     setNoBillingStaff(!!p.no_billing_staff);
     setLowStockThreshold(String(p.low_stock_threshold || 0));
     setMinBulkQty(String(p.min_bulk_qty || 1));
-    setImageFile(null);
+    setPendingImages([]);
+    setExistingImages(
+      pimages
+        .sort((a: any, b: any) => a.sort_order - b.sort_order)
+        .map((img: any) => ({ id: img.id, image_url: img.image_url, sort_order: img.sort_order }))
+    );
     const { axes, combinations } = variantsToAxesAndCombinations(pvariants || []);
     setVariantAxes(axes);
     setVariantCombinations(combinations);
@@ -384,20 +392,13 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
 
   const resetForm = () => {
     setName(""); setSku(""); setSkuManual(false); setCategory(""); setDescription("");
-    setBulkPrice(""); setStaffPrice(""); setImageFile(null);
+    setBulkPrice(""); setStaffPrice("");
+    setPendingImages([]); setExistingImages([]);
     setStockType("in_stock"); setStockQty(""); setProductLocation("");
     setNoBillingBulk(false); setNoBillingStaff(false); setLowStockThreshold(""); setMinBulkQty("");
     setVariantAxes([]); setVariantCombinations([]); setEditingProduct(null); setBulkTiers({});
   };
 
-  const uploadImage = async (productId: string, file: File) => {
-    const ext = file.name.split(".").pop();
-    const path = `${tenantId}/${productId}.${ext}`;
-    const { error } = await supabase.storage.from("product-images").upload(path, file, { upsert: true });
-    if (error) throw error;
-    const { data: { publicUrl } } = supabase.storage.from("product-images").getPublicUrl(path);
-    return publicUrl;
-  };
 
   const addProduct = useMutation({
     mutationFn: async () => {
@@ -422,9 +423,9 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
         .single();
       if (error) throw error;
 
-      if (imageFile) {
-        const imageUrl = await uploadImage(product.id, imageFile);
-        await supabase.from("products").update({ image_url: imageUrl }).eq("id", product.id);
+      // Upload pending images
+      if (pendingImages.length > 0) {
+        await uploadPendingImages(tenantId, product.id, pendingImages);
       }
 
       const prices = [];
@@ -490,9 +491,14 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
       }).eq("id", editingProduct.id);
       if (error) throw error;
 
-      if (imageFile) {
-        const imageUrl = await uploadImage(editingProduct.id, imageFile);
-        await supabase.from("products").update({ image_url: imageUrl }).eq("id", editingProduct.id);
+      // Upload pending images for edit
+      if (pendingImages.length > 0) {
+        await uploadPendingImages(tenantId, editingProduct.id, pendingImages);
+      }
+      // Update main image_url to first image (existing or newly uploaded)
+      const allImages = [...existingImages];
+      if (allImages.length > 0) {
+        await supabase.from("products").update({ image_url: allImages[0].image_url }).eq("id", editingProduct.id);
       }
 
       for (const st of ["bulk", "staff"] as const) {
@@ -851,16 +857,14 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
               </div>
             </div>
 
-            {/* Image */}
-            <div className="space-y-2">
-              <Label>Image produit</Label>
-              <Input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} className="text-sm" />
-              {imageFile && (
-                <div className="w-20 h-20 rounded-md overflow-hidden border border-border">
-                  <img src={URL.createObjectURL(imageFile)} alt="Preview" className="w-full h-full object-cover" />
-                </div>
-              )}
-            </div>
+            {/* Images */}
+            <ProductImageManager
+              existingImages={existingImages}
+              pendingImages={pendingImages}
+              onPendingImagesChange={setPendingImages}
+              onExistingImagesChange={setExistingImages}
+              tenantId={tenantId}
+            />
 
             {/* Prices */}
             <div>
@@ -989,15 +993,16 @@ function ProductsTab({ tenantId, products, categories }: { tenantId: string; pro
                 </Select>
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>Changer l'image</Label>
-              <Input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} className="text-sm" />
-              {(imageFile || editingProduct?.image_url) && (
-                <div className="w-20 h-20 rounded-md overflow-hidden border border-border">
-                  <img src={imageFile ? URL.createObjectURL(imageFile) : editingProduct?.image_url} alt="Preview" className="w-full h-full object-cover" />
-                </div>
-              )}
-            </div>
+            <ProductImageManager
+              existingImages={existingImages}
+              pendingImages={pendingImages}
+              onPendingImagesChange={setPendingImages}
+              onExistingImagesChange={setExistingImages}
+              tenantId={tenantId}
+              productId={editingProduct?.id}
+              immediateUpload={true}
+              onImageUploaded={(img) => setExistingImages(prev => [...prev, img])}
+            />
             <div>
               <Label className="text-sm font-semibold">Tarification</Label>
               <div className="grid grid-cols-2 gap-3 mt-2">
