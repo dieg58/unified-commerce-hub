@@ -12,7 +12,7 @@ const PRICE_MULTIPLIER = 1.65;
 const BATCH_SIZE = 20;
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 150;
-const MAX_CPU_MS = 3000;
+const MAX_CPU_MS = 4500;
 
 function cleanCategory(groupDesc: string, catDesc: string): string {
   // Use catDesc if available, fallback to groupDesc
@@ -25,7 +25,7 @@ function cleanCategory(groupDesc: string, catDesc: string): string {
  * Stream the product feed and yield model objects from the
  * structure: pfcProductfeed.productfeed.models = [{model: {...}}, ...]
  *
- * Each element of the "models" array is an object with a "model" key.
+ * Robust against chunk boundaries around the "models": [ marker.
  */
 async function* streamModels(
   url: string,
@@ -48,10 +48,10 @@ async function* streamModels(
 
   let buffer = "";
   let yielded = 0;
+  let inModelsArray = false;
   const isTimedOut = () => deadlineAt !== undefined && performance.now() > deadlineAt;
 
-  // State machine: find the "models" array, then read top-level objects from it
-  let phase: "findModelsArray" | "readObjects" = "findModelsArray";
+  // Object parser state (when inside models array)
   let depth = 0;
   let objectStart = -1;
   let inString = false;
@@ -66,31 +66,29 @@ async function* streamModels(
 
       buffer += decoder.decode(value, { stream: true });
 
-      let i = 0;
-      while (i < buffer.length) {
-        if ((i & 2047) === 0 && isTimedOut()) throw new Error("TIMEBOX_REACHED");
-
-        if (phase === "findModelsArray") {
-          const idx = buffer.indexOf('"models"', i);
-          if (idx === -1) {
-            if (buffer.length > 64) buffer = buffer.slice(-64);
-            break;
-          }
-
-          const arrStart = buffer.indexOf("[", idx + 8);
-          if (arrStart === -1) {
-            i = idx + 8;
-            continue;
-          }
-
-          phase = "readObjects";
-          i = arrStart + 1;
-          depth = 0;
-          objectStart = -1;
-          inString = false;
-          escaped = false;
+      if (!inModelsArray) {
+        const modelsIdx = buffer.indexOf('"models"');
+        if (modelsIdx === -1) {
+          // Keep enough tail to preserve a split marker between chunks
+          if (buffer.length > 2048) buffer = buffer.slice(-2048);
           continue;
         }
+
+        // Find the first array start after "models" (supports models: { model: [...] } as well)
+        const arrStart = buffer.indexOf("[", modelsIdx);
+        if (arrStart === -1) {
+          // Keep from models token onward so we can complete on next chunk
+          buffer = buffer.slice(modelsIdx);
+          continue;
+        }
+
+        inModelsArray = true;
+        buffer = buffer.slice(arrStart + 1);
+      }
+
+      let i = 0;
+      while (i < buffer.length) {
+        if ((i & 1023) === 0 && isTimedOut()) throw new Error("TIMEBOX_REACHED");
 
         const ch = buffer[i];
 
@@ -123,7 +121,7 @@ async function* streamModels(
               yielded++;
               if (limit && yielded >= limit) return;
             } catch {
-              // malformed object, skip
+              // skip malformed object
             }
 
             buffer = buffer.substring(i + 1);
@@ -137,9 +135,12 @@ async function* streamModels(
         i++;
       }
 
-      if (phase === "readObjects" && objectStart > 0) {
+      if (objectStart > 0) {
         buffer = buffer.substring(objectStart);
         objectStart = 0;
+      } else if (objectStart === -1 && buffer.length > 4096) {
+        // Prevent growth when parser is between objects
+        buffer = buffer.slice(-1024);
       }
     }
   } finally {
@@ -234,8 +235,19 @@ Deno.serve(async (req) => {
     const pfPriceCode = Deno.env.get("PF_CONCEPT_PRICE_CODE");
     const pfStockCode = Deno.env.get("PF_CONCEPT_STOCK_CODE");
 
-    if (!pfPriceCode) console.warn("PF_CONCEPT_PRICE_CODE not set — prices will default to 0");
-    if (!pfStockCode) console.warn("PF_CONCEPT_STOCK_CODE not set — stock will default to 0");
+    if (!pfPriceCode || !pfStockCode) {
+      return new Response(
+        JSON.stringify({
+          error: "Missing PF Concept configuration",
+          missing: {
+            PF_CONCEPT_PRICE_CODE: !pfPriceCode,
+            PF_CONCEPT_STOCK_CODE: !pfStockCode,
+          },
+          message: "Configure PF_CONCEPT_PRICE_CODE and PF_CONCEPT_STOCK_CODE before running PF Concept sync.",
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     // ── 1. Fetch price feed ──
     const priceMap = new Map<string, number>();

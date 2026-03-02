@@ -536,13 +536,37 @@ const CatalogProducts = () => {
 
   const syncPfConcept = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke("sync-pfconcept");
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      return data;
+      toast.info("Synchronisation PF Concept…");
+      let totalCreated = 0, totalUpdated = 0, totalErrors = 0;
+      let offset = 0;
+      let hasMore = true;
+      let safety = 0;
+
+      while (hasMore && safety < 80) {
+        const { data, error } = await supabase.functions.invoke("sync-pfconcept", {
+          body: { offset, limit: 40 },
+        });
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+
+        totalCreated += data.created || 0;
+        totalUpdated += data.updated || 0;
+        totalErrors += data.errors || 0;
+
+        hasMore = !!data.hasMore;
+        const nextOffset = Number(data?.nextOffset);
+        offset = Number.isFinite(nextOffset) ? nextOffset : offset + 40;
+        safety++;
+
+        if (hasMore) {
+          toast.info(`PF Concept : ${offset} traités…`);
+        }
+      }
+
+      return { created: totalCreated, updated: totalUpdated, errors: totalErrors };
     },
     onSuccess: (data) => {
-      toast.success(`PF Concept : ${data.created} créés, ${data.updated} mis à jour${data.authenticated ? "" : " (sans prix authentifiés)"}`);
+      toast.success(`PF Concept : ${data.created} créés, ${data.updated} mis à jour`);
       qc.invalidateQueries({ queryKey: ["catalog-products"] });
     },
     onError: (err: any) => toast.error(`Erreur sync PF Concept : ${err.message}`),
