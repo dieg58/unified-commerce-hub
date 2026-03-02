@@ -49,8 +49,11 @@ export default function ProductDetailDialog({
     const pImages = (product.product_images as any[] || [])
       .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
       .map((img: any) => img.image_url);
+    // Include legacy image_url if not already present in product_images
+    if (product.image_url && !pImages.includes(product.image_url)) {
+      pImages.unshift(product.image_url);
+    }
     if (pImages.length > 0) return pImages;
-    if (product.image_url) return [product.image_url];
     return [];
   }, [product]);
 
