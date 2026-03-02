@@ -169,17 +169,17 @@ Deno.serve(async (req) => {
       .map((p: any) => p.master_code)
       .filter(Boolean);
 
-    const existingMap = new Map<string, string>();
+    const existingMap = new Map<string, { id: string; active: boolean }>();
     // Fetch in chunks of 200 to avoid query limits
     for (let i = 0; i < batchMasterCodes.length; i += 200) {
       const chunk = batchMasterCodes.slice(i, i + 200);
       const { data: existingRows } = await supabase
         .from("catalog_products")
-        .select("id, midocean_id")
+        .select("id, midocean_id, active")
         .in("midocean_id", chunk);
       if (existingRows) {
         for (const row of existingRows) {
-          if (row.midocean_id) existingMap.set(row.midocean_id, row.id);
+          if (row.midocean_id) existingMap.set(row.midocean_id, { id: row.id, active: row.active });
         }
       }
     }
@@ -242,7 +242,7 @@ Deno.serve(async (req) => {
           isNew = new Date(releaseDate) >= sixMonthsAgo;
         }
 
-        const existingId = existingMap.get(masterCode);
+        const existing = existingMap.get(masterCode);
         const payload: any = {
           name,
           sku,
@@ -259,10 +259,12 @@ Deno.serve(async (req) => {
           midocean_id: masterCode,
         };
 
-        if (existingId) {
-          payload.id = existingId;
+        if (existing) {
+          payload.id = existing.id;
+          payload.active = existing.active;
           updated++;
         } else {
+          payload.id = crypto.randomUUID();
           payload.active = true;
           created++;
         }
