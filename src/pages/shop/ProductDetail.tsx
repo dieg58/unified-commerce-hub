@@ -242,11 +242,18 @@ const ProductDetail = () => {
 
           {/* Stock info */}
           <div className="mt-4 text-xs text-muted-foreground">
-            {product.stock_type === "in_stock" ? (
-              <span className={product.stock_qty > 0 ? "text-success" : "text-destructive"}>
-                {product.stock_qty > 0 ? `${product.stock_qty} ${t("storefront.inStock")}` : t("storefront.outOfStock")}
-              </span>
-            ) : (
+            {product.stock_type === "in_stock" ? (() => {
+              const totalStock = variants.length > 0
+                ? variants.reduce((sum: number, v: any) => sum + (v.stock_qty || 0), 0)
+                : product.stock_qty;
+              const variantStock = selectedVariant ? (selectedVariant.stock_qty || 0) : null;
+              const displayStock = variantStock !== null ? variantStock : totalStock;
+              return (
+                <span className={displayStock > 0 ? "text-success" : "text-destructive"}>
+                  {displayStock > 0 ? `${displayStock} ${t("storefront.inStock")}` : t("storefront.outOfStock")}
+                </span>
+              );
+            })() : (
               <span>{t("storefront.madeToOrder")}</span>
             )}
           </div>
