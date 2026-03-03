@@ -37,3 +37,5 @@ project_id = "kjhiekuoiugwjsetosvo"
     verify_jwt = false
   [functions.validate-vat]
     verify_jwt = false
+  [functions.sync-newwave]
+    verify_jwt = false

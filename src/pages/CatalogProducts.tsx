@@ -17,7 +17,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Search, Loader2, MoreHorizontal, Pencil, Trash2, Package, Upload, Eye, RefreshCw, Filter, Gift, Shirt, CheckCircle, XCircle, Sparkles, Printer, ChevronDown, ChevronUp, Palette, Ruler, Layers } from "lucide-react";
+import { Plus, Search, Loader2, MoreHorizontal, Pencil, Trash2, Package, Upload, Eye, RefreshCw, Filter, Gift, Shirt, CheckCircle, XCircle, Sparkles, Printer, ChevronDown, ChevronUp, Palette, Ruler, Layers, FileSpreadsheet } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/mock-data";
@@ -207,9 +207,12 @@ const CatalogProducts = () => {
   // Goodies supplier filter
   const [goodiesSupplier, setGoodiesSupplier] = useState<"all" | "midocean" | "pfconcept" | "xdconnects" | "manual">("all");
   const [autreSupplier, setAutreSupplier] = useState<"all" | "printcom" | "manual">("all");
-  const [textileSupplier, setTextileSupplier] = useState<"all" | "stanleystella" | "toptex" | "manual">("all");
+  const [textileSupplier, setTextileSupplier] = useState<"all" | "stanleystella" | "toptex" | "newwave" | "manual">("all");
   const [toptexBrandFilter, setToptexBrandFilter] = useState<string>("all");
   const [toptexBrandManageOpen, setToptexBrandManageOpen] = useState(false);
+  const [newwaveImportOpen, setNewwaveImportOpen] = useState(false);
+  const [newwaveImporting, setNewwaveImporting] = useState(false);
+  const newwaveFileRef = useRef<HTMLInputElement>(null);
 
   // Extract unique TopTex brands from products (including null-brand products)
   const toptexBrandsInCatalog = useMemo(() => {
@@ -246,6 +249,7 @@ const CatalogProducts = () => {
       let filtered = tabProducts;
       if (textileSupplier === "stanleystella") filtered = tabProducts.filter((p) => p.midocean_id?.startsWith("SS-"));
       else if (textileSupplier === "toptex") filtered = tabProducts.filter((p) => p.midocean_id?.startsWith("TT-"));
+      else if (textileSupplier === "newwave") filtered = tabProducts.filter((p) => p.midocean_id?.startsWith("NW-"));
       else if (textileSupplier === "manual") filtered = tabProducts.filter((p) => !p.midocean_id);
       // Further filter by TopTex brand
       if (textileSupplier === "toptex" && toptexBrandFilter !== "all") {
@@ -738,6 +742,7 @@ const CatalogProducts = () => {
                 ["all", "Tous", tabProducts.length],
                 ["stanleystella", "Stanley/Stella", tabProducts.filter(p => p.midocean_id?.startsWith("SS-")).length],
                 ["toptex", "TopTex", tabProducts.filter(p => p.midocean_id?.startsWith("TT-")).length],
+                ["newwave", "New Wave", tabProducts.filter(p => p.midocean_id?.startsWith("NW-")).length],
                 ["manual", "Manuel", tabProducts.filter(p => !p.midocean_id).length],
               ] as [string, string, number][]).filter(([, , count]) => count > 0).map(([key, label, count]) => (
                 <Button
@@ -1087,13 +1092,17 @@ const CatalogProducts = () => {
                   )}
                   {activeTab === "textile" && (
                     <>
-                      <Button size="sm" variant="outline" className="gap-1.5" onClick={() => syncStanleyStella.mutate()} disabled={syncStanleyStella.isPending}>
+                       <Button size="sm" variant="outline" className="gap-1.5" onClick={() => syncStanleyStella.mutate()} disabled={syncStanleyStella.isPending}>
                         {syncStanleyStella.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                         Sync Stanley/Stella
                       </Button>
                       <Button size="sm" variant="outline" className="gap-1.5" onClick={loadToptexBrands} disabled={toptexLoadingBrands || syncToptex.isPending}>
                         {(toptexLoadingBrands || syncToptex.isPending) ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                         Sync TopTex
+                      </Button>
+                      <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setNewwaveImportOpen(true)} disabled={newwaveImporting}>
+                        {newwaveImporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+                        Import New Wave
                       </Button>
                     </>
                   )}
@@ -1522,6 +1531,74 @@ const CatalogProducts = () => {
               </div>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* New Wave XLSX Import Dialog */}
+      <Dialog open={newwaveImportOpen} onOpenChange={setNewwaveImportOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="w-5 h-5 text-primary" />
+              Import New Wave (XLSX)
+            </DialogTitle>
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const form = e.currentTarget;
+              const fileInput = form.querySelector<HTMLInputElement>('input[type="file"]');
+              const brandSelect = form.querySelector<HTMLSelectElement>('select[name="brand"]');
+              const file = fileInput?.files?.[0];
+              const brand = brandSelect?.value || "Craft Corporate";
+              if (!file) { toast.error("Sélectionne un fichier XLSX"); return; }
+
+              setNewwaveImporting(true);
+              try {
+                const formData = new FormData();
+                formData.append("file", file);
+                formData.append("brand", brand);
+
+                const { data, error } = await supabase.functions.invoke("sync-newwave", {
+                  body: formData,
+                });
+                if (error) throw error;
+                if (data?.error) throw new Error(data.error);
+                toast.success(`New Wave : ${data.created} créés, ${data.updated} mis à jour`);
+                qc.invalidateQueries({ queryKey: ["catalog-products"] });
+                setNewwaveImportOpen(false);
+              } catch (err: any) {
+                toast.error(`Erreur import : ${err.message}`);
+              } finally {
+                setNewwaveImporting(false);
+              }
+            }}
+          >
+            <div className="space-y-2">
+              <Label>Marque</Label>
+              <select
+                name="brand"
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <option value="Craft Corporate">Craft Corporate</option>
+                <option value="Craft Club">Craft Club</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label>Fichier XLSX</Label>
+              <Input type="file" accept=".xlsx,.xls" />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setNewwaveImportOpen(false)}>
+                Annuler
+              </Button>
+              <Button type="submit" disabled={newwaveImporting} className="gap-1.5">
+                {newwaveImporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                Importer
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
 
