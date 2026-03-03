@@ -57,29 +57,71 @@ Deno.serve(async (req) => {
 
     console.log(`[sync-newwave] Received ${products.length} pre-parsed products, brand=${brand}`);
 
+    // Family & tags derivation
+    const FAMILY_RULES: [RegExp, string][] = [
+      [/sport|training|run|bike|ski|squad|gameday|fitness|gym|athletic|active\s*wear|performance/i, "Sport"],
+      [/kitchen|cuisine|lunch|barbecue|vaisselle|table|cook|food/i, "Cuisine"],
+      [/home|maison|intérieur|couverture|bougie|diffuseur|wellness|bien.?[eê]tre|candle|spa|relax/i, "Maison & Bien-être"],
+      [/office|bureau|écriture|writing|conference|conférenc|desk/i, "Bureau"],
+      [/travel|voyage|outdoor|plein\s*air|camping|hik|randonn|pique.?nique|beach|plage/i, "Voyage & Plein air"],
+      [/kids|enfant|bébé|baby|children|peluche|jouet/i, "Enfants"],
+      [/tech|power.?bank|chargeur|audio|usb|électr|gadget|smart|connect/i, "Technologie"],
+      [/event|événement|lanyard|badge|congrès|salon|séminaire|gift|cadeau/i, "Événementiel"],
+      [/budget|économique|value|basic|entry.?level/i, "Budget"],
+      [/premium|luxury|luxe|exclusive|prestige|deluxe/i, "Premium"],
+      [/sécurité|safety|workwear|travail|protection|hi.?vis/i, "Workwear"],
+    ];
+    const TAG_RULES: [RegExp, string][] = [
+      [/recycl[eé]|recycled|rPET/i, "100% Recyclé"],
+      [/made\s*in\s*europ|fabriqué\s*en\s*europ/i, "Made in Europe"],
+      [/organic|organique|bio(?:logique)?|GOTS/i, "Bio / Organic"],
+      [/v[eé]gan/i, "Végan"],
+      [/GRS|Global\s*Recycled/i, "GRS Certifié"],
+      [/OEKO.?TEX/i, "OEKO-TEX"],
+      [/FSC/i, "FSC"],
+      [/bamb[ou]/i, "Bambou"],
+      [/coton\s*bio|organic\s*cotton/i, "Coton Bio"],
+      [/PVC.?free|sans\s*PVC/i, "Sans PVC"],
+      [/BPA.?free|sans\s*BPA/i, "Sans BPA"],
+      [/biodégradable|compostable/i, "Biodégradable"],
+      [/waterproof|étanche|imperméable/i, "Imperméable"],
+    ];
+    function deriveFT(cat: string, desc?: string | null) {
+      const c = `${cat} ${desc || ""} ${brand}`;
+      const pf: string[] = [], t: string[] = [];
+      for (const [re, f] of FAMILY_RULES) if (re.test(c)) pf.push(f);
+      for (const [re, tg] of TAG_RULES) if (re.test(c)) t.push(tg);
+      return { product_family: pf, tags: t };
+    }
+
     let created = 0, updated = 0, errors = 0;
     const BATCH = 50;
 
     for (let i = 0; i < products.length; i += BATCH) {
       const batch = products.slice(i, i + BATCH);
-      const upsertRows = batch.map((p) => ({
-        sku: p.sku,
-        midocean_id: p.sku,
-        name: p.name,
-        name_en: p.name_en,
-        name_nl: p.name_nl,
-        description: p.description,
-        description_en: p.description_en,
-        description_nl: p.description_nl,
-        category: p.category || "general",
-        image_url: p.image_url,
-        base_price: p.base_price,
-        brand,
-        variant_colors: p.variant_colors,
-        variant_sizes: p.variant_sizes,
-        is_new: p.is_new,
-        last_synced_at: new Date().toISOString(),
-      }));
+      const upsertRows = batch.map((p) => {
+        const { product_family, tags } = deriveFT(p.category, p.description);
+        return {
+          sku: p.sku,
+          midocean_id: p.sku,
+          name: p.name,
+          name_en: p.name_en,
+          name_nl: p.name_nl,
+          description: p.description,
+          description_en: p.description_en,
+          description_nl: p.description_nl,
+          category: p.category || "general",
+          image_url: p.image_url,
+          base_price: p.base_price,
+          brand,
+          variant_colors: p.variant_colors,
+          variant_sizes: p.variant_sizes,
+          is_new: p.is_new,
+          last_synced_at: new Date().toISOString(),
+          product_family,
+          tags,
+        };
+      });
 
       const skus = upsertRows.map((r) => r.sku);
       const { data: existing } = await admin

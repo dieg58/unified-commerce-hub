@@ -59,6 +59,8 @@ type CatalogProduct = {
   variant_colors?: VariantColor[] | null;
   variant_sizes?: string[] | null;
   brand?: string | null;
+  product_family?: string[] | null;
+  tags?: string[] | null;
 };
 const getCatalogTab = (product: Pick<CatalogProduct, "midocean_id" | "category">): "goodies" | "textile" | "autre" => {
   return getCatalogTabByCategory(product.category, product.midocean_id);
@@ -79,6 +81,8 @@ const CatalogProducts = () => {
   const [filterSubCategory, setFilterSubCategory] = useState<string>("all");
   const [filterColors, setFilterColors] = useState<Set<string>>(new Set());
   const [filterSizes, setFilterSizes] = useState<Set<string>>(new Set());
+  const [filterFamilies, setFilterFamilies] = useState<Set<string>>(new Set());
+  const [filterTags, setFilterTags] = useState<Set<string>>(new Set());
   const [showFilters, setShowFilters] = useState(false);
 
   const [filterActive, setFilterActive] = useState<boolean | null>(null);
@@ -142,7 +146,7 @@ const CatalogProducts = () => {
   });
 
   // Lightweight listing query: skip heavy JSONB columns for speed
-  const LISTING_COLUMNS = "id,name,name_en,name_nl,sku,category,base_price,description,description_en,description_nl,image_url,active,created_at,midocean_id,stock_qty,last_synced_at,is_new,release_date,brand" as const;
+  const LISTING_COLUMNS = "id,name,name_en,name_nl,sku,category,base_price,description,description_en,description_nl,image_url,active,created_at,midocean_id,stock_qty,last_synced_at,is_new,release_date,brand,product_family,tags" as const;
 
   const { data: products, isLoading } = useQuery({
     queryKey: ["catalog-products"],
@@ -267,7 +271,7 @@ const CatalogProducts = () => {
   }, [tabProducts, goodiesSupplier, autreSupplier, textileSupplier, toptexBrandFilter, activeTab]);
 
   // Helper: does a product pass search + active + new + color + size filters (everything EXCEPT category/subcategory)?
-  const passesNonCategoryFilters = useCallback((p: CatalogProduct, skipFilter?: "new" | "color" | "size") => {
+  const passesNonCategoryFilters = useCallback((p: CatalogProduct, skipFilter?: "new" | "color" | "size" | "family" | "tag") => {
     if (search) {
       const sl = search.toLowerCase();
       if (!p.name.toLowerCase().includes(sl) && !p.sku.toLowerCase().includes(sl) && !p.category.toLowerCase().includes(sl)) return false;
@@ -284,8 +288,16 @@ const CatalogProducts = () => {
       const sizes = vd?.variant_sizes;
       if (!Array.isArray(sizes) || !sizes.some((s) => filterSizes.has(getSizeGroup(s)))) return false;
     }
+    if (skipFilter !== "family" && filterFamilies.size > 0) {
+      const families = p.product_family;
+      if (!Array.isArray(families) || !families.some((f) => filterFamilies.has(f))) return false;
+    }
+    if (skipFilter !== "tag" && filterTags.size > 0) {
+      const tags = p.tags;
+      if (!Array.isArray(tags) || !tags.some((t) => filterTags.has(t))) return false;
+    }
     return true;
-  }, [search, filterActive, filterNew, filterColors, filterSizes, variantData]);
+  }, [search, filterActive, filterNew, filterColors, filterSizes, filterFamilies, filterTags, variantData]);
 
   // Base filtered (no category/subcategory filter) — used for category counts
   const baseFiltered = useMemo(() => {
@@ -390,7 +402,6 @@ const CatalogProducts = () => {
       if (!matchesSearch) return false;
       const matchesGroup = filterGroup === "all" || getSimplifiedCategory(p.category, activeTab) === filterGroup;
       if (!matchesGroup) return false;
-      // Subcategory filter (normalized)
       if (filterSubCategory !== "all") {
         const sub = getSimplifiedSubCategory(p.category, filterGroup);
         if (sub !== filterSubCategory) return false;
@@ -399,21 +410,55 @@ const CatalogProducts = () => {
       if (!matchesActive) return false;
       const matchesNew = !filterNew || p.is_new;
       if (!matchesNew) return false;
-      // Color filter (by family) – uses lazy variant data
       if (filterColors.size > 0) {
         const vd = variantData?.get(p.id);
         const colors = vd?.variant_colors;
         if (!Array.isArray(colors) || !colors.some((c) => filterColors.has(getColorFamily(c.color)))) return false;
       }
-      // Size filter (by group)
       if (filterSizes.size > 0) {
         const vd = variantData?.get(p.id);
         const sizes = vd?.variant_sizes;
         if (!Array.isArray(sizes) || !sizes.some((s) => filterSizes.has(getSizeGroup(s)))) return false;
       }
+      if (filterFamilies.size > 0) {
+        const families = p.product_family;
+        if (!Array.isArray(families) || !families.some((f) => filterFamilies.has(f))) return false;
+      }
+      if (filterTags.size > 0) {
+        const tags = p.tags;
+        if (!Array.isArray(tags) || !tags.some((t) => filterTags.has(t))) return false;
+      }
       return true;
     });
-  }, [supplierFilteredProducts, activeTab, search, filterGroup, filterSubCategory, filterActive, filterNew, filterColors, filterSizes, variantData]);
+  }, [supplierFilteredProducts, activeTab, search, filterGroup, filterSubCategory, filterActive, filterNew, filterColors, filterSizes, filterFamilies, filterTags, variantData]);
+
+  // Available product families (from supplier-filtered products)
+  const availableFamilies = useMemo(() => {
+    const familyMap = new Map<string, number>();
+    const source = supplierFilteredProducts.filter((p) => passesNonCategoryFilters(p, "family") && (filterGroup === "all" || getSimplifiedCategory(p.category, activeTab) === filterGroup));
+    source.forEach((p) => {
+      const families = p.product_family;
+      if (!Array.isArray(families)) return;
+      for (const f of families) {
+        familyMap.set(f, (familyMap.get(f) || 0) + 1);
+      }
+    });
+    return Array.from(familyMap.entries()).sort(([, a], [, b]) => b - a);
+  }, [supplierFilteredProducts, passesNonCategoryFilters, filterGroup, activeTab]);
+
+  // Available product tags/labels
+  const availableTags = useMemo(() => {
+    const tagMap = new Map<string, number>();
+    const source = supplierFilteredProducts.filter((p) => passesNonCategoryFilters(p, "tag") && (filterGroup === "all" || getSimplifiedCategory(p.category, activeTab) === filterGroup));
+    source.forEach((p) => {
+      const tags = p.tags;
+      if (!Array.isArray(tags)) return;
+      for (const t of tags) {
+        tagMap.set(t, (tagMap.get(t) || 0) + 1);
+      }
+    });
+    return Array.from(tagMap.entries()).sort(([, a], [, b]) => b - a);
+  }, [supplierFilteredProducts, passesNonCategoryFilters, filterGroup, activeTab]);
 
   const openCreate = () => {
     setEditing(null);
@@ -502,7 +547,7 @@ const CatalogProducts = () => {
   const PAGE_SIZE = 100;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   // Reset visible count when filters change
-  const filteredKey = `${activeTab}-${filterGroup}-${filterSubCategory}-${search}-${filterActive}-${filterNew}-${filterColors.size}-${filterSizes.size}`;
+  const filteredKey = `${activeTab}-${filterGroup}-${filterSubCategory}-${search}-${filterActive}-${filterNew}-${filterColors.size}-${filterSizes.size}-${filterFamilies.size}-${filterTags.size}`;
   const prevFilteredKey = useRef(filteredKey);
   if (prevFilteredKey.current !== filteredKey) {
     prevFilteredKey.current = filteredKey;
@@ -710,7 +755,7 @@ const CatalogProducts = () => {
       <div className="p-6 space-y-6 overflow-auto">
         {/* Stats */}
         {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as "goodies" | "textile" | "autre"); setFilterGroup("all"); setFilterColors(new Set()); setFilterSizes(new Set()); setSearch(""); }}>
+        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as "goodies" | "textile" | "autre"); setFilterGroup("all"); setFilterColors(new Set()); setFilterSizes(new Set()); setFilterFamilies(new Set()); setFilterTags(new Set()); setSearch(""); }}>
           <div className="flex items-center justify-between">
             <TabsList>
               <TabsTrigger value="goodies" className="gap-1.5">
@@ -903,14 +948,14 @@ const CatalogProducts = () => {
           >
             <Filter className="w-3.5 h-3.5" />
             Filtres
-            {(filterColors.size + filterSizes.size + (filterSubCategory !== "all" ? 1 : 0)) > 0 && (
-              <Badge className="ml-1 h-4 px-1.5 text-[9px] bg-primary text-primary-foreground">{filterColors.size + filterSizes.size + (filterSubCategory !== "all" ? 1 : 0)}</Badge>
+            {(filterColors.size + filterSizes.size + filterFamilies.size + filterTags.size + (filterSubCategory !== "all" ? 1 : 0)) > 0 && (
+              <Badge className="ml-1 h-4 px-1.5 text-[9px] bg-primary text-primary-foreground">{filterColors.size + filterSizes.size + filterFamilies.size + filterTags.size + (filterSubCategory !== "all" ? 1 : 0)}</Badge>
             )}
             {showFilters ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
           </Button>
 
-          {(filterGroup !== "all" || filterSubCategory !== "all" || filterActive !== null || filterNew || filterColors.size > 0 || filterSizes.size > 0) && (
-            <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground" onClick={() => { setFilterGroup("all"); setFilterSubCategory("all"); setFilterActive(null); setFilterNew(false); setFilterColors(new Set()); setFilterSizes(new Set()); }}>
+          {(filterGroup !== "all" || filterSubCategory !== "all" || filterActive !== null || filterNew || filterColors.size > 0 || filterSizes.size > 0 || filterFamilies.size > 0 || filterTags.size > 0) && (
+            <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground" onClick={() => { setFilterGroup("all"); setFilterSubCategory("all"); setFilterActive(null); setFilterNew(false); setFilterColors(new Set()); setFilterSizes(new Set()); setFilterFamilies(new Set()); setFilterTags(new Set()); }}>
               Réinitialiser
             </Button>
           )}
@@ -1055,6 +1100,100 @@ const CatalogProducts = () => {
                         >
                           {s.group}
                           <span className="text-[9px] text-muted-foreground">({s.count})</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            )}
+
+            {/* Product Family / Occasion */}
+            {availableFamilies.length > 0 && (
+              <Collapsible defaultOpen>
+                <div className="flex items-center gap-1.5">
+                  <Package className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-xs font-medium">Famille / Occasion</span>
+                  {filterFamilies.size > 0 && (
+                    <button className="text-[10px] text-primary hover:underline ml-1" onClick={() => setFilterFamilies(new Set())}>
+                      Effacer
+                    </button>
+                  )}
+                  <CollapsibleTrigger asChild>
+                    <button className="ml-auto text-muted-foreground hover:text-foreground">
+                      <ChevronDown className="w-3.5 h-3.5 transition-transform [[data-state=open]>&]:rotate-180" />
+                    </button>
+                  </CollapsibleTrigger>
+                </div>
+                <CollapsibleContent>
+                  <div className="flex flex-wrap gap-1.5 mt-2.5">
+                    {availableFamilies.map(([family, count]) => {
+                      const isActive = filterFamilies.has(family);
+                      return (
+                        <button
+                          key={family}
+                          onClick={() => {
+                            setFilterFamilies((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(family)) next.delete(family); else next.add(family);
+                              return next;
+                            });
+                          }}
+                          className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-full border text-[11px] transition-all ${
+                            isActive
+                              ? "border-primary bg-primary/10 text-primary font-medium"
+                              : "border-border hover:border-primary/50 text-muted-foreground"
+                          }`}
+                        >
+                          {family}
+                          <span className="text-[9px] text-muted-foreground">({count})</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            )}
+
+            {/* Tags / Labels */}
+            {availableTags.length > 0 && (
+              <Collapsible defaultOpen>
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-xs font-medium">Labels</span>
+                  {filterTags.size > 0 && (
+                    <button className="text-[10px] text-primary hover:underline ml-1" onClick={() => setFilterTags(new Set())}>
+                      Effacer
+                    </button>
+                  )}
+                  <CollapsibleTrigger asChild>
+                    <button className="ml-auto text-muted-foreground hover:text-foreground">
+                      <ChevronDown className="w-3.5 h-3.5 transition-transform [[data-state=open]>&]:rotate-180" />
+                    </button>
+                  </CollapsibleTrigger>
+                </div>
+                <CollapsibleContent>
+                  <div className="flex flex-wrap gap-1.5 mt-2.5">
+                    {availableTags.map(([tag, count]) => {
+                      const isActive = filterTags.has(tag);
+                      return (
+                        <button
+                          key={tag}
+                          onClick={() => {
+                            setFilterTags((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(tag)) next.delete(tag); else next.add(tag);
+                              return next;
+                            });
+                          }}
+                          className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-full border text-[11px] transition-all ${
+                            isActive
+                              ? "border-primary bg-primary/10 text-primary font-medium"
+                              : "border-border hover:border-primary/50 text-muted-foreground"
+                          }`}
+                        >
+                          {tag}
+                          <span className="text-[9px] text-muted-foreground">({count})</span>
                         </button>
                       );
                     })}
