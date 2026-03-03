@@ -1546,6 +1546,8 @@ export type Database = {
           head_title: string | null
           logo_url: string | null
           primary_color: string
+          product_logo_mode: string
+          product_logo_url: string | null
           secondary_color: string
           tenant_id: string
           text_color: string
@@ -1558,6 +1560,8 @@ export type Database = {
           head_title?: string | null
           logo_url?: string | null
           primary_color?: string
+          product_logo_mode?: string
+          product_logo_url?: string | null
           secondary_color?: string
           tenant_id: string
           text_color?: string
@@ -1570,6 +1574,8 @@ export type Database = {
           head_title?: string | null
           logo_url?: string | null
           primary_color?: string
+          product_logo_mode?: string
+          product_logo_url?: string | null
           secondary_color?: string
           tenant_id?: string
           text_color?: string
