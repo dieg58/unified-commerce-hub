@@ -193,6 +193,12 @@ const TEXTILE_RULES: [RegExp, string][] = [
   [/Bien Être & Sport/i, "Sport"],
   [/Accessoires Sportives/i, "Sport"],
   [/Crampons/i, "Sport"],
+  [/Bike/i, "Sport"],
+  [/Run/i, "Sport"],
+  [/Ski/i, "Sport"],
+  [/Training/i, "Sport"],
+  [/Squad/i, "Sport"],
+  [/Gameday/i, "Sport"],
 
   // ── Chaussures ──
   [/Chaussures/i, "Chaussures"],
@@ -200,6 +206,11 @@ const TEXTILE_RULES: [RegExp, string][] = [
   // ── Sacs (textile context) ──
   [/Bagagerie/i, "Sacs & Bagagerie"],
   [/Accessoires > Sacs/i, "Sacs & Bagagerie"],
+
+  // ── Accessoires Craft/New Wave ──
+  [/Accessoires$/i, "Accessoires textile"],
+  [/Baselayer/i, "Sous-vêtements"],
+  [/Midlayer/i, "Sweats & Pulls"],
 
   // ── Catch-all textile ──
   [/^Textiles > /i, "Textile divers"],
@@ -494,7 +505,7 @@ export function getCatalogTabByCategory(
 ): "goodies" | "textile" | "autre" {
   const id = (midoceanId ?? "").toUpperCase();
   const prefixTab: "goodies" | "textile" | "autre" =
-    (id.startsWith("SS-") || id.startsWith("TT-")) ? "textile"
+    (id.startsWith("SS-") || id.startsWith("TT-") || id.startsWith("NW-")) ? "textile"
     : id.startsWith("PRINT-") ? "autre"
     : "goodies"; // Midocean, PFC-, XDC-, or no prefix
 
