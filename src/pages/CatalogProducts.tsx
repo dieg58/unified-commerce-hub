@@ -21,6 +21,7 @@ import { Plus, Search, Loader2, MoreHorizontal, Pencil, Trash2, Package, Upload,
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/mock-data";
+import { read, utils } from "xlsx";
 
 /** TopTex products store purchase price — apply 1.81× markup for selling price */
 function getSellingPrice(basePrice: number, midoceanId?: string | null): number {
@@ -1556,16 +1557,154 @@ const CatalogProducts = () => {
 
               setNewwaveImporting(true);
               try {
-                const formData = new FormData();
-                formData.append("file", file);
-                formData.append("brand", brand);
+                toast.info("Lecture du fichier XLSX…");
+                const buffer = await file.arrayBuffer();
+                const workbook = read(new Uint8Array(buffer), { type: "array" });
+                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                const rows: Record<string, string>[] = utils.sheet_to_json(sheet, { defval: "" });
 
-                const { data, error } = await supabase.functions.invoke("sync-newwave", {
-                  body: formData,
+                if (rows.length === 0) throw new Error("Fichier vide");
+
+                // Detect columns
+                const sampleKeys = Object.keys(rows[0]);
+                const findCol = (patterns: string[]): string | null => {
+                  for (const p of patterns) {
+                    const found = sampleKeys.find((k) => k.toLowerCase().includes(p.toLowerCase()));
+                    if (found) return found;
+                  }
+                  return null;
+                };
+
+                const COL_FAMILY = findCol(["Family"]) || "Family";
+                const COL_FAMILY_NAME = findCol(["Family Name w/o Brand"]) || "Family Name w/o Brand";
+                const COL_NAME_EN = findCol(["Product Name EN With Brand"]) || "Product Name EN With Brand";
+                const COL_NAME_NL = findCol(["Product Name NL With Brand"]) || "Product Name NL With Brand";
+                const COL_NAME_FR = findCol(["Product Name FR With Brand"]) || "Product Name FR With Brand";
+                const COL_DESC_EN = findCol(["Description EN"]) || "Description EN";
+                const COL_DESC_NL = findCol(["Description NL"]) || "Description NL";
+                const COL_DESC_FR = findCol(["Description FR"]) || "Description FR";
+                const COL_CATEGORY = findCol(["Main Category", "Product Category"]) || "Main Category";
+                const COL_CRAFT_CAT = findCol(["Category Craft"]) || "Category Craft";
+                const COL_URL_PHOTO = findCol(["URL Photo", "Url photo"]) || "URL Photo";
+                const COL_COLOUR_EN = findCol(["Col. EN", "Colour EN"]) || "Col. EN";
+                const COL_WEB_COLOR = findCol(["WEB COLOR", "WEBcolor"]) || "WEB COLOR";
+                const COL_SIZE = findCol(["Size"]) || "Size";
+                const COL_PRICE = findCol(["Advice Selling Price"]) || "Advice Selling Price";
+                const COL_LEVEL = findCol(["Level"]) || "Level";
+                const COL_NEW = findCol(["New", "NEW"]) || "New";
+
+                const WEB_COLOR_HEX: Record<string, string> = {
+                  Black: "#000000", White: "#FFFFFF", Blue: "#0066CC", Red: "#CC0000",
+                  Green: "#228B22", Yellow: "#FFD700", Orange: "#FF8C00", Pink: "#FF69B4",
+                  Grey: "#808080", Gray: "#808080", Brown: "#8B4513", Navy: "#001F3F",
+                  Purple: "#800080", Burgundy: "#800020", Silver: "#C0C0C0", Gold: "#FFD700",
+                  Beige: "#F5F5DC", Coral: "#FF7F50", Turquoise: "#40E0D0", Teal: "#008080",
+                };
+                const getHex = (webColor: string): string | null => {
+                  if (!webColor) return null;
+                  const key = webColor.charAt(0).toUpperCase() + webColor.slice(1).toLowerCase();
+                  return WEB_COLOR_HEX[key] || null;
+                };
+                const cleanUrl = (raw: string) => raw ? raw.replace(/\\/g, "").trim() : "";
+
+                // Aggregate by Family
+                type FamilyData = {
+                  familyCode: string; familyName: string;
+                  nameEN: string; nameNL: string; nameFR: string;
+                  descEN: string; descNL: string; descFR: string;
+                  category: string; imageUrl: string; basePrice: number;
+                  colors: Map<string, { color: string; hex: string | null; image_url: string | null }>;
+                  sizes: Set<string>; isNew: boolean;
+                };
+                const families = new Map<string, FamilyData>();
+
+                for (const row of rows) {
+                  const familyCode = String(row[COL_FAMILY] || "").trim();
+                  if (!familyCode) continue;
+                  const level = String(row[COL_LEVEL] || "").trim();
+                  if (!level && !row[COL_FAMILY_NAME]) continue;
+
+                  const colourEN = String(row[COL_COLOUR_EN] || "").trim();
+                  const webColor = String(row[COL_WEB_COLOR] || "").trim();
+                  const size = String(row[COL_SIZE] || "").trim();
+                  const photoUrl = cleanUrl(String(row[COL_URL_PHOTO] || ""));
+
+                  if (!families.has(familyCode)) {
+                    const rawPrice = String(row[COL_PRICE] || "0");
+                    const price = parseFloat(rawPrice.replace(/[€\s,]/g, "").replace(",", ".")) || 0;
+                    const category = String(row[COL_CATEGORY] || "").trim();
+                    const craftCat = String(row[COL_CRAFT_CAT] || "").trim();
+                    const isNew = String(row[COL_NEW] || "").trim().toLowerCase() === "new" || String(row[COL_NEW] || "").trim() === "1";
+
+                    families.set(familyCode, {
+                      familyCode,
+                      familyName: String(row[COL_FAMILY_NAME] || "").trim(),
+                      nameEN: String(row[COL_NAME_EN] || "").trim(),
+                      nameNL: String(row[COL_NAME_NL] || "").trim(),
+                      nameFR: String(row[COL_NAME_FR] || "").trim(),
+                      descEN: String(row[COL_DESC_EN] || "").trim(),
+                      descNL: String(row[COL_DESC_NL] || "").trim(),
+                      descFR: String(row[COL_DESC_FR] || "").trim(),
+                      category: craftCat ? `${craftCat} > ${category}` : category,
+                      imageUrl: photoUrl,
+                      basePrice: price,
+                      colors: new Map(),
+                      sizes: new Set(),
+                      isNew,
+                    });
+                  }
+
+                  const family = families.get(familyCode)!;
+                  if (colourEN && !family.colors.has(colourEN)) {
+                    family.colors.set(colourEN, { color: colourEN, hex: getHex(webColor), image_url: photoUrl || null });
+                  }
+                  if (size) family.sizes.add(size);
+                }
+
+                toast.info(`${families.size} familles détectées, envoi par lots…`);
+
+                // Convert to product array
+                const allProducts = Array.from(families.values()).map((f) => {
+                  const displayName = f.nameEN || `${brand} ${f.familyName}`;
+                  const familyDisplayName = f.familyName
+                    ? `${brand} ${f.familyName}`
+                    : displayName.split(/\s+(xs|s|m|l|xl|xxl|3xl|4xl)\s*$/i)[0];
+                  return {
+                    sku: `NW-${f.familyCode}`,
+                    name: familyDisplayName,
+                    name_en: familyDisplayName,
+                    name_nl: f.nameNL ? f.nameNL.split(/\s+(xs|s|m|l|xl|xxl|3xl|4xl)\s*$/i)[0] : null,
+                    description: f.descFR || f.descEN || null,
+                    description_en: f.descEN || null,
+                    description_nl: f.descNL || null,
+                    category: f.category || "general",
+                    image_url: f.imageUrl || null,
+                    base_price: f.basePrice,
+                    variant_colors: Array.from(f.colors.values()),
+                    variant_sizes: Array.from(f.sizes),
+                    is_new: f.isNew,
+                  };
                 });
-                if (error) throw error;
-                if (data?.error) throw new Error(data.error);
-                toast.success(`New Wave : ${data.created} créés, ${data.updated} mis à jour`);
+
+                // Send in batches of 100 to edge function
+                let totalCreated = 0, totalUpdated = 0, totalErrors = 0;
+                const BATCH_SIZE = 100;
+                for (let i = 0; i < allProducts.length; i += BATCH_SIZE) {
+                  const batch = allProducts.slice(i, i + BATCH_SIZE);
+                  const { data, error } = await supabase.functions.invoke("sync-newwave", {
+                    body: { products: batch, brand },
+                  });
+                  if (error) throw error;
+                  if (data?.error) throw new Error(data.error);
+                  totalCreated += data.created || 0;
+                  totalUpdated += data.updated || 0;
+                  totalErrors += data.errors || 0;
+                  if (i + BATCH_SIZE < allProducts.length) {
+                    toast.info(`New Wave : ${i + BATCH_SIZE}/${allProducts.length} envoyés…`);
+                  }
+                }
+
+                toast.success(`New Wave : ${totalCreated} créés, ${totalUpdated} mis à jour`);
                 qc.invalidateQueries({ queryKey: ["catalog-products"] });
                 setNewwaveImportOpen(false);
               } catch (err: any) {
