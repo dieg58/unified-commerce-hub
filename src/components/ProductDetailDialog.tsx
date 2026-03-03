@@ -59,6 +59,10 @@ export default function ProductDetailDialog({
 
   const sortedTiers = useMemo(() => [...tiers].sort((a, b) => a.min_qty - b.min_qty), [tiers]);
   const hasTiers = storeType === "bulk" && sortedTiers.length > 0;
+  const activeVariants = useMemo(
+    () => ((product.product_variants as any[])?.filter((v: any) => v.active) || []),
+    [product.product_variants]
+  );
 
   const activeTier = useMemo(() => {
     let active: PriceTier | null = null;
@@ -71,6 +75,11 @@ export default function ProductDetailDialog({
   const unitPrice = isFree ? 0 : (hasTiers && activeTier ? Number(activeTier.unit_price) : price);
   const totalPrice = unitPrice * qty;
   const savings = price > 0 && unitPrice < price ? Math.round((1 - unitPrice / price) * 100) : 0;
+  const displayStock = useMemo(() => {
+    if (product.stock_type !== "in_stock") return null;
+    if (!hasVariants || activeVariants.length === 0) return product.stock_qty || 0;
+    return activeVariants.reduce((sum: number, variant: any) => sum + (variant.stock_qty || 0), 0);
+  }, [product.stock_type, product.stock_qty, hasVariants, activeVariants]);
 
   const isEditing = inCartQty > 0;
 
@@ -296,8 +305,8 @@ export default function ProductDetailDialog({
             {/* Stock info */}
             <div className="mt-3 text-[10px] text-muted-foreground">
               {product.stock_type === "in_stock" ? (
-                <span className={product.stock_qty > 0 ? "text-success" : "text-destructive"}>
-                  {product.stock_qty > 0 ? `${product.stock_qty} ${t("storefront.inStock")}` : t("storefront.outOfStock")}
+                <span className={(displayStock || 0) > 0 ? "text-success" : "text-destructive"}>
+                  {(displayStock || 0) > 0 ? `${displayStock} ${t("storefront.inStock")}` : t("storefront.outOfStock")}
                 </span>
               ) : (
                 <span>{t("storefront.madeToOrder")}</span>
