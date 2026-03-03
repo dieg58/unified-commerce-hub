@@ -530,3 +530,98 @@ export function getCatalogTabByCategory(
   if (matches.includes(prefixTab)) return prefixTab;
   return matches[0];
 }
+
+// ─── PRODUCT FAMILY / OCCASION ──────────────────────────────────
+// Maps raw category + description to a "family" or "occasion" bucket.
+// Used for cross-cutting filters beyond the category hierarchy.
+
+const FAMILY_RULES: [RegExp, string][] = [
+  // Sport
+  [/sport|training|run|bike|ski|squad|gameday|fitness|gym|athletic|active\s*wear|performance/i, "Sport"],
+  // Cuisine
+  [/kitchen|cuisine|lunch|barbecue|vaisselle|table|cook|food/i, "Cuisine"],
+  // Maison & Bien-être
+  [/home|maison|intérieur|couverture|bougie|diffuseur|wellness|bien.?[eê]tre|candle|spa|relax|salle de bain/i, "Maison & Bien-être"],
+  // Bureau
+  [/office|bureau|écriture|writing|conference|conférenc|desk|organis/i, "Bureau"],
+  // Voyage & Plein air
+  [/travel|voyage|outdoor|plein\s*air|camping|hik|randonn|pique.?nique|beach|plage/i, "Voyage & Plein air"],
+  // Enfants
+  [/kids|enfant|bébé|baby|children|peluche|jouet/i, "Enfants"],
+  // Technologie
+  [/tech|power.?bank|chargeur|audio|usb|électr|gadget|smart|connect/i, "Technologie"],
+  // Événementiel
+  [/event|événement|lanyard|badge|congrès|salon|séminaire|gift|cadeau/i, "Événementiel"],
+  // Budget (based on price thresholds handled separately, but keyword match)
+  [/budget|économique|value|basic|entry.?level/i, "Budget"],
+  // Premium
+  [/premium|luxury|luxe|exclusive|prestige|deluxe|haut\s*de\s*gamme/i, "Premium"],
+  // Sécurité & Workwear
+  [/sécurité|safety|workwear|travail|protection|haute\s*visibilité|hi.?vis/i, "Workwear"],
+];
+
+/**
+ * Derives a product family/occasion from raw category and description.
+ * Returns an array (a product can belong to multiple families).
+ */
+export function deriveProductFamily(
+  rawCategory: string,
+  description?: string | null,
+  brand?: string | null,
+): string[] {
+  const families = new Set<string>();
+  const combined = `${rawCategory || ""} ${description || ""} ${brand || ""}`;
+
+  for (const [regex, family] of FAMILY_RULES) {
+    if (regex.test(combined)) {
+      families.add(family);
+    }
+  }
+
+  return Array.from(families);
+}
+
+// ─── PRODUCT LABELS / TAGS ──────────────────────────────────────
+// Predefined labels that can be auto-detected from supplier data.
+
+const TAG_RULES: [RegExp, string][] = [
+  [/recycl[eé]|recycled|rPET|rPP|recyclé/i, "100% Recyclé"],
+  [/made\s*in\s*europ|fabriqué\s*en\s*europ/i, "Made in Europe"],
+  [/organic|organique|bio(?:logique)?|GOTS/i, "Bio / Organic"],
+  [/v[eé]gan|vegan/i, "Végan"],
+  [/fair\s*trade|commerce\s*[eé]quitable/i, "Commerce Équitable"],
+  [/GRS|Global\s*Recycled\s*Standard/i, "GRS Certifié"],
+  [/OEKO.?TEX|oekotex/i, "OEKO-TEX"],
+  [/FSC/i, "FSC"],
+  [/bamb[ou]/i, "Bambou"],
+  [/coton\s*bio|organic\s*cotton/i, "Coton Bio"],
+  [/PVC.?free|sans\s*PVC/i, "Sans PVC"],
+  [/BPA.?free|sans\s*BPA/i, "Sans BPA"],
+  [/biodégradable|biodegradable|compostable/i, "Biodégradable"],
+  [/solar|solaire/i, "Énergie Solaire"],
+  [/waterproof|étanche|imperméable/i, "Imperméable"],
+  [/anti.?bact[eé]rien|antibacterial/i, "Antibactérien"],
+  [/personnalis[eé]|custom|personali[sz]/i, "Personnalisable"],
+];
+
+/**
+ * Derives product tags/labels from category, description, and composition.
+ * Returns an array of matched labels.
+ */
+export function deriveProductTags(
+  rawCategory: string,
+  description?: string | null,
+  composition?: string | null,
+  brand?: string | null,
+): string[] {
+  const tags = new Set<string>();
+  const combined = `${rawCategory || ""} ${description || ""} ${composition || ""} ${brand || ""}`;
+
+  for (const [regex, tag] of TAG_RULES) {
+    if (regex.test(combined)) {
+      tags.add(tag);
+    }
+  }
+
+  return Array.from(tags);
+}

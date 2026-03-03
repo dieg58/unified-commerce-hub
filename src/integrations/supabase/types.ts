@@ -194,9 +194,11 @@ export type Database = {
           name: string
           name_en: string | null
           name_nl: string | null
+          product_family: string[] | null
           release_date: string | null
           sku: string
           stock_qty: number
+          tags: string[] | null
           variant_colors: Json | null
           variant_sizes: Json | null
         }
@@ -217,9 +219,11 @@ export type Database = {
           name: string
           name_en?: string | null
           name_nl?: string | null
+          product_family?: string[] | null
           release_date?: string | null
           sku: string
           stock_qty?: number
+          tags?: string[] | null
           variant_colors?: Json | null
           variant_sizes?: Json | null
         }
@@ -240,9 +244,11 @@ export type Database = {
           name?: string
           name_en?: string | null
           name_nl?: string | null
+          product_family?: string[] | null
           release_date?: string | null
           sku?: string
           stock_qty?: number
+          tags?: string[] | null
           variant_colors?: Json | null
           variant_sizes?: Json | null
         }
