@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Save, Loader2, Palette, Building2, Globe, Image, Upload, ShieldCheck,
-  Bell, Store, Info, ExternalLink, Copy, Check, RefreshCw, AlertTriangle, LayoutGrid
+  Bell, Store, Info, ExternalLink, Copy, Check, RefreshCw, AlertTriangle, LayoutGrid, Package
 } from "lucide-react";
 import DemoProductEditor from "@/components/DemoProductEditor";
 import { toast } from "sonner";
@@ -110,6 +110,9 @@ const TenantSettings = () => {
   const [logoUrl, setLogoUrl] = useState("");
   const [faviconUrl, setFaviconUrl] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [productLogoUrl, setProductLogoUrl] = useState("");
+  const [productLogoMode, setProductLogoMode] = useState<"light" | "dark">("light");
+  const [uploadingProductLogo, setUploadingProductLogo] = useState(false);
 
   /* ── Initialize from fetched data ──────────────────────────────── */
   useEffect(() => {
@@ -122,6 +125,8 @@ const TenantSettings = () => {
       setAccentColor(branding.accent_color || "#10b981");
       setLogoUrl(branding.logo_url || "");
       setFaviconUrl(branding.favicon_url || "");
+      setProductLogoUrl(branding.product_logo_url || "");
+      setProductLogoMode(branding.product_logo_mode || "light");
     }
   }, [tenant, branding]);
 
@@ -172,7 +177,9 @@ const TenantSettings = () => {
           accent_color: accentColor,
           logo_url: logoUrl.trim() || null,
           favicon_url: faviconUrl.trim() || null,
-        })
+          product_logo_url: productLogoUrl.trim() || null,
+          product_logo_mode: productLogoMode,
+        } as any)
         .eq("tenant_id", tenantId!);
       if (error) throw error;
     },
@@ -200,6 +207,31 @@ const TenantSettings = () => {
       toast.error(err.message || t("common.error"));
     } finally {
       setUploading(false);
+    }
+  };
+
+  /* ── Upload product logo ───────────────────────────────────────── */
+  const handleProductLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const allowedTypes = ["image/svg+xml", "image/png", "image/jpeg", "application/postscript", "application/eps"];
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (!allowedTypes.includes(file.type) && !["svg", "eps", "png", "jpg", "jpeg"].includes(ext || "")) {
+      toast.error("Format non supporté. Utilisez SVG, EPS, PNG ou JPG.");
+      return;
+    }
+    setUploadingProductLogo(true);
+    try {
+      const path = `${tenantId}/product-logo-${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("product-images").upload(path, file, { upsert: true });
+      if (error) throw error;
+      const { data: { publicUrl } } = supabase.storage.from("product-images").getPublicUrl(path);
+      setProductLogoUrl(publicUrl);
+      toast.success("Logo produit uploadé avec succès");
+    } catch (err: any) {
+      toast.error(err.message || t("common.error"));
+    } finally {
+      setUploadingProductLogo(false);
     }
   };
 
@@ -352,6 +384,103 @@ const TenantSettings = () => {
           </div>
         </Section>
 
+        {/* ─── Logo Produit (marquage) ─────────────────────────────── */}
+        <Section
+          icon={Package}
+          title="Logo produit (marquage)"
+          description="Uploadez le logo qui sera appliqué sur les visuels de vos produits. Choisissez le mode selon le fond dominant de vos produits."
+          actions={
+            <Button
+              size="sm"
+              onClick={() => updateBranding.mutate()}
+              disabled={updateBranding.isPending}
+              className="gap-1.5"
+            >
+              {updateBranding.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+              {t("common.save")}
+            </Button>
+          }
+        >
+          <div className="space-y-5">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Logo pour les produits</Label>
+              <div className="flex items-center gap-4">
+                <div className="w-20 h-20 rounded-lg border border-border flex items-center justify-center overflow-hidden shrink-0"
+                  style={{ background: productLogoMode === "dark" ? "#1a1a1a" : "#f5f5f5" }}>
+                  {productLogoUrl ? (
+                    <img
+                      src={productLogoUrl}
+                      alt="Logo produit"
+                      className="w-full h-full object-contain p-2"
+                      style={{
+                        filter: productLogoMode === "dark" ? "brightness(100)" : "none",
+                        mixBlendMode: productLogoMode === "dark" ? "screen" : "multiply",
+                      }}
+                    />
+                  ) : (
+                    <Package className="w-6 h-6 text-muted-foreground/40" />
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <label className="cursor-pointer">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-xs font-medium text-foreground hover:bg-muted transition-colors">
+                      {uploadingProductLogo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                      {uploadingProductLogo ? t("common.loading") : "Choisir un fichier"}
+                    </div>
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept=".svg,.eps,.png,.jpg,.jpeg,image/svg+xml,application/postscript,image/png,image/jpeg"
+                      onChange={handleProductLogoUpload}
+                      disabled={uploadingProductLogo}
+                    />
+                  </label>
+                  <p className="text-[10px] text-muted-foreground">SVG, EPS, PNG ou JPG. Max 2 MB.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-medium">Mode d'affichage</Label>
+              <p className="text-[10px] text-muted-foreground mb-2">
+                Choisissez comment le logo sera rendu sur les visuels produits.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setProductLogoMode("light")}
+                  className={`rounded-lg border-2 p-4 text-center transition-all ${
+                    productLogoMode === "light"
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-muted-foreground/30"
+                  }`}
+                >
+                  <div className="w-full h-12 rounded bg-muted/50 flex items-center justify-center mb-2">
+                    <div className="w-8 h-6 rounded bg-foreground/80" />
+                  </div>
+                  <p className="text-xs font-medium">Fond clair</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Logo coloré / foncé sur fond clair</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProductLogoMode("dark")}
+                  className={`rounded-lg border-2 p-4 text-center transition-all ${
+                    productLogoMode === "dark"
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-muted-foreground/30"
+                  }`}
+                >
+                  <div className="w-full h-12 rounded bg-foreground/90 flex items-center justify-center mb-2">
+                    <div className="w-8 h-6 rounded bg-background/90" />
+                  </div>
+                  <p className="text-xs font-medium">Fond foncé</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Logo inversé en blanc sur fond sombre</p>
+                </button>
+              </div>
+            </div>
+          </div>
+        </Section>
+
         {/* ─── Accès & URL ────────────────────────────────────────── */}
         <Section icon={Globe} title={t("tenantSettings.accessUrl")} description={t("tenantSettings.accessUrlDesc")}>
           <div className="space-y-1 divide-y divide-border">
@@ -437,13 +566,13 @@ const TenantSettings = () => {
 
         {/* ─── Produits de démonstration ─────────────────────────── */}
         <Section icon={LayoutGrid} title="Produits de démonstration" description="Gérez les templates de produits démo et le placement du logo sur chaque produit.">
-          <DemoProductEditor previewLogoUrl={logoUrl || undefined} />
+          <DemoProductEditor previewLogoUrl={productLogoUrl || logoUrl || undefined} />
           <Separator className="my-4" />
           <div className="space-y-3">
             <p className="text-xs text-muted-foreground">
               Après avoir ajusté les placements, utilisez le bouton ci-dessous pour régénérer les produits de la boutique.
             </p>
-            <RegenerateDemoButton tenantId={tenantId} logoUrl={logoUrl} />
+            <RegenerateDemoButton tenantId={tenantId} logoUrl={productLogoUrl || logoUrl} />
           </div>
         </Section>
 
