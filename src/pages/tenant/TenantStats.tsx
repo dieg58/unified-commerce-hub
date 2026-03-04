@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import TopBar from "@/components/TopBar";
 import { useAuth } from "@/hooks/useAuth";
+import { useTenantContext } from "@/hooks/useTenantContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/mock-data";
@@ -34,7 +35,8 @@ const dateFnsLocales: Record<string, any> = { fr, en: enGB, nl };
 
 const TenantStats = () => {
   const { profile } = useAuth();
-  const tenantId = profile?.tenant_id;
+  const { tenantId: ctxTenantId } = useTenantContext();
+  const tenantId = ctxTenantId || profile?.tenant_id;
   const { t, i18n } = useTranslation();
   const dfLocale = dateFnsLocales[i18n.language] || fr;
 

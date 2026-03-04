@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import TopBar from "@/components/TopBar";
 import { useAuth } from "@/hooks/useAuth";
+import { useTenantContext } from "@/hooks/useTenantContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -84,9 +85,10 @@ const TenantEntityForm = () => {
   const isEditing = id && id !== "new";
   const navigate = useNavigate();
   const { profile, isSuperAdmin } = useAuth();
-  // Super admin passes tenantId via route; tenant admin uses profile
-  const tenantId = params.tenantId || profile?.tenant_id;
-  const backPath = params.tenantId ? `/tenants/${params.tenantId}` : "/tenant/entities";
+  const { tenantId: ctxTenantId, basePath } = useTenantContext();
+  // Super admin passes tenantId via route or context; tenant admin uses profile
+  const tenantId = ctxTenantId || params.tenantId || profile?.tenant_id;
+  const backPath = ctxTenantId ? `${basePath}/entities` : (params.tenantId ? `/tenants/${params.tenantId}` : "/tenant/entities");
   const qc = useQueryClient();
 
   const [form, setForm] = useState({ name: "", code: "", vat_rate: "21", vat: "", requires_approval: false, payment_on_order: false });

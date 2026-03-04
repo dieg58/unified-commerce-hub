@@ -5,6 +5,7 @@ import BulkPriceTierDialog from "@/components/BulkPriceTierDialog";
 import ProductDetailDialog from "@/components/ProductDetailDialog";
 import BrandedProductImage from "@/components/BrandedProductImage";
 import { useAuth } from "@/hooks/useAuth";
+import { useTenantContext } from "@/hooks/useTenantContext";
 import { useCart } from "@/hooks/useCart";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -59,9 +60,10 @@ const Storefront = () => {
   const { t } = useTranslation();
 
   const { tenantId: paramTenantId } = useParams<{ tenantId: string }>();
+  const { tenantId: ctxTenantId } = useTenantContext();
   const { tenantSlug } = useSubdomain();
   const { data: subdomainTenant } = useTenantBySlug(tenantSlug);
-  const tenantId = paramTenantId || subdomainTenant?.id || profile?.tenant_id;
+  const tenantId = paramTenantId || ctxTenantId || subdomainTenant?.id || profile?.tenant_id;
 
   const { data: tenant } = useQuery({
     queryKey: ["store-tenant", tenantId],

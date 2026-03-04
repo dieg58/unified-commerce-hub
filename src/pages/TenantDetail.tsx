@@ -189,6 +189,9 @@ const TenantDetail = () => {
               <div className="w-5 h-5 rounded-full border-2 border-border" style={{ backgroundColor: branding?.primary_color || "#0ea5e9" }} title="Primary" />
               <div className="w-5 h-5 rounded-full border-2 border-border" style={{ backgroundColor: branding?.accent_color || "#10b981" }} title="Accent" />
             </div>
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => navigate(`/tenants/${id}/manage`)}>
+              <Settings className="w-4 h-4" /> Vue gestionnaire
+            </Button>
             <Button size="sm" variant="outline" className="gap-1.5" onClick={() => navigate(`/store/${id}`)}>
               <Store className="w-4 h-4" /> Voir la boutique
             </Button>

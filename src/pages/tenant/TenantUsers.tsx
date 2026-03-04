@@ -12,6 +12,7 @@ import { Plus, Loader2, MoreHorizontal, CheckCircle, XCircle, Clock, UserMinus, 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useTenantContext } from "@/hooks/useTenantContext";
 import { toast } from "sonner";
 import ExportMenu from "@/components/ExportMenu";
 import { fmtDate, type ExportColumn } from "@/lib/export-utils";
@@ -30,7 +31,8 @@ const roleColors: Record<string, string> = {
 
 const TenantUsers = () => {
   const { profile } = useAuth();
-  const tenantId = profile?.tenant_id;
+  const { tenantId: ctxTenantId } = useTenantContext();
+  const tenantId = ctxTenantId || profile?.tenant_id;
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const queryClient = useQueryClient();
 

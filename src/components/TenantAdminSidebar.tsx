@@ -1,4 +1,4 @@
-import { NavLink, useLocation, useSearchParams } from "react-router-dom"; // sidebar nav
+import { NavLink, useLocation, useSearchParams } from "react-router-dom";
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -18,6 +18,7 @@ import {
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import { useTenantContext } from "@/hooks/useTenantContext";
 import { useTranslation } from "react-i18next";
 
 type NavItem = { to: string; icon: any; label: string } | { separator: string };
@@ -25,46 +26,49 @@ type NavItem = { to: string; icon: any; label: string } | { separator: string };
 const TenantAdminSidebar = () => {
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const isOnShop = location.pathname.startsWith("/shop");
+  const { basePath, isSuperAdminView } = useTenantContext();
+  const shopPath = isSuperAdminView ? `${basePath}/shop` : "/shop";
+  const isOnShop = location.pathname.startsWith(shopPath) || (!isSuperAdminView && location.pathname.startsWith("/shop"));
   const isDemo = searchParams.get("demo") === "1";
   const [manualCollapsed, setManualCollapsed] = useState(false);
 
-  // Auto-collapse sidebar when arriving from demo creation
   useEffect(() => {
     if (isDemo) setManualCollapsed(true);
   }, [isDemo]);
 
   const collapsed = isOnShop || manualCollapsed;
   const { isShopManager, signOut, profile } = useAuth();
-  const tenantId = profile?.tenant_id;
   const { t } = useTranslation();
 
+  // For super admin view, show full shop_manager nav
+  const showFullNav = isShopManager || isSuperAdminView;
+
   const shopManagerNav: NavItem[] = [
-    { to: "/tenant", icon: LayoutDashboard, label: t("nav.dashboard") },
+    { to: basePath, icon: LayoutDashboard, label: t("nav.dashboard") },
     { separator: t("nav.structure") },
-    { to: "/tenant/entities", icon: Building2, label: t("nav.entities") },
-    { to: "/tenant/users", icon: Users, label: t("nav.users") },
+    { to: `${basePath}/entities`, icon: Building2, label: t("nav.entities") },
+    { to: `${basePath}/users`, icon: Users, label: t("nav.users") },
     { separator: t("nav.commerce") },
-    { to: "/tenant/products", icon: Package, label: t("nav.products") },
-    { to: "/tenant/product-requests", icon: Sparkles, label: "Demandes produits" },
-    { to: "/tenant/orders", icon: ShoppingCart, label: t("nav.orders") },
-    { to: "/tenant/approvals", icon: ClipboardCheck, label: t("nav.approvals") },
-    { to: "/tenant/discounts", icon: Tag, label: t("nav.promoCodes") },
+    { to: `${basePath}/products`, icon: Package, label: t("nav.products") },
+    { to: `${basePath}/product-requests`, icon: Sparkles, label: "Demandes produits" },
+    { to: `${basePath}/orders`, icon: ShoppingCart, label: t("nav.orders") },
+    { to: `${basePath}/approvals`, icon: ClipboardCheck, label: t("nav.approvals") },
+    { to: `${basePath}/discounts`, icon: Tag, label: t("nav.promoCodes") },
     { separator: t("nav.analysis") },
-    { to: "/tenant/stats", icon: BarChart3, label: t("nav.statistics") },
-    { to: "/tenant/settings", icon: Settings, label: t("nav.settings") },
+    { to: `${basePath}/stats`, icon: BarChart3, label: t("nav.statistics") },
+    { to: `${basePath}/settings`, icon: Settings, label: t("nav.settings") },
   ];
 
   const deptManagerNav: NavItem[] = [
-    { to: "/tenant", icon: LayoutDashboard, label: t("nav.dashboard") },
+    { to: basePath, icon: LayoutDashboard, label: t("nav.dashboard") },
     { separator: t("nav.commerce") },
-    { to: "/tenant/orders", icon: ShoppingCart, label: t("nav.orders") },
-    { to: "/tenant/approvals", icon: ClipboardCheck, label: t("nav.approvals") },
+    { to: `${basePath}/orders`, icon: ShoppingCart, label: t("nav.orders") },
+    { to: `${basePath}/approvals`, icon: ClipboardCheck, label: t("nav.approvals") },
     { separator: t("nav.analysis") },
-    { to: "/tenant/stats", icon: BarChart3, label: t("nav.statistics") },
+    { to: `${basePath}/stats`, icon: BarChart3, label: t("nav.statistics") },
   ];
 
-  const navItems = isShopManager ? shopManagerNav : deptManagerNav;
+  const navItems = showFullNav ? shopManagerNav : deptManagerNav;
 
   return (
     <aside
@@ -80,7 +84,7 @@ const TenantAdminSidebar = () => {
         </div>
         {!collapsed && (
           <span className="text-sidebar-accent-foreground font-semibold text-sm tracking-tight truncate">
-            {t("nav.shopManagement")}
+            {isSuperAdminView ? "Vue gestionnaire" : t("nav.shopManagement")}
           </span>
         )}
       </div>
@@ -101,7 +105,7 @@ const TenantAdminSidebar = () => {
             );
           }
           const isActive = location.pathname === item.to ||
-            (item.to !== "/tenant" && location.pathname.startsWith(item.to));
+            (item.to !== basePath && location.pathname.startsWith(item.to));
           return (
             <NavLink
               key={item.to}
@@ -122,11 +126,11 @@ const TenantAdminSidebar = () => {
 
       <div className="px-2 pb-1">
         <NavLink
-          to="/shop"
+          to={`${basePath}/shop`}
           data-tour="view-shop"
           className={cn(
             "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors w-full",
-            location.pathname.startsWith("/shop")
+            isOnShop
               ? "bg-sidebar-accent text-sidebar-primary"
               : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           )}
@@ -143,13 +147,15 @@ const TenantAdminSidebar = () => {
             <p className="text-xs text-sidebar-muted truncate">{profile.email}</p>
           </div>
         )}
-        <button
-          onClick={signOut}
-          className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors w-full"
-        >
-          <LogOut className="w-4 h-4 shrink-0" />
-          {!collapsed && <span>{t("common.logout")}</span>}
-        </button>
+        {!isSuperAdminView && (
+          <button
+            onClick={signOut}
+            className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors w-full"
+          >
+            <LogOut className="w-4 h-4 shrink-0" />
+            {!collapsed && <span>{t("common.logout")}</span>}
+          </button>
+        )}
         <button
           onClick={() => setManualCollapsed(!manualCollapsed)}
           className="flex items-center justify-center w-full h-8 text-sidebar-muted hover:text-sidebar-accent-foreground transition-colors"
