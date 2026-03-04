@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useTenantContext } from "@/hooks/useTenantContext";
 import { formatCurrency } from "@/lib/mock-data";
 import { toast } from "sonner";
 import ExportMenu from "@/components/ExportMenu";
@@ -32,10 +33,11 @@ const getOrderExportColumns = (t: any): ExportColumn[] => [
 const TenantOrders = () => {
   const navigate = useNavigate();
   const { profile, isShopManager } = useAuth();
+  const { tenantId: ctxTenantId, basePath } = useTenantContext();
   const { t } = useTranslation();
   const { formatDate } = useLocaleDate();
   const qc = useQueryClient();
-  const tenantId = profile?.tenant_id;
+  const tenantId = ctxTenantId || profile?.tenant_id;
   const [exportFilters, setExportFilters] = useState<{ from?: Date; to?: Date; storeType?: string }>({});
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -136,7 +138,7 @@ const TenantOrders = () => {
                         <Button variant="ghost" size="sm" className="h-8 w-8 p-0"><MoreHorizontal className="w-4 h-4" /></Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-<DropdownMenuItem onClick={() => navigate(`/tenant/orders/${order.id}`)}>
+<DropdownMenuItem onClick={() => navigate(`${basePath}/orders/${order.id}`)}>
                           <Eye className="w-4 h-4 mr-2" /> {t("common.viewDetails")}
                         </DropdownMenuItem>
                         {canAction && (

@@ -8,6 +8,7 @@ import { CartProvider } from "@/hooks/useCart";
 import { RequireSuperAdmin, RequireTenantUser, RequireEmployee, RequireShopManager } from "@/components/RouteGuards";
 import AppLayout from "./components/AppLayout";
 import TenantAdminLayout from "./components/TenantAdminLayout";
+import SuperAdminTenantLayout from "./components/SuperAdminTenantLayout";
 import StorefrontLayout from "./components/StorefrontLayout";
 import ShopContentWrapper from "./components/ShopContentWrapper";
 import CookieConsent from "./components/CookieConsent";
@@ -131,6 +132,26 @@ const SubdomainAwareRoutes = () => {
         <Route path="/demo-products" element={<DemoProducts />} />
         <Route path="/product-requests" element={<ProductRequests />} />
         <Route path="/users" element={<UsersPage />} />
+      </Route>
+
+      {/* Super Admin → tenant manager view */}
+      <Route element={<RequireSuperAdmin><SuperAdminTenantLayout /></RequireSuperAdmin>}>
+        <Route path="/tenants/:tenantId/manage" element={<TenantDashboard />} />
+        <Route path="/tenants/:tenantId/manage/orders" element={<TenantOrders />} />
+        <Route path="/tenants/:tenantId/manage/orders/:orderId" element={<OrderDetail />} />
+        <Route path="/tenants/:tenantId/manage/approvals" element={<TenantApprovals />} />
+        <Route path="/tenants/:tenantId/manage/stats" element={<TenantStats />} />
+        <Route path="/tenants/:tenantId/manage/users" element={<TenantUsers />} />
+        <Route path="/tenants/:tenantId/manage/settings" element={<TenantSettings />} />
+        <Route path="/tenants/:tenantId/manage/entities" element={<TenantEntities />} />
+        <Route path="/tenants/:tenantId/manage/entities/:id" element={<TenantEntityForm />} />
+        <Route path="/tenants/:tenantId/manage/discounts" element={<TenantDiscountCodes />} />
+        <Route path="/tenants/:tenantId/manage/products" element={<TenantProducts />} />
+        <Route path="/tenants/:tenantId/manage/product-requests" element={<TenantProductRequests />} />
+        <Route element={<ShopContentWrapper />}>
+          <Route path="/tenants/:tenantId/manage/shop" element={<Storefront />} />
+          <Route path="/tenants/:tenantId/manage/shop/product/:productId" element={<ProductDetail />} />
+        </Route>
       </Route>
 
       {/* Tenant admin routes (shop_manager, dept_manager) + storefront */}

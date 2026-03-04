@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import TopBar from "@/components/TopBar";
 import { useAuth } from "@/hooks/useAuth";
+import { useTenantContext } from "@/hooks/useTenantContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -12,7 +13,8 @@ import { formatCurrency } from "@/lib/mock-data";
 
 const TenantEntities = () => {
   const { profile } = useAuth();
-  const tenantId = profile?.tenant_id;
+  const { tenantId: ctxTenantId, basePath } = useTenantContext();
+  const tenantId = ctxTenantId || profile?.tenant_id;
   const navigate = useNavigate();
   const { t } = useTranslation();
 
@@ -55,7 +57,7 @@ const TenantEntities = () => {
             <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
               <Building2 className="w-4 h-4 text-primary" /> {t("tenantEntities.title")} ({entities?.length || 0})
             </h3>
-            <Button size="sm" className="gap-1.5" onClick={() => navigate("/tenant/entities/new")}>
+            <Button size="sm" className="gap-1.5" onClick={() => navigate(`${basePath}/entities/new`)}>
               <Plus className="w-4 h-4" /> {t("common.add")}
             </Button>
           </div>
@@ -81,7 +83,7 @@ const TenantEntities = () => {
                 {entities.map(entity => {
                   const budget = getBudgetInfo(entity.id);
                   return (
-                    <TableRow key={entity.id} className="text-sm cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/tenant/entities/${entity.id}`)}>
+                    <TableRow key={entity.id} className="text-sm cursor-pointer hover:bg-muted/50" onClick={() => navigate(`${basePath}/entities/${entity.id}`)}>
                       <TableCell className="font-medium">{entity.name}</TableCell>
                       <TableCell className="font-mono text-xs">{entity.code}</TableCell>
                       <TableCell>{entity.vat_rate}%</TableCell>
@@ -110,7 +112,7 @@ const TenantEntities = () => {
                         )}
                       </TableCell>
                       <TableCell>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={(e) => { e.stopPropagation(); navigate(`/tenant/entities/${entity.id}`); }}>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={(e) => { e.stopPropagation(); navigate(`${basePath}/entities/${entity.id}`); }}>
                           <Pencil className="w-4 h-4" />
                         </Button>
                       </TableCell>

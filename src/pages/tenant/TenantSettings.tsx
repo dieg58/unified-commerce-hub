@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import TopBar from "@/components/TopBar";
 import { useAuth } from "@/hooks/useAuth";
+import { useTenantContext } from "@/hooks/useTenantContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { getStorefrontUrl } from "@/lib/subdomain";
@@ -81,7 +82,8 @@ const InfoRow = ({ label, value, mono }: { label: string; value?: string | null;
 
 const TenantSettings = () => {
   const { profile } = useAuth();
-  const tenantId = profile?.tenant_id;
+  const { tenantId: ctxTenantId } = useTenantContext();
+  const tenantId = ctxTenantId || profile?.tenant_id;
   const qc = useQueryClient();
   const { t } = useTranslation();
 

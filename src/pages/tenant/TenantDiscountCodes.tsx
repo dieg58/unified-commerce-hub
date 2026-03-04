@@ -1,6 +1,7 @@
 import { useState } from "react";
 import TopBar from "@/components/TopBar";
 import { useAuth } from "@/hooks/useAuth";
+import { useTenantContext } from "@/hooks/useTenantContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -19,7 +20,8 @@ const scopeLabels: Record<string, string> = { bulk: "Interne", staff: "Employé"
 
 const TenantDiscountCodes = () => {
   const { profile } = useAuth();
-  const tenantId = profile?.tenant_id;
+  const { tenantId: ctxTenantId } = useTenantContext();
+  const tenantId = ctxTenantId || profile?.tenant_id;
   const qc = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({

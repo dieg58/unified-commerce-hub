@@ -1,5 +1,6 @@
 import TopBar from "@/components/TopBar";
 import { useAuth } from "@/hooks/useAuth";
+import { useTenantContext } from "@/hooks/useTenantContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/mock-data";
@@ -20,9 +21,10 @@ import { useTranslation } from "react-i18next";
 import { useLocaleDate } from "@/hooks/useLocaleDate";
 
 const TenantDashboard = () => {
-  const { profile, roles, isShopManager } = useAuth();
+  const { profile, roles, isShopManager, isSuperAdmin } = useAuth();
+  const { tenantId: ctxTenantId, isSuperAdminView, basePath } = useTenantContext();
   const navigate = useNavigate();
-  const tenantId = profile?.tenant_id;
+  const tenantId = ctxTenantId || profile?.tenant_id;
   const { t } = useTranslation();
   const { formatDate } = useLocaleDate();
 
@@ -183,7 +185,7 @@ const TenantDashboard = () => {
                       </span>
                     </div>
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => navigate("/tenant/orders")}>
+                  <Button size="sm" variant="outline" onClick={() => navigate(`${basePath}/orders`)}>
                     {t("tenantDash.process")}
                   </Button>
                 </div>
@@ -234,7 +236,7 @@ const TenantDashboard = () => {
         <div className="bg-card rounded-lg border border-border p-5 animate-fade-in">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-foreground">{t("tenantDash.recentOrders")}</h3>
-            <button onClick={() => navigate("/tenant/orders")} className="text-xs text-primary hover:underline">{t("tenantDash.viewAll")}</button>
+            <button onClick={() => navigate(`${basePath}/orders`)} className="text-xs text-primary hover:underline">{t("tenantDash.viewAll")}</button>
           </div>
           {!orders?.length ? (
             <p className="text-sm text-muted-foreground">{t("tenantDash.noOrders")}</p>

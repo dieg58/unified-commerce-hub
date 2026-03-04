@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useTenantContext } from "@/hooks/useTenantContext";
 import { formatCurrency } from "@/lib/mock-data";
 import { toast } from "sonner";
 import { Loader2, CheckCircle, XCircle, Eye, Clock, AlertTriangle, ShoppingCart } from "lucide-react";
@@ -13,9 +14,10 @@ import { useTranslation } from "react-i18next";
 
 const TenantApprovals = () => {
   const { profile } = useAuth();
+  const { tenantId: ctxTenantId } = useTenantContext();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const tenantId = profile?.tenant_id;
+  const tenantId = ctxTenantId || profile?.tenant_id;
   const { t } = useTranslation();
 
   const { data: orders, isLoading } = useQuery({

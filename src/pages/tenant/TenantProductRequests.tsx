@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useRef } from "react";
 import TopBar from "@/components/TopBar";
 import { useAuth } from "@/hooks/useAuth";
+import { useTenantContext } from "@/hooks/useTenantContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -81,7 +82,8 @@ const PAGE_SIZE = 60;
 
 const TenantProductRequests = () => {
   const { profile } = useAuth();
-  const tenantId = profile?.tenant_id;
+  const { tenantId: ctxTenantId } = useTenantContext();
+  const tenantId = ctxTenantId || profile?.tenant_id;
   const qc = useQueryClient();
 
   const [activeTab, setActiveTab] = useState("catalog");
