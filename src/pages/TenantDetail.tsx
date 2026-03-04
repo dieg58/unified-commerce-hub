@@ -1163,8 +1163,12 @@ function BrandingTab({ tenant, branding }: { tenant: any; branding: any }) {
   const [headTitle, setHeadTitle] = useState(branding?.head_title || "");
   const [logoUrl, setLogoUrl] = useState(branding?.logo_url || "");
   const [faviconUrl, setFaviconUrl] = useState(branding?.favicon_url || "");
+  const [productLogoUrl, setProductLogoUrl] = useState(branding?.product_logo_url || "");
+  const [productLogoMode, setProductLogoMode] = useState(branding?.product_logo_mode || "light");
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [extracting, setExtracting] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingProductLogo, setUploadingProductLogo] = useState(false);
 
   const handleExtractBranding = async () => {
     if (!websiteUrl.trim()) return;
@@ -1199,6 +1203,35 @@ function BrandingTab({ tenant, branding }: { tenant: any; branding: any }) {
     }
   };
 
+  const handleFileUpload = async (
+    file: File,
+    prefix: string,
+    setUrl: (url: string) => void,
+    setUploading: (v: boolean) => void,
+  ) => {
+    const allowed = ["image/svg+xml", "image/png", "image/jpeg", "image/webp", "application/postscript", "application/eps"];
+    if (!allowed.includes(file.type) && !file.name.match(/\.(svg|eps|png|jpe?g|webp)$/i)) {
+      toast.error("Format non supporté", { description: "SVG, EPS, PNG, JPG ou WebP requis." });
+      return;
+    }
+    setUploading(true);
+    try {
+      const ext = file.name.split(".").pop()?.toLowerCase() || "svg";
+      const path = `${tenant.id}/${prefix}-${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from("product-images")
+        .upload(path, file, { upsert: true });
+      if (uploadError) throw uploadError;
+      const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(path);
+      setUrl(urlData.publicUrl);
+      toast.success("Logo uploadé");
+    } catch (err: any) {
+      toast.error("Erreur upload", { description: err.message });
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -1213,6 +1246,8 @@ function BrandingTab({ tenant, branding }: { tenant: any; branding: any }) {
         head_title: headTitle || null,
         logo_url: logoUrl || null,
         favicon_url: faviconUrl || null,
+        product_logo_url: productLogoUrl || null,
+        product_logo_mode: productLogoMode,
       };
       const { error } = await supabase.from("tenant_branding").upsert(payload, { onConflict: "tenant_id" });
       if (error) throw error;
@@ -1286,10 +1321,126 @@ function BrandingTab({ tenant, branding }: { tenant: any; branding: any }) {
                 Renseignez l'URL du site pour extraire automatiquement les couleurs, logo et titre.
               </p>
             </div>
+
+            {/* ─── Logo site web ─── */}
             <div className="space-y-2">
-              <Label>URL du logo</Label>
-              <Input value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://..." maxLength={500} />
+              <Label>Logo du site web</Label>
+              <div className="flex items-center gap-3">
+                {logoUrl ? (
+                  <div className="relative group">
+                    <img src={logoUrl} alt="Logo site" className="h-12 w-12 rounded-lg border border-border object-contain bg-secondary" />
+                    <button
+                      onClick={() => setLogoUrl("")}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="h-12 w-12 rounded-lg border-2 border-dashed border-border flex items-center justify-center bg-muted/50">
+                    <Palette className="w-5 h-5 text-muted-foreground" />
+                  </div>
+                )}
+                <div className="flex-1 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Input value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://..." maxLength={500} className="text-xs h-8 flex-1" />
+                    <label className="shrink-0">
+                      <input
+                        type="file"
+                        accept=".svg,.eps,.png,.jpg,.jpeg,.webp"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) handleFileUpload(f, "logo-site", setLogoUrl, setUploadingLogo);
+                          e.target.value = "";
+                        }}
+                      />
+                      <Button type="button" variant="outline" size="sm" className="gap-1.5 pointer-events-none" asChild>
+                        <span>
+                          {uploadingLogo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowUpCircle className="w-3.5 h-3.5" />}
+                          Upload
+                        </span>
+                      </Button>
+                    </label>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">SVG, PNG, JPG — affiché dans l'en-tête de la boutique</p>
+                </div>
+              </div>
             </div>
+
+            {/* ─── Logo produit (marquage) ─── */}
+            <div className="space-y-2">
+              <Label>Logo produit (marquage)</Label>
+              <div className="flex items-center gap-3">
+                {productLogoUrl ? (
+                  <div className="relative group">
+                    <img
+                      src={productLogoUrl}
+                      alt="Logo produit"
+                      className="h-12 w-12 rounded-lg border border-border object-contain"
+                      style={{
+                        backgroundColor: productLogoMode === "dark" ? "#1a1a1a" : "#f5f5f4",
+                        filter: productLogoMode === "dark" ? "brightness(100)" : "none",
+                        mixBlendMode: productLogoMode === "dark" ? "screen" : "multiply",
+                      }}
+                    />
+                    <button
+                      onClick={() => setProductLogoUrl("")}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="h-12 w-12 rounded-lg border-2 border-dashed border-border flex items-center justify-center bg-muted/50">
+                    <Tag className="w-5 h-5 text-muted-foreground" />
+                  </div>
+                )}
+                <div className="flex-1 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Input value={productLogoUrl} onChange={(e) => setProductLogoUrl(e.target.value)} placeholder="https://..." maxLength={500} className="text-xs h-8 flex-1" />
+                    <label className="shrink-0">
+                      <input
+                        type="file"
+                        accept=".svg,.eps,.png,.jpg,.jpeg,.webp"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) handleFileUpload(f, "logo-product", setProductLogoUrl, setUploadingProductLogo);
+                          e.target.value = "";
+                        }}
+                      />
+                      <Button type="button" variant="outline" size="sm" className="gap-1.5 pointer-events-none" asChild>
+                        <span>
+                          {uploadingProductLogo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowUpCircle className="w-3.5 h-3.5" />}
+                          Upload
+                        </span>
+                      </Button>
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <p className="text-[10px] text-muted-foreground">SVG, EPS — logo appliqué sur les visuels produits</p>
+                    <div className="flex items-center gap-1.5 ml-auto">
+                      <button
+                        type="button"
+                        onClick={() => setProductLogoMode("light")}
+                        className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${productLogoMode === "light" ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:border-foreground"}`}
+                      >
+                        Fond clair
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setProductLogoMode("dark")}
+                        className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${productLogoMode === "dark" ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:border-foreground"}`}
+                      >
+                        Fond foncé
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label>URL du favicon</Label>
               <Input value={faviconUrl} onChange={(e) => setFaviconUrl(e.target.value)} placeholder="https://..." maxLength={500} />
@@ -1320,6 +1471,38 @@ function BrandingTab({ tenant, branding }: { tenant: any; branding: any }) {
                 </div>
               </div>
             </div>
+
+            {/* Logo previews */}
+            {(logoUrl || productLogoUrl) && (
+              <div className="space-y-2 pt-2">
+                <Label className="text-muted-foreground text-xs">Logos</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  {logoUrl && (
+                    <div className="rounded-lg border border-border p-3 text-center space-y-1.5 bg-secondary/50">
+                      <img src={logoUrl} alt="Logo site" className="h-10 mx-auto object-contain" />
+                      <p className="text-[10px] text-muted-foreground">Site web</p>
+                    </div>
+                  )}
+                  {productLogoUrl && (
+                    <div
+                      className="rounded-lg border border-border p-3 text-center space-y-1.5"
+                      style={{ backgroundColor: productLogoMode === "dark" ? "#1a1a1a" : "#f5f5f4" }}
+                    >
+                      <img
+                        src={productLogoUrl}
+                        alt="Logo produit"
+                        className="h-10 mx-auto object-contain"
+                        style={{
+                          filter: productLogoMode === "dark" ? "brightness(100)" : "none",
+                          mixBlendMode: productLogoMode === "dark" ? "screen" : "multiply",
+                        }}
+                      />
+                      <p className="text-[10px]" style={{ color: productLogoMode === "dark" ? "#999" : "#666" }}>Marquage ({productLogoMode === "dark" ? "foncé" : "clair"})</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
